@@ -4,8 +4,8 @@
 
 audio_pwm AUDIO_PWM(
 
-    .clk(...),                  // 25 MHz
-    .vol(...),                  // громкость 0..255 [0..1]
-    .pwm(sound_left)            // sound_left или sound_right, либо другой wire
+    .clk25(...),                  // 25 MHz
+    .vol  (...),                  // громкость 0..255 [0..1]
+    .pwm  (sound_left)            // sound_left или sound_right, либо другой wire
 
 );
