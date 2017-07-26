@@ -58,9 +58,4 @@ module marsohod2(
 );
 // --------------------------------------------------------------------------
 
-reg [27:0] t;
-assign led = t[27:24];
-
-always @(posedge clk) t <= t + 1'b1;
-
 endmodule
