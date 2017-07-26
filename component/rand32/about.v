@@ -3,9 +3,11 @@
  * https://marsohod.org/projects/proekty-dlya-platy-marsokhod3/325-random-gen
  */
 
+wire [31:0] rnd;
+ 
 rand32 RAND32(
 
     .clock (clk), // 100 Mhz 
-    .rand  ()     // 32 bit
+    .rnd   (rnd)  // 32 bit
 
 );
