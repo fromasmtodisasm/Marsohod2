@@ -27,3 +27,10 @@ body {
 h1 {
     font-size: 24px;
 }
+
+pre {
+    
+    background: #eee;
+    padding: 16px;
+}
+    
