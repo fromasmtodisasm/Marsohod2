@@ -1,1 +1,51 @@
 <!-- Генератор MIF-файлов -->
+<html>
+<head>
+    <title>Генератор MIF-файлов</title>
+    <script src="../jquery-3.2.1.min.js"></script>
+    <script src="../downloader.js"></script>
+    <link rel="stylesheet" href="../base.css">
+    <meta charset="utf-8" />
+</head>
+<body>
+
+    <script>
+        function dnl() {
+        
+            var m = new Array();
+
+            m.push('WIDTH=8;');
+            m.push('DEPTH=6144');
+
+            m.push('ADDRESS_RADIX=DEC;');
+            m.push('DATA_RADIX=HEX;');
+           
+            m.push('CONTENT BEGIN');            
+            m.push('[0..1023] : 00;');            
+            m.push('END;');
+            
+            console.log(m);
+        
+        }
+    </script>
+
+    <h1>Генератор MIF-файлов</h1>
+    <table>
+        <tr>
+            <td>Объем памяти в байтах</td>
+            <td><input type="text" id="memory_size" value="1024" /></td>
+        </tr>
+        <tr>
+            <td>Битность</td>
+            <td><input type="text" id="mem_bits" value="8" /></td>
+        </tr>
+        <tr>
+            <td></td>
+            <td><input type="submit" value="Загрузка файла" onclick="dnl()" /></td>
+        </tr>
+    </table>   
+    
+    <pre id="dg"></pre>
+
+</body>
+</html>

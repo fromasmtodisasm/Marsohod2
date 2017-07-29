@@ -1,0 +1,136 @@
+<!-- Генератор MIF-файлов -->
+<html>
+<head>
+    <title>Генератор MIF-файлов</title>
+    <script src="../jquery-3.2.1.min.js"></script>
+    <script src="../downloader.js"></script>
+    <link rel="stylesheet" href="../base.css">
+    <meta charset="utf-8" />
+</head>
+<body>
+
+    <script>
+        function dnl() {
+        
+            var m = new Array();
+            
+            var addr_size = $('#memory_size').val(); // 1024
+            var data_bits = $('#memory_bits').val(); // 8
+            var mif_file = $('#memory_mif').val();
+            
+            // Расчет количества битов, чтобы вместить объем памяти
+            var addr_bits = Math.log(addr_size) / Math.LN2;
+            
+            // Если число не ровное - то +1 к полученному
+            if (addr_bits !== Math.floor(addr_bits)) {
+                addr_bits = Math.floor(addr_bits) + 1;
+            }
+            
+            m.push('// synopsys translate_off');
+            m.push('`timescale 1 ps / 1 ps');
+
+            m.push('// synopsys translate_on');
+            
+            // рекомендуется clock=100 mhz
+            m.push('module ram (clock, addr_rd, addr_wr, data_wr, wren, q, qw);');
+
+            m.push('input    clock;');
+            m.push('input    ['+ (addr_bits-1) + ':0] addr_wr;');
+            m.push('input    ['+ (data_bits-1) + ':0] data_wr;');
+            m.push('input          wren;');
+            m.push('input    ['+ (addr_bits-1) + ':0] addr_rd;');
+            m.push('output   ['+ (data_bits-1) + ':0] q;');
+            m.push('output   ['+ (data_bits-1) + ':0] qw;');
+                
+            m.push('wire     ['+ (data_bits-1) + ':0] sub_wire0;');
+            m.push('wire     ['+ (data_bits-1) + ':0] sub_wire1;');
+            m.push('wire     ['+ (data_bits-1) + ':0] q  = sub_wire0['+ (data_bits-1) + ':0];');
+            m.push('wire     ['+ (data_bits-1) + ':0] qw = sub_wire1['+ (data_bits-1) + ':0];');
+
+            m.push("altsyncram	altsyncram_component (");
+            m.push("    .clock0 (clock),");
+            m.push("    .wren_a (1'b0),");
+            m.push("    .wren_b (wren),");
+            m.push("    .address_a (addr_rd),");
+            m.push("    .address_b (addr_wr),");
+            m.push("    .data_a (" + data_bits + "'h0),");
+            m.push("    .data_b (data_wr),");
+            m.push("    .q_a (sub_wire0),");
+            m.push("    .q_b (sub_wire1),");
+            m.push("    .aclr0 (1'b0),");
+            m.push("    .aclr1 (1'b0),");
+            m.push("    .addressstall_a (1'b0),");
+            m.push("    .addressstall_b (1'b0),");
+            m.push("    .byteena_a (1'b1),");
+            m.push("    .byteena_b (1'b1),");
+            m.push("    .clock1 (1'b1),");
+            m.push("    .clocken0 (1'b1),");
+            m.push("    .clocken1 (1'b1),");
+            m.push("    .clocken2 (1'b1),");
+            m.push("    .clocken3 (1'b1),");
+            m.push("    .eccstatus (),");
+            m.push("    .rden_a (1'b1),");
+            m.push("    .rden_b (1'b1));");
+            m.push('defparam');
+            m.push('    altsyncram_component.address_reg_b = "CLOCK0",');
+            m.push('    altsyncram_component.clock_enable_input_a = "BYPASS",');
+            m.push('    altsyncram_component.clock_enable_input_b = "BYPASS",');
+            m.push('    altsyncram_component.clock_enable_output_a = "BYPASS",');
+            m.push('    altsyncram_component.clock_enable_output_b = "BYPASS",');
+            m.push('    altsyncram_component.indata_reg_b = "CLOCK0",');
+            m.push('    altsyncram_component.init_file = "' + mif_file + '",');
+            m.push('    altsyncram_component.intended_device_family = "Cyclone III",');
+            m.push('    altsyncram_component.lpm_type = "altsyncram",');
+            m.push('    altsyncram_component.numwords_a = ' + addr_size + ',');
+            m.push('    altsyncram_component.numwords_b = ' + addr_size + ',');
+            m.push('    altsyncram_component.operation_mode = "BIDIR_DUAL_PORT",');
+            m.push('    altsyncram_component.outdata_aclr_a = "NONE",');
+            m.push('    altsyncram_component.outdata_aclr_b = "NONE",');
+            m.push('    altsyncram_component.outdata_reg_a = "CLOCK0",');
+            m.push('    altsyncram_component.outdata_reg_b = "CLOCK0",');
+            m.push('    altsyncram_component.power_up_uninitialized = "FALSE",');
+            m.push('    altsyncram_component.ram_block_type = "M9K",');
+            m.push('    altsyncram_component.read_during_write_mode_mixed_ports = "DONT_CARE",');
+            m.push('    altsyncram_component.read_during_write_mode_port_a = "NEW_DATA_WITH_NBE_READ",');
+            m.push('    altsyncram_component.read_during_write_mode_port_b = "NEW_DATA_WITH_NBE_READ",');
+            m.push('    altsyncram_component.widthad_a = ' + addr_bits + ',');
+            m.push('    altsyncram_component.widthad_b = ' + addr_bits + ',');
+            m.push('    altsyncram_component.width_a = ' + data_bits + ',');
+            m.push('    altsyncram_component.width_b = ' + data_bits + ',');
+            m.push('    altsyncram_component.width_byteena_a = 1,');
+            m.push('    altsyncram_component.width_byteena_b = 1,');
+            m.push('    altsyncram_component.wrcontrol_wraddress_reg_b = "CLOCK0";');
+            m.push('endmodule');
+            
+            m = m.join("\r\n");
+            $('#dg').html(m);
+            
+            download('ram.v', m);
+        
+        }
+    </script>
+
+    <h1>Генератор модуля двухпортового RAM (CYCLONE III)</h1>
+    <table>
+        <tr>
+            <td>Объем памяти в байтах</td>
+            <td><input type="text" id="memory_size" value="1024" /></td>
+        </tr>
+        <tr>
+            <td>Битность</td>
+            <td><input type="text" id="memory_bits" value="8" /></td>
+        </tr>
+        <tr>
+            <td>MIF-файл</td>
+            <td><input type="text" id="memory_mif" value="ram.mif" /></td>
+        </tr>
+        <tr>
+            <td></td>
+            <td><input type="submit" value="Загрузка файла" onclick="dnl()" /></td>
+        </tr>
+    </table>   
+    
+    <pre id="dg"></pre>
+
+</body>
+</html>

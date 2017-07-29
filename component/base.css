@@ -1,0 +1,29 @@
+html, body {
+    font-family: Arial;
+    font-size: 16px;
+    margin: 0;
+    padding: 0;
+}
+table {
+    border-collapse: collapse;
+}
+tr, td {
+    padding: 6px;
+    margin: 0;
+}
+
+input[type=text] {
+    padding: 7px;
+    border: 1px solid #ccc;
+    background: #fff;
+    font-family: Arial;
+    font-size: 14px;
+}
+
+body {
+    padding: 16px;
+}
+
+h1 {
+    font-size: 24px;
+}
