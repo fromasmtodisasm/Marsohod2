@@ -40,7 +40,7 @@
             m.push('CONTENT BEGIN');
             
             for (var i = 0; i < addr_size; i++) {            
-                m.push(i + ' : ' + uarr[i] + ';');            
+                m.push(i + ' : ' + (typeof uarr[i] === 'undefined' ? 0 : uarr[i]) + ';');            
             }           
 
             m.push('END;');
