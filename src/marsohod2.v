@@ -53,7 +53,11 @@ module marsohod2(
 	
 	// PS/2     keyb / mouse
 	inout   wire [1:0]  ps2_keyb,
-    inout   wire [1:0]  ps2_mouse
+    inout   wire [1:0]  ps2_mouse,
+    
+    // FTDI (PORT-B)
+    input   wire        ftdi_rx,
+    output  wire        ftdi_tx
 
 );
 // --------------------------------------------------------------------------

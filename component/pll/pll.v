@@ -5,9 +5,9 @@
 module pll (
     clk,
     locked,
-    c0, // 25,0 Mhz
-    c1, // 12,5 Mhz
-    c2  // 6,25 Mhz
+    c0, // 25,0 Mhz [1/4]
+    c1, // 12,0 Mhz [3/25]
+    c2  // 6,25 Mhz [1/16]
 );
 
     input	  clk;
@@ -67,19 +67,19 @@ defparam
 
     altpll_component.bandwidth_type = "AUTO",
 
-    // CLOCK-4
+    // CLOCK 25 Mhz
     altpll_component.clk0_multiply_by = 1,
     altpll_component.clk0_divide_by   = 4,
     altpll_component.clk0_duty_cycle  = 50,
     altpll_component.clk0_phase_shift = "0",
 
-    // CLOCK-8
-    altpll_component.clk1_multiply_by = 1,
-    altpll_component.clk1_divide_by   = 8,
+    // CLOCK 12 Mhz
+    altpll_component.clk1_multiply_by = 3,
+    altpll_component.clk1_divide_by   = 25,
     altpll_component.clk1_duty_cycle  = 50,
     altpll_component.clk1_phase_shift = "0",
 
-    // CLOCK-16
+    // CLOCK 6.25 Mhz
     altpll_component.clk2_multiply_by = 1,
     altpll_component.clk2_divide_by   = 16,
     altpll_component.clk2_duty_cycle  = 50,
