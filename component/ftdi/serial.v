@@ -1,3 +1,8 @@
+/*
+ * Модуль приёмопередатчика UART (FTDI Marsohod)
+ * Скорость: 460800 бод, эквивалетно 51200 байт в секунду (50 кб в секунду)
+ * Длина: 1 старт бит + 8 бит (байт) + 1 (бит чётности)
+ */
   
 module serial(
 	input   wire            clk12,          // Частота
@@ -6,8 +11,8 @@ module serial(
 	output  wire            rx_ready        // Бит готовности
 );
 
-// 230400 baud
-parameter R_COUNT = 52;     // Полный период (12'000'000 / 52 ~ 230400 бод)
+// 460800 baud
+parameter R_COUNT = 26;     // Полный период (12'000'000 / 26 ~ 460800 бод)
 
 reg [8:0] rc_data;          // Исходящие данные
 reg [1:0] latch;            // Детектор спада фронта
@@ -28,6 +33,10 @@ always @(posedge clk12) latch <= {latch[0], rx};
 // Признак окончания данных
 wire eof = (period == R_COUNT && num_bits == 4'd9);
 
+// Распределение входящих битов данных
+// num_bits =     9      8 7 6 5 4 3 2 1    0    <--- справа налево
+//            Четность [     Данные     ] Старт
+
 // Основной модуль приёма
 always @(posedge clk12) begin
 
@@ -41,8 +50,9 @@ always @(posedge clk12) begin
     // Сейчас мы в режиме приема данных
     else if (!waiting) begin
         
+        // Сброс периода, и просмотр результатов
         if (period == R_COUNT) begin
-        
+
             period <= 1'b0;
     
             // Был принят последний бит, в режим ожидания
@@ -50,7 +60,7 @@ always @(posedge clk12) begin
             
                 waiting  <= 1'b1;           // В режим ожидания спада (старт-бита)
                 num_bits <= 1'b0;           // Для следующего раза
-                rx_byte  <= rc_data[7:0];   // Берем итоговые данные (без старт-бита)                
+                rx_byte  <= rc_data[7:0];   // Берем итоговые данные (без старт бита и бита чётности, 8-я позиция)
 
             // К следующему биту
             end else num_bits <= num_bits + 1'b1;
@@ -59,7 +69,7 @@ always @(posedge clk12) begin
         else begin
         
             // Обнаружен полупериод - пишет данные
-            if (period == R_COUNT / 2) rc_data <= {latch[1], rc_data[8:1]};
+            if (period == R_COUNT / 2) rc_data <= {latch[1], rc_data[8:1]};            
 
             // Считаем количество тиков
             period <= period + 1'b1;
