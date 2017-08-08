@@ -1,11 +1,11 @@
 /*
  * Генератор частот, по умолчанию 1/4, 1/8, 1/16 к входящей частоте
  */
- 
+
 wire locked;
-wire clock_6;
-wire clock_12;
-wire clock_25;
+wire clock_25;  // 25.00
+wire clock_12;  // 12.00
+wire clock_6;   //  6.00
  
 pll PLL(
 
