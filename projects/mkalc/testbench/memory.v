@@ -44,7 +44,10 @@ reg [`BITS_ADDR - 1 : 0] memory [`ADDR_SIZE - 1: 0];
 initial begin
 
     $readmemb(`MEM_BINFILE, memory) ;
-
+    
+    q_0 = 1'b0;  q_1 = 1'b0;  q = 1'b0;
+    qw_0 = 1'b0; qw_1 = 1'b0; qw = 1'b0;
+    
 end
 
 reg  [(`BITS_DATA - 1):0] q_0;  reg  [(`BITS_DATA - 1):0] q_1;

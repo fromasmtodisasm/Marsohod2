@@ -18,5 +18,7 @@ module demo_processor(
 
 );
 
+assign o_wr = 1'b0;
+assign o_addr = 1'b0;
 
 endmodule
