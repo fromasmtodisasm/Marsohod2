@@ -1,0 +1,7 @@
+db
+incremental_db
+*.rpt
+*.summary
+*.sof
+*.done
+*.pin
