@@ -83,18 +83,18 @@ pll PLL(
 /*
  * Внутрисхемная память в ПЛИС [16384 байта] / ROM
  */
- 
+
 wire cntl_w; // --> использовать кастомный контроллер
  
-ram RAM(
+rom PRGROM(
 
     .clock   (clk),
-    //.addr_rd (),
-    //.q       (),
-    .addr_wr (o_addr[13:0]),
-    .data_wr (o_data),
-    .wren    (cntl_w),
-    .qw      (i_data)
+    .addr_rd (o_addr[13:0]),
+    .q       (i_data),
+    //.addr_wr (o_addr[13:0]),
+    //.data_wr (o_data),
+    //.wren    (cntl_w),
+    //.qw      (i_data)
 
 );
 

@@ -19,6 +19,6 @@ module demo_processor(
 
 );
 
-assign o_wr = 1'b1; /// тест
+// assign o_wr = 1'b1; /// тест
 
 endmodule

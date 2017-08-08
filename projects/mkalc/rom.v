@@ -1,7 +1,7 @@
 // synopsys translate_off
 `timescale 1 ps / 1 ps
 // synopsys translate_on
-module ram (clock, addr_rd, addr_wr, data_wr, wren, q, qw);
+module rom (clock, addr_rd, addr_wr, data_wr, wren, q, qw);
 input    clock;
 input    [13:0] addr_wr;
 input    [7:0] data_wr;
@@ -44,7 +44,7 @@ defparam
     altsyncram_component.clock_enable_output_a = "BYPASS",
     altsyncram_component.clock_enable_output_b = "BYPASS",
     altsyncram_component.indata_reg_b = "CLOCK0",
-    altsyncram_component.init_file = "ram.mif",
+    altsyncram_component.init_file = "rom.mif",
     altsyncram_component.intended_device_family = "Cyclone III",
     altsyncram_component.lpm_type = "altsyncram",
     altsyncram_component.numwords_a = 16384,
