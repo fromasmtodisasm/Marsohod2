@@ -87,20 +87,4 @@ end
 // ПРОГРАММИРУЕМЫЙ КОМПЛЕКС МОДУЛЕЙ ДЛЯ ТЕСТБЕНЧА
 // --------------------------------------------------------------------------
 
-wire [7:0]  i_data;
-wire [15:0] o_addr;
-wire [7:0]  o_data;
-wire [7:0]  o_data_wr; // Для соблюдения чётности
-wire        o_wr;
-
-demo_processor DPROC6502(clock_25, i_data, o_addr, o_data, o_wr);
-
-// ---- ПАМЯТЬ ----
-reg [1:0] cntl_mw = 2'b00; // Зашёлка отслеживания переднего фронта clk_25
-assign    cntl_w  = cntl_mw == 2'b01 && o_wr; // Обнаружение переднего фронта и уровня записи
-always @(posedge clk) cntl_mw <= {cntl_mw[0], clock_25}; // Запись защёлки переднего фронта
-
-// Сам модуль памяти
-memory DMEM(clk, o_addr[13:0], i_data, o_addr[13:0], o_data, cntl_w, o_data_wr);
-
 endmodule

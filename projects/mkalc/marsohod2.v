@@ -59,6 +59,10 @@ module marsohod2(
     inout   wire [1:0]  ps2_keyb,
     inout   wire [1:0]  ps2_mouse
 );
+//assign sdram_addr = o_addr;
+//assign sdram_dq = i_data;
+//assign sound_left = cntl_w;
+//assign sound_right = clock_25;
 // --------------------------------------------------------------------------
 
 /*
@@ -91,18 +95,19 @@ rom PRGROM(
     .clock   (clk),
     .addr_rd (o_addr[13:0]),
     .q       (i_data),
-    //.addr_wr (o_addr[13:0]),
-    //.data_wr (o_data),
-    //.wren    (cntl_w),
+    // -- tmp 
+    .addr_wr (o_addr[13:0]),
+    .data_wr (o_data),
+    .wren    (cntl_w),
     //.qw      (i_data)
 
 );
 
 // --- Контроллер строба записи в память из CLK-25 CPU ---
 // BEGIN
-reg [1:0] cntl_mw = 2'b00; // Зашёлка отслеживания переднего фронта clk_25
-assign    cntl_w  = cntl_mw == 2'b01 && o_wr; // Обнаружение переднего фронта и уровня записи
-always @(posedge clk) cntl_mw <= {cntl_mw[0], clock_25}; // Запись защёлки переднего фронта
+reg [2:0] cntl_mw = 3'b000;
+assign    cntl_w  = cntl_mw == 3'b011 && o_wr;
+always @(posedge clk) cntl_mw <= {cntl_mw[1:0], clock_25}; 
 // END
 
 /*
