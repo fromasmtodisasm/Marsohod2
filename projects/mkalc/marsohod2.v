@@ -116,14 +116,11 @@ wire        o_wr;
 
 demo_processor DPROC6502(
 
-    // 25 Мгц опорная частота
-	.clk_25     (locked & clock_25),
-
-	// Прямоугольный
-	.i_data     (i_data),   // Входящие данные
-	.o_addr     (o_addr),   // Текущий адрес
-    .o_data     (o_data),   // Исходящие данные
-    .o_wr       (o_wr),     // Уровень записи (0 - нет, 1 - записывается)
+	.clock_25   (locked & clock_25),
+	.i_data     (i_data),
+	.o_addr     (o_addr),
+    .o_data     (o_data),
+    .o_wr       (o_wr),
 
 );
 
