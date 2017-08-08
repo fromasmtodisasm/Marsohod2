@@ -18,9 +18,5 @@ module demo_processor(
 
 );
 
-assign o_wr = 1'b1;
-assign o_data = 8'h2F;
-assign o_addr = 16'h0516;
-
 
 endmodule

@@ -93,13 +93,7 @@ wire [7:0]  o_data;
 wire [7:0]  o_data_wr; // Для соблюдения чётности
 wire        o_wr;
 
-demo_processor DPROC6502(
-    clock_25, 
-    i_data[7:0], 
-    o_addr[15:0], 
-    o_data[7:0], 
-    o_wr
-);
+demo_processor DPROC6502(clock_25, i_data, o_addr, o_data, o_wr);
 
 // ---- ПАМЯТЬ ----
 reg [2:0] cntl_mw = 3'b000;
@@ -107,15 +101,6 @@ assign    cntl_w  = cntl_mw == 3'b011 && o_wr;
 always @(posedge clk) cntl_mw <= {cntl_mw[1:0], clock_25};
 
 // Сам модуль памяти
-memory DMEM(
-    clk, 
-    o_addr[13:0], // RD
-    i_data[7:0],
-    // --
-    o_addr[13:0], // WR
-    o_data[7:0],
-    cntl_w, 
-    o_data_wr
-);
+memory DMEM(clk, o_addr[13:0], i_data, o_addr[13:0], o_data, cntl_w, o_data_wr);
 
 endmodule

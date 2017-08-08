@@ -59,10 +59,6 @@ module marsohod2(
     inout   wire [1:0]  ps2_keyb,
     inout   wire [1:0]  ps2_mouse
 );
-//assign sdram_addr = o_addr;
-//assign sdram_dq = i_data;
-//assign sound_left = cntl_w;
-//assign sound_right = clock_25;
 // --------------------------------------------------------------------------
 
 /*
