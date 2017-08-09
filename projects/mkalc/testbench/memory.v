@@ -5,7 +5,7 @@
 `define BITS_ADDR 16
 `define BITS_DATA 8
 `define ADDR_SIZE 65536
-`define MEM_BINFILE "initial.bin"
+`define MEM_BINFILE "rom.hex"
 
 /*
  * ИНТЕГРАЦИЯ В КОД ICARUS VERILOG [icarus.v]
@@ -43,24 +43,28 @@ reg [`BITS_ADDR - 1 : 0] memory [`ADDR_SIZE - 1: 0];
 
 initial begin
 
-    $readmemb(`MEM_BINFILE, memory) ;
+    $readmemh(`MEM_BINFILE, memory) ;
     
-    q_0 = 1'b0;  q_1 = 1'b0;  q = 1'b0;
+    q_0  = 1'b0;              q  = 1'b0;
     qw_0 = 1'b0; qw_1 = 1'b0; qw = 1'b0;
     
 end
 
-reg  [(`BITS_DATA - 1):0] q_0;  reg  [(`BITS_DATA - 1):0] q_1;
-reg  [(`BITS_DATA - 1):0] qw_0; reg  [(`BITS_DATA - 1):0] qw_1;
+reg  [(`BITS_DATA - 1):0]  q_0;
+reg  [(`BITS_DATA - 1):0] qw_0; 
+reg  [(`BITS_DATA - 1):0] qw_1;
 
 always @(posedge clk) begin
 
+    // Задержка в 2 такта на чтение из памяти
+    q_0  <= memory[ addr_rd ];  
+    q    <= q_0;                
+    
     // Задержка в 4 такта после записи
     // 4Т вместо 2Т сделано намеренно из-за реальных сильных задержек в реальных ПЛИС
-
-    q_0  <= memory[ addr_rd ];  qw_0 <= memory[ addr_rd ]; // Задержка на -4
-    q_1  <= q_0;                qw_1 <= qw_0;              // Задержка на -3
-    q    <= q_1;                qw   <= qw_1;              // Задержка на -2
+    qw_1 <= memory[ addr_wr ];
+    qw_0 <= qw_1;              // Задержка на -3
+    qw   <= qw_0;              // Задержка на -2
     
     // Сначала запись, потом будет чтение на следующем такте
     if (wren) memory[ addr_wr ] <= data_wr;
