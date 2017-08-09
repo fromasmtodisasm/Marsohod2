@@ -101,6 +101,6 @@ assign    cntl_w  = cntl_mw == 3'b011 && o_wr;
 always @(posedge clk) cntl_mw <= {cntl_mw[1:0], clock_25};
 
 // Сам модуль памяти
-memory DMEM(clk, o_addr[13:0], i_data, o_addr[13:0], o_data, cntl_w, o_data_wr);
+memory DMEM(clk, o_addr, i_data, o_addr, o_data, cntl_w, o_data_wr);
 
 endmodule
