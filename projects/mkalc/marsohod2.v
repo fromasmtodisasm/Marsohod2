@@ -115,7 +115,7 @@ wire [15:0] o_addr;
 wire [7:0]  o_data;
 wire        o_wr;
 
-demo_processor DPROC6502(
+processor PROC6502(
 
 	.clock_25   (locked & clock_25),
 	.i_data     (i_data),

@@ -93,7 +93,7 @@ wire [7:0]  o_data;
 wire [7:0]  o_data_wr; // Для соблюдения чётности
 wire        o_wr;
 
-demo_processor DPROC6502(clock_25, i_data, o_addr, o_data, o_wr);
+processor PROC6502(clock_25, i_data, o_addr, o_data, o_wr);
 
 // ---- ПАМЯТЬ ----
 reg [2:0] cntl_mw = 3'b000;
