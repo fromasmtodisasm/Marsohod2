@@ -57,6 +57,7 @@ initial begin
     p = 8'h00; s = 8'h00;
     
     t = 4'h0;
+    am = 3'h0;
     alt = 1'b0;
     
     // Должны совпадать вначале
@@ -96,7 +97,7 @@ always @(posedge clock_25) begin
             /* ИНСТРУКЦИИ АЛУ */
             // -----------------------
             
-            case (opcode)
+            casex (opcode)
             
                 // Indirect,X   (Непрямой,X)            ($FF,X)
                 // -----------------------------------------------------
@@ -129,13 +130,11 @@ always @(posedge clock_25) begin
                 // Absolute,Y   (Абсолютный 16 + Y)     $FFFF,Y
                 // -----------------------------------------------------
                 8'bxxx_110_x1, 
-                8'b10x_111_1x:
-                begin end
+                8'b10x_111_1x: t <= 4'h4;
 
                 // Absolute,X   (Абсолютный 16 + X)     $FFFF,X
                 // -----------------------------------------------------
-                8'bxxx_111_xx: 
-                begin end 
+                8'bxxx_111_xx: t <= 4'h5;
                 
                 // Relative     (Условные переходы)     Метка (-128..127)
                 // -----------------------------------------------------
@@ -167,11 +166,13 @@ always @(posedge clock_25) begin
         // Zero Page
         4'h2: begin alt <= 1'b1; addr <= i_data; t <= 4'hC; end // Читать байт из указанной в ZP 
         
-        // Absolute
-        4'h3: case (am)
+        // 3 - Absolute
+        // 4 - Absolute,Y
+        // 5 - Absolute,X
+        4'h3, 4'h4, 4'h5: case (am)
         
             3'h0: begin am <= 3'h1; tmp8 <= i_data; pc <= pc + 1'b1; end // Читать младший байт
-            3'h1: begin t  <= 4'hC; addr <= {i_data, tmp8}; pc <= pc + 1'b1; alt <= 1'b1; end // Старший байт
+            3'h1: begin t  <= 4'hC; addr <= {i_data, tmp8} + (t == 4'h4 ? x : (t == 4'h5 ? y : 0)); pc <= pc + 1'b1; alt <= 1'b1; end // Старший байт [+X,Y]
         
         endcase
 
@@ -179,7 +180,11 @@ always @(posedge clock_25) begin
          * Исполнение опкодов
          */       
         
-        4'hC: begin end
+        4'hC: begin 
+        
+            // ---
+        
+        end
 
     endcase
 
