@@ -95,6 +95,8 @@ end
 wire [7:0] r_ora = a | i_data;
 wire [7:0] r_and = a & i_data;
 wire [7:0] r_eor = a ^ i_data;
+wire [8:0] r_adc = a + i_data + p[0];
+wire       r_adc_v = (a[7] ^ i_data[7] ^ 1'b1) & (a[7] ^ r_adc[7]);
 
 /*
  * Дешифратор кода операции
@@ -213,7 +215,7 @@ always @(posedge clock_25) begin
             // ЗАПИСЬ В РЕГИСТРЫ ОБЩЕГО ЗНАЧЕНИЯ   
             // ---------------------------------      
             casex (opcode) 
-            
+
                 // ORA
                 8'b000xxx01: begin 
 
@@ -221,7 +223,7 @@ always @(posedge clock_25) begin
                     p   <= {r_ora[7], p[6:2], r_ora == 1'b0, p[0]};
                     
                 end
-                
+
                 // AND
                 8'b001xxx01: begin 
 
@@ -229,7 +231,7 @@ always @(posedge clock_25) begin
                     p   <= {r_and[7], p[6:2], r_and == 1'b0, p[0]};
 
                 end
-            
+
                 // EOR
                 8'b010xxx01: begin 
                 
@@ -237,7 +239,23 @@ always @(posedge clock_25) begin
                     p   <= {r_eor[7], p[6:2], r_eor == 1'b0, p[0]};
                 
                 end
+
+                // ADC
+                8'b011xxx01: begin 
                 
+                    a   <= r_adc[7:0]; 
+                    p   <= {r_adc[7], r_adc_v, p[5:2], r_adc == 1'b0, r_adc[8]};
+
+                end
+
+                // LDA
+                8'b101xxx01: begin
+                
+                    a   <= i_data;
+                    p   <= {i_data[7], p[6:2], i_data == 1'b0, p[0]};
+                
+                end
+
                 // TODO OPERATIONS
             
             endcase
