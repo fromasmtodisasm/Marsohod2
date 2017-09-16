@@ -1,0 +1,33 @@
+[*]
+[*] GTKWave Analyzer v3.3.79 (w)1999-2017 BSI
+[*] Fri Sep 15 06:58:43 2017
+[*]
+[dumpfile] "result.vcd"
+[dumpfile_mtime] "Fri Sep 15 06:52:44 2017"
+[dumpfile_size] 58036
+[savefile] "xresult.gtkw"
+[timestart] 29
+[size] 1440 851
+[pos] -1 -1
+*-4.000000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] main.
+[sst_width] 221
+[signals_width] 126
+[sst_expanded] 1
+[sst_vpaned_height] 242
+@29
+main.PROC6502.clock_25
+@22
+main.PROC6502.addr[15:0]
+main.PROC6502.i_data[7:0]
+main.PROC6502.o_addr[15:0]
+main.PROC6502.o_data[7:0]
+main.PROC6502.opcode[7:0]
+main.PROC6502.a[7:0]
+main.PROC6502.p[7:0]
+main.PROC6502.pc[15:0]
+main.PROC6502.t[3:0]
+main.PROC6502.x[7:0]
+main.PROC6502.y[7:0]
+[pattern_trace] 1
+[pattern_trace] 0
