@@ -96,7 +96,11 @@ wire [7:0] r_ora = a | i_data;
 wire [7:0] r_and = a & i_data;
 wire [7:0] r_eor = a ^ i_data;
 wire [8:0] r_adc = a + i_data + p[0];
+wire [8:0] r_sbc = a - i_data - p[0] ^ 1'b1;
 wire       r_adc_v = (a[7] ^ i_data[7] ^ 1'b1) & (a[7] ^ r_adc[7]);
+wire       r_sbc_v = (a[7] ^ i_data[7]       ) & (a[7] ^ r_adc[7]);
+
+wire [15:0] pc_rel = pc + {{8{i_data[7]}}, i_data[6:0]} + 1'b1;
 
 /*
  * Дешифратор кода операции
@@ -159,8 +163,16 @@ always @(posedge clock_25) begin
                 // #Непосредственный     #$FF
                 8'bxxx_010_x1: t <= 4'hC;
                 
+                // Инструкции пересылки
+                8'b00x_110_00: p[0] <= opcode[5]; // CLC, SEC
+                8'b01x_110_00: p[2] <= opcode[5]; // CLI, SEI
+                8'b100_110_00: begin a <= y; p <= {y[7], p[6:2], y == 1'b0, p[0]}; end // TYA
+                8'b101_110_00: p[6] <= 1'b0; // CLV
+                8'b11x_110_00: p[3] <= opcode[5]; // CLD, SED
+                
                 // Нет операндов
                 default: begin 
+                               
 
                     t <= 4'hC; // В некоторых случаях!
 
@@ -202,7 +214,16 @@ always @(posedge clock_25) begin
         // BRANCH - Условный переход
         4'h9: begin
         
-            /// Доделать
+            casex (opcode[4:2])
+            
+                3'b00x: if (p[7] == opcode[0]) pc <= pc_rel; else pc <= pc + 1'b1; // BPL, BMI
+                3'b01x: if (p[6] == opcode[0]) pc <= pc_rel; else pc <= pc + 1'b1; // BVC, BVS
+                3'b10x: if (p[0] == opcode[0]) pc <= pc_rel; else pc <= pc + 1'b1; // BCC, BCS
+                3'b11x: if (p[1] == opcode[0]) pc <= pc_rel; else pc <= pc + 1'b1; // BNE, BEQ
+            
+            endcase
+            
+            t <= 1'b0;
 
         end
         
@@ -217,7 +238,7 @@ always @(posedge clock_25) begin
             casex (opcode) 
 
                 // ORA
-                8'b000xxx01: begin 
+                8'b000_xxx_01: begin 
 
                     a   <= r_ora; 
                     p   <= {r_ora[7], p[6:2], r_ora == 1'b0, p[0]};
@@ -225,7 +246,7 @@ always @(posedge clock_25) begin
                 end
 
                 // AND
-                8'b001xxx01: begin 
+                8'b001_xxx_01: begin 
 
                     a   <= r_and; 
                     p   <= {r_and[7], p[6:2], r_and == 1'b0, p[0]};
@@ -233,7 +254,7 @@ always @(posedge clock_25) begin
                 end
 
                 // EOR
-                8'b010xxx01: begin 
+                8'b010_xxx_01: begin 
                 
                     a   <= r_eor; 
                     p   <= {r_eor[7], p[6:2], r_eor == 1'b0, p[0]};
@@ -241,7 +262,7 @@ always @(posedge clock_25) begin
                 end
 
                 // ADC
-                8'b011xxx01: begin 
+                8'b011_xxx_01: begin 
                 
                     a   <= r_adc[7:0]; 
                     p   <= {r_adc[7], r_adc_v, p[5:2], r_adc == 1'b0, r_adc[8]};
@@ -249,10 +270,18 @@ always @(posedge clock_25) begin
                 end
 
                 // LDA
-                8'b101xxx01: begin
+                8'b101_xxx_01: begin
                 
                     a   <= i_data;
                     p   <= {i_data[7], p[6:2], i_data == 1'b0, p[0]};
+                
+                end
+                
+                // CMP, SBC
+                8'b11x_xxx_01: begin
+                    
+                    p   <= {i_data[7], r_sbc_v, p[5:2], r_sbc == 1'b0, p[0] ^ 1'b1};
+                    if (opcode[5]) a <= r_sbc; // 11_1_xxx01 SBC
                 
                 end
 
