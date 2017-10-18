@@ -65,7 +65,7 @@ initial begin
     o8_data = 8'h00;
 
     // Стартовый адрес всегда тут :FFFF0
-    CS = 16'h0000; // 16'hFFFF;
+    CS = 16'h0000; // @TODO ---- 16'hFFFF;
     IP = 16'h0000;
     
     opc = 1'b0;
@@ -118,10 +118,8 @@ always @(posedge clock) if (locked) begin
             end
         
         end
-    
-    
-    endcase
-    
+
+    endcase    
 end
 
 endmodule
