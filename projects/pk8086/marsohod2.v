@@ -1,9 +1,5 @@
 module marsohod2(
 
-    /* ----------------
-    * Архитектурно в Марсоходе-2
-    * ---------------- */
-
     // CLOCK    100 Mhz
     input   wire        clk,
 
@@ -39,9 +35,9 @@ module marsohod2(
     input   wire        ftdi_rx,
     output  wire        ftdi_tx,
 
-    /* ----------------
-    * Шилд расширения
-    * ---------------- */
+    // ----------------
+    // Шилд расширения
+    // ----------------
 
     // USB-A    2 pins
     inout   wire [1:0]  usb,
@@ -54,20 +50,39 @@ module marsohod2(
     inout   wire [1:0]  ps2_keyb,
     inout   wire [1:0]  ps2_mouse   
 );
+// ---------------------------------------------------------------------
 
 assign sound_left = clk;
 assign sound_right = clock;
 
-
 wire locked;
-wire clock;  // 10.00
+wire clock;     // 10.00
 
+// Генератор частоты
 pll PLL(
 
     .clk        (clk),          // Входящие 100 Мгц
     .locked     (locked),       // 0 - устройство генератора ещё не сконфигурировано, 1 - готово и стабильно
     .clock      (clock)         // 10,0 Mhz    
 
+);
+
+// Управляющий модуль SDRAM
+
+// Память BIOS
+
+// Видеоадаптер (текстовый режим)
+
+// Клавиатура PS/2
+
+// Звук
+
+// Центральный процессор
+processor(
+
+    .clock      (clock),
+    .locked     (locked)
+    
 );
 
 endmodule

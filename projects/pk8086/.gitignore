@@ -12,6 +12,6 @@ timing
 *.smsg
 *.qws
 *.vcd
-qqq
+icarus_qqq
 undo_redo.txt
 PLLJ_PLLSPE_INFO.txt
