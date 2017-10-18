@@ -12,7 +12,7 @@ module processor(
 );
 
 // Текущий указатель на память
-assign o_addr = xa ? {XS, 4'h0} + EA : {CS, 4'h0} + IP;
+assign o_addr = xa ? {XS, 4'h0} + ea : {CS, 4'h0} + IP;
 
 // Т.к. данные 16-битные, то записывается то, что находится либо в старшем, либо в младшем байте
 assign o_data = o_addr[0] ? {o8_data, i_data[7:0]} : {i_data[15:8], o8_data};
@@ -31,7 +31,7 @@ assign o_data = o_addr[0] ? {o8_data, i_data[7:0]} : {i_data[15:8], o8_data};
     reg [15:0] SS;
     
     // Рабочий (эффективный) адрес
-    reg [15:0] XS; reg [15:0] EA;
+    reg [15:0] XS; reg [15:0] ea;
 
     // Регистры общего назначения
     reg [15:0] AX; reg [15:0] BP;
@@ -41,8 +41,10 @@ assign o_data = o_addr[0] ? {o8_data, i_data[7:0]} : {i_data[15:8], o8_data};
 
 // ---------------------------------------------------------------------
 
-// Текущий байт для его обработки
+// Байт для записи
 reg  [7:0]  o8_data;
+
+// Байт для чтения
 wire [7:0]  i8_data = o_addr[0] ? i_data[15:8] : i_data[7:0];
 
 // Управляющие регистры
@@ -53,9 +55,9 @@ reg [3:0]   m;
 reg [7:0]   opc;
 
 // Префиксы
-reg RepNZ;      reg t_RepNZ;            // Префикс RepNZ
-reg RepZ;       reg t_RepZ;             // Префикс RepZ
-reg Override;   reg t_Override;         // Сегментный префикс есть
+reg repnz;      reg t_RepNZ;            // Префикс RepNZ
+reg repz;       reg t_RepZ;             // Префикс RepZ
+reg override;   reg t_Override;         // Сегментный префикс есть
 
 // ---------------------------------------------------------------------
 initial begin
@@ -68,13 +70,29 @@ initial begin
     CS = 16'h0000; // @TODO ---- 16'hFFFF;
     IP = 16'h0000;
     
+    DS = 16'h1111;
+    ES = 16'h2222;
+    SS = 16'hAAAA;
+    
+    BX = 16'h0002;
+    SI = 16'h0011;
+    DI = 16'h0202;
+    BP = 16'h4003;
+    
     opc = 1'b0;
+    ea = 1'b0;
     
     t_RepNZ = 1'b0; 
     t_RepZ  = 1'b0;
     t_Override = 1'b0;
 
 end
+
+// В разборе ModRM, данные могут быть выровнены - и тогда disp8 берется сразу
+wire [15:0] disp8_aligned = ~IP[0] ? { {8{i_data[15]}}, i_data[15:8] } : 1'b0;
+
+// Если данные были выровнены, то переход сразу +2 
+wire [15:0] ip_align = (IP + 1'b1) + !IP[0];
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // ОСНОВНОЙ ПРОЦЕССОРНЫЙ ТАКТ
@@ -84,7 +102,7 @@ always @(posedge clock) if (locked) begin
 
     case (m)
     
-        // Разбор инструкции или их выполнение в тот же момент
+        // Разбор инструкции или их выполнение в 1Т
         4'h0: begin 
         
             IP <= IP + 1'b1;
@@ -99,23 +117,68 @@ always @(posedge clock) if (locked) begin
             // Исполнение опкода
             else begin
 
-                // Выбор сегмента с учетом Override
+                // Выбор рабочего сегмента
                 XS <= t_Override ? XS : DS;
 
                 // Перенос "теневых" к исполняемым
-                Override <= t_Override;
-                RepNZ <= t_RepNZ;
-                RepZ <= t_RepZ;
+                // Сброс временных флагов исполнения
+                override <= t_Override;  t_Override <= 1'b0;
+                repnz    <= t_RepNZ;     t_RepNZ    <= 1'b0;
+                repz     <= t_RepZ;      t_RepZ     <= 1'b0;
 
-                // Сброс на следующий раз
-                t_Override <= 1'b0;
-                t_RepNZ <= 1'b0;
-                t_RepZ <= 1'b0;
-                
                 // Для последующего использования                
-                opc <= i8_data;            
+                opc <= i8_data;   
+                
+                // Определить те поля, которые пойдут на ModRM
+                casex (i8_data)
+
+                    // Арифметические инструкции с ModRM
+                    8'b00_xxx_0xx: m <= 4'h1;
+                    
+                    // Nop Operation (NOP)
+                    8'h90: m <= 1'b0;
+                    
+                    // Неизвестная инструкция. Сообщить об этом!
+                    default: m <= 1'b0;
+                
+                endcase         
             
             end
+        
+        end
+
+        // Декодирование ModRM
+        4'h1: begin
+
+            // Первичное декодирование - вычисление effective address (ea)
+            casex (i8_data)
+            
+                // Без displacement
+                8'b00_xxx_000: begin IP <= IP + 1'b1; ea <= SI + BX; end
+                8'b00_xxx_001: begin IP <= IP + 1'b1; ea <= DI + BX; end
+                8'b00_xxx_010: begin IP <= IP + 1'b1; ea <= SI + BX; XS <= override ? XS : SS; end
+                8'b00_xxx_011: begin IP <= IP + 1'b1; ea <= DI + BX; XS <= override ? XS : SS; end
+                8'b00_xxx_100: begin IP <= IP + 1'b1; ea <= SI; end
+                8'b00_xxx_111: begin IP <= IP + 1'b1; ea <= DI; end
+                8'b00_xxx_110: begin IP <= ip_align;  ea <= disp8_aligned[7:0]; end
+                8'b00_xxx_111: begin IP <= IP + 1'b1; ea <= BX;  end
+
+                // +disp8/+disp16 (или регистры)
+                8'bxx_xxx_000: begin IP <= ip_align; ea <= disp8_aligned + SI + BX; end
+                8'bxx_xxx_001: begin IP <= ip_align; ea <= disp8_aligned + DI + BX; end
+                8'bxx_xxx_010: begin IP <= ip_align; ea <= disp8_aligned + SI + BP; XS <= override ? XS : SS; end
+                8'bxx_xxx_011: begin IP <= ip_align; ea <= disp8_aligned + DI + BP; XS <= override ? XS : SS; end
+                8'bxx_xxx_100: begin IP <= ip_align; ea <= disp8_aligned + SI;      end
+                8'bxx_xxx_101: begin IP <= ip_align; ea <= disp8_aligned + DI;      end            
+                8'bxx_xxx_110: begin IP <= ip_align; ea <= disp8_aligned + BP;      XS <= override ? XS : SS; end
+                8'bxx_xxx_111: begin IP <= ip_align; ea <= disp8_aligned + BX;      end
+
+            endcase
+        
+        end
+        
+        // Невыровненные данные - добавить disp8/disp16
+        4'h2: begin
         
         end
 
