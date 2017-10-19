@@ -58,6 +58,26 @@ assign sound_right = clock;
 wire locked;
 wire clock;     // 10.00
 
+wire        m_ready = 1'b1;     // @TODO Готовность памяти
+wire [19:0] o_addr;
+wire [15:0] o_data;
+wire        o_wr;
+
+// В зависимости от адреса
+// $Cxxxx -- извлечение данных из ROM (32 кб + зеркало)
+wire [15:0] i_data = o_addr[19:16] == 4'hC ? i_data_rom : 1'b0;
+
+// Задействован только $C0000-$C7FFF (BIOS)
+wire [15:0] i_data_rom;
+
+rom ROM(
+
+    .clock (clk), 
+    .addr_rd(o_addr[14:1]),  // 14+1 бит (32 кб)
+    .q(i_data_rom)
+
+);
+
 // Генератор частоты
 pll PLL(
 
@@ -81,8 +101,14 @@ pll PLL(
 processor(
 
     .clock      (clock),
-    .locked     (locked)
+    .locked     (locked),
     
+    .m_ready    (m_ready),
+    .o_addr     (o_addr),
+    .i_data     (i_data),
+    .o_data     (o_data),
+    .o_wr       (o_wr)
+        
 );
 
 endmodule
