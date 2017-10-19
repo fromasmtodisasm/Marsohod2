@@ -13,7 +13,7 @@ then
         echo "Y WRITTEN MBR"
         
         # Компиляция KSearch
-        if (fasm main.asm8 >> /dev/null)
+        if (fasm main.asm >> /dev/null)
         then
         
             echo "Y KSEARCH.ASM"
