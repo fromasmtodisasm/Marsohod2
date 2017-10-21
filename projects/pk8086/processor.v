@@ -209,7 +209,7 @@ always @(posedge clock) if (locked) begin
 
             endcase
             
-            // Segment Override
+            // Перегрузка сегментного регистра SS:
             casex (i8_data)
             
                 8'b00_xxx_01x,
@@ -220,7 +220,7 @@ always @(posedge clock) if (locked) begin
             
             endcase
             
-            // Следующее состояние
+            // Следующее состояние процессора
             casex (i8_data)
             
                 // Offset-16
@@ -233,13 +233,13 @@ always @(posedge clock) if (locked) begin
                 8'b01_xxx_xxx: begin m <= m8_stage;     IP <= IP_align;  rd <= r8_stage; end
                 
                 // Disp16
-                // ...
+                8'b10_xxx_xxx: begin m <= `MODM_DISP;   IP <= IP_align;  end
 
                 // Используются регистры в обеих частях: переход к исполнению инструкции
                 8'b11_xxx_xxx: begin m <= `INSTRUCTION; IP <= IP + 1'b1; end
             
             endcase
-            
+
             // Регистровая часть A
             // Если 1-й бит = 0, то используется [0:2] вместо memory-destination для операнда 1
             case (opc[1] ? i8_data[5:3] : i8_data[2:0])
@@ -292,7 +292,17 @@ always @(posedge clock) if (locked) begin
                     IP <= IP + 1'b1;
                     ea <= ea + { {8{i_data[7]}}, i_data[7:0] };
                 
-                end                
+                end       
+                
+                // Disp16
+                8'b10_xxx_xxx: begin
+
+                    // Если данные выровнены - добавить +16 бит
+                    // Иначе добавить старший байт EA
+                    ea <= ea + (m_align ? i_data : {i_data[7:0], 8'h00});
+                    IP <= IP_align;
+                
+                end
             
             endcase
         
