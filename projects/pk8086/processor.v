@@ -11,6 +11,13 @@ module processor(
 
 );
 
+`define INIT         4'h0
+`define MODM         4'h1
+`define MODM_DISP    4'h2
+`define MODM_GET     4'h3
+`define INSTRUCTION  4'h4
+
+
 // Текущий указатель на память
 assign o_addr = rd ? {XS, 4'h0} + ea : {CS, 4'h0} + IP;
 
@@ -60,9 +67,9 @@ reg repnz;      reg t_RepNZ;            // Префикс RepNZ
 reg repz;       reg t_RepZ;             // Префикс RepZ
 reg override;   reg t_Override;         // Сегментный префикс есть
 
-// ModRM-байт [mm] [bbb] [aaa]
-reg [15:0] a_reg;
-reg [15:0] b_reg;
+// Операнд 1 и 2 (8 или 16 бит)
+reg [15:0] op1;
+reg [15:0] op2;
 
 // ---------------------------------------------------------------------
 initial begin
@@ -76,11 +83,11 @@ initial begin
     CS = 16'h0000; // @TODO ---- 16'hFFFF;
     IP = 16'h0000;
     
-    DS = 16'h1111;
-    ES = 16'h2222;
+    DS = 16'h1000;
+    ES = 16'h0000;
     SS = 16'hAAAA;
     
-    BX = 16'h0002;
+    BX = 16'h51FE;
     SI = 16'h0011;
     DI = 16'h0202;
     BP = 16'h4003;
@@ -95,16 +102,15 @@ initial begin
 end
 
 // В разборе ModRM, данные могут быть выровнены - и тогда disp8 берется сразу
-wire [15:0] disp8_aligned = ~IP[0] ? { {8{i_data[15]}}, i_data[15:8] } : 1'b0;
+wire [15:0] disp8_aligned  = IP[0] ? 1'b0 : { {8{i_data[15]}}, i_data[15:8] };
+wire [15:0] disp16_aligned = IP[0] ? 1'b0 : i_data[15:8];
 
 // Если данные были выровнены, то переход сразу +2 
-wire [15:0] ip_align = (IP + 1'b1) + !IP[0];
+wire [15:0] IP_align = (IP + 1'b1) + !IP[0];
 
-// При disp8/16 - какая стадия следующая
-// modrm = 01 -- если выровнено, то перейти сразу к чтению из памяти, иначе к 2
-// modrm = 10 -- стадия 2 (извлечь hi disp16)
-wire [3:0] modrm_stage = i8_data[6] ? (IP[0] ? 4'h2 : 4'h3) : 4'h2;
-wire       rd_stage    = modrm_stage == 4'h3;
+// +Disp8 Вычислени
+wire [3:0] m8_stage = IP[0] ? `MODM_DISP : `MODM_GET;
+wire       r8_stage = (m8_stage == `MODM_GET);
 
 // Запись предыдущего состояния IP[0]
 reg        m_align;
@@ -118,7 +124,7 @@ always @(posedge clock) if (locked) begin
     case (m)
 
         // Разбор инструкции или их выполнение в 1Т
-        4'h0: begin 
+        `INIT: begin 
         
             IP <= IP + 1'b1;
 
@@ -148,13 +154,13 @@ always @(posedge clock) if (locked) begin
                 casex (i8_data)
 
                     // Арифметические инструкции с ModRM
-                    8'b00_xxx_0xx: m <= 4'h1;
+                    8'b00_xxx_0xx: m <= `MODM;
                     
                     // Nop Operation (NOP)
-                    8'h90: m <= 1'b0;
+                    8'h90: m <= `INIT;
                     
                     // Неизвестная инструкция. Сообщить об этом!
-                    default: m <= 1'b0;
+                    default: m <= `INIT;
                 
                 endcase         
             
@@ -163,105 +169,148 @@ always @(posedge clock) if (locked) begin
         end
 
         // Декодирование ModRM
-        4'h1: begin
+        `MODM: begin
         
-            modrm <= i8_data;
+            modrm   <= i8_data;
+            m_align <= IP[0];
 
             // Первичное декодирование - вычисление effective address (ea)
             casex (i8_data)
-            
-                // Без displacement: сразу к извлечению из памяти данных
-                8'b00_xxx_000: begin m <= 4'h3; rd <= 1'b1; IP <= IP + 1'b1; ea <= SI + BX; end
-                8'b00_xxx_001: begin m <= 4'h3; rd <= 1'b1; IP <= IP + 1'b1; ea <= DI + BX; end
-                8'b00_xxx_010: begin m <= 4'h3; rd <= 1'b1; IP <= IP + 1'b1; ea <= SI + BX; XS <= override ? XS : SS; end
-                8'b00_xxx_011: begin m <= 4'h3; rd <= 1'b1; IP <= IP + 1'b1; ea <= DI + BX; XS <= override ? XS : SS; end
-                8'b00_xxx_100: begin m <= 4'h3; rd <= 1'b1; IP <= IP + 1'b1; ea <= SI; end
-                8'b00_xxx_111: begin m <= 4'h3; rd <= 1'b1; IP <= IP + 1'b1; ea <= DI; end
-                8'b00_xxx_110: begin m <= 4'h2;             IP <= ip_align;  ea <= i_data[15:8]; m_align <= IP[0]; end
-                8'b00_xxx_111: begin m <= 4'h3; rd <= 1'b1; IP <= IP + 1'b1; ea <= BX; end
-                
-                // Используются регистры
-                8'b11_xxx_xxx: begin m <= 4'h4; IP <= IP + 1'b1;  end
 
-                // +disp8/+disp16 (или регистры)
-                8'bxx_xxx_000: begin m <= modrm_stage; rd <= rd_stage; IP <= ip_align; ea <= disp8_aligned + SI + BX; end
-                8'bxx_xxx_001: begin m <= modrm_stage; rd <= rd_stage; IP <= ip_align; ea <= disp8_aligned + DI + BX; end
-                8'bxx_xxx_010: begin m <= modrm_stage; rd <= rd_stage; IP <= ip_align; ea <= disp8_aligned + SI + BP; XS <= override ? XS : SS; end
-                8'bxx_xxx_011: begin m <= modrm_stage; rd <= rd_stage; IP <= ip_align; ea <= disp8_aligned + DI + BP; XS <= override ? XS : SS; end
-                8'bxx_xxx_100: begin m <= modrm_stage; rd <= rd_stage; IP <= ip_align; ea <= disp8_aligned + SI;      end
-                8'bxx_xxx_101: begin m <= modrm_stage; rd <= rd_stage; IP <= ip_align; ea <= disp8_aligned + DI;      end            
-                8'bxx_xxx_110: begin m <= modrm_stage; rd <= rd_stage; IP <= ip_align; ea <= disp8_aligned + BP;      XS <= override ? XS : SS; end
-                8'bxx_xxx_111: begin m <= modrm_stage; rd <= rd_stage; IP <= ip_align; ea <= disp8_aligned + BX;      end
+                // Без displacement: сразу к извлечению из памяти данных
+                8'b00_xxx_000: ea <= SI + BX;
+                8'b00_xxx_001: ea <= DI + BX;
+                8'b00_xxx_010: ea <= SI + BP;
+                8'b00_xxx_011: ea <= DI + BP;
+                8'b00_xxx_100: ea <= SI;
+                8'b00_xxx_101: ea <= DI;
+                8'b00_xxx_110: ea <= i_data[15:8];
+                8'b00_xxx_111: ea <= BX;
+                
+                // Displacement 8
+                8'b01_xxx_000: ea <= SI + BX + disp8_aligned;
+                8'b01_xxx_001: ea <= DI + BX + disp8_aligned;
+                8'b01_xxx_010: ea <= SI + BP + disp8_aligned;
+                8'b01_xxx_011: ea <= DI + BP + disp8_aligned;
+                8'b01_xxx_100: ea <= SI      + disp8_aligned;
+                8'b01_xxx_101: ea <= DI      + disp8_aligned;
+                8'b01_xxx_110: ea <= BP      + disp8_aligned;
+                8'b01_xxx_111: ea <= BX      + disp8_aligned;
+
+                // Displacement 16
+                8'b10_xxx_000: ea <= SI + BX + disp16_aligned;
+                8'b10_xxx_001: ea <= DI + BX + disp16_aligned;
+                8'b10_xxx_010: ea <= SI + BP + disp16_aligned;
+                8'b10_xxx_011: ea <= DI + BP + disp16_aligned;
+                8'b10_xxx_100: ea <= SI      + disp16_aligned;
+                8'b10_xxx_101: ea <= DI      + disp16_aligned;
+                8'b10_xxx_110: ea <= BP      + disp16_aligned;
+                8'b10_xxx_111: ea <= BX      + disp16_aligned;
 
             endcase
             
-            // Регистровая часть A
-            case (i8_data[2:0])
+            // Segment Override
+            casex (i8_data)
             
-                3'b000: begin a_reg <= opc[0] ? AX[15:0] : AX[ 7:0]; end
-                3'b001: begin a_reg <= opc[0] ? CX[15:0] : AX[15:8]; end
-                3'b010: begin a_reg <= opc[0] ? DX[15:0] : CX[ 7:0]; end
-                3'b011: begin a_reg <= opc[0] ? BX[15:0] : CX[15:8]; end
-                3'b100: begin a_reg <= opc[0] ? SP[15:0] : DX[ 7:0]; end
-                3'b101: begin a_reg <= opc[0] ? BP[15:0] : DX[15:8]; end
-                3'b110: begin a_reg <= opc[0] ? SI[15:0] : BX[ 7:0]; end
-                3'b111: begin a_reg <= opc[0] ? DI[15:0] : BX[15:8]; end
+                8'b00_xxx_01x,
+                8'b01_xxx_01x, 8'b01_xxx_110,
+                8'b10_xxx_01x, 8'b10_xxx_110:
+
+                    XS <= override ? XS : SS;
+            
+            endcase
+            
+            // Следующее состояние
+            casex (i8_data)
+            
+                // Offset-16
+                8'b00_xxx_110: begin m <= `MODM_DISP;   IP <= IP_align;  end
+                
+                // Без Displacement
+                8'b00_xxx_xxx: begin m <= `MODM_GET;    IP <= IP + 1'b1; rd <= 1'b1; end
+                
+                // Disp8
+                8'b01_xxx_xxx: begin m <= m8_stage;     IP <= IP_align;  rd <= r8_stage; end
+                
+                // Disp16
+                // ...
+
+                // Используются регистры в обеих частях: переход к исполнению инструкции
+                8'b11_xxx_xxx: begin m <= `INSTRUCTION; IP <= IP + 1'b1; end
+            
+            endcase
+            
+            // Регистровая часть A
+            // Если 1-й бит = 0, то используется [0:2] вместо memory-destination для операнда 1
+            case (opc[1] ? i8_data[5:3] : i8_data[2:0])
+            
+                3'b000: begin op1 <= opc[0] ? AX[15:0] : AX[ 7:0]; end
+                3'b001: begin op1 <= opc[0] ? CX[15:0] : AX[15:8]; end
+                3'b010: begin op1 <= opc[0] ? DX[15:0] : CX[ 7:0]; end
+                3'b011: begin op1 <= opc[0] ? BX[15:0] : CX[15:8]; end
+                3'b100: begin op1 <= opc[0] ? SP[15:0] : DX[ 7:0]; end
+                3'b101: begin op1 <= opc[0] ? BP[15:0] : DX[15:8]; end
+                3'b110: begin op1 <= opc[0] ? SI[15:0] : BX[ 7:0]; end
+                3'b111: begin op1 <= opc[0] ? DI[15:0] : BX[15:8]; end
 
             endcase    
             
             // Регистровая часть B
-            case (i8_data[5:3])
+            // Аналогично, то [5:3] является обычным местоположением регистровой части
+            case (opc[1] ? i8_data[2:0] : i8_data[5:3])
             
-                3'b000: begin b_reg <= opc[0] ? AX[15:0] : AX[ 7:0]; end
-                3'b001: begin b_reg <= opc[0] ? CX[15:0] : AX[15:8]; end
-                3'b010: begin b_reg <= opc[0] ? DX[15:0] : CX[ 7:0]; end
-                3'b011: begin b_reg <= opc[0] ? BX[15:0] : CX[15:8]; end
-                3'b100: begin b_reg <= opc[0] ? SP[15:0] : DX[ 7:0]; end
-                3'b101: begin b_reg <= opc[0] ? BP[15:0] : DX[15:8]; end
-                3'b110: begin b_reg <= opc[0] ? SI[15:0] : BX[ 7:0]; end
-                3'b111: begin b_reg <= opc[0] ? DI[15:0] : BX[15:8]; end
+                3'b000: begin op2 <= opc[0] ? AX[15:0] : AX[ 7:0]; end
+                3'b001: begin op2 <= opc[0] ? CX[15:0] : AX[15:8]; end
+                3'b010: begin op2 <= opc[0] ? DX[15:0] : CX[ 7:0]; end
+                3'b011: begin op2 <= opc[0] ? BX[15:0] : CX[15:8]; end
+                3'b100: begin op2 <= opc[0] ? SP[15:0] : DX[ 7:0]; end
+                3'b101: begin op2 <= opc[0] ? BP[15:0] : DX[15:8]; end
+                3'b110: begin op2 <= opc[0] ? SI[15:0] : BX[ 7:0]; end
+                3'b111: begin op2 <= opc[0] ? DI[15:0] : BX[15:8]; end
 
             endcase        
         
         end
         
         // Невыровненные данные - добавить disp8/disp16
-        4'h2: begin
+        `MODM_DISP: begin
         
             casex (modrm)
                 
                 8'b00_xxx_110: begin 
                 
-                    IP <= ip_align;
+                    // m_align = 1, если байт ModRM был считан из IP[0] = 1 (нечетное)
+                    // Это означает, что следуюшие 2 байта [OFFSET] находятся на выровненной позиции
+                    IP <= m_align ? IP + 2'h2 : IP + 2'h1;
                     ea <= m_align ? i_data : {i_data[7:0], ea[7:0]};
-                    
+
                 end
                 
-                // Добавление +disp8
-                default: begin
+                // Disp8
+                8'b01_xxx_xxx: begin
                 
                     IP <= IP + 1'b1;
-                    ea <= { {8{i_data[7]}}, i_data[7:0] };
+                    ea <= ea + { {8{i_data[7]}}, i_data[7:0] };
                 
-                end
+                end                
             
             endcase
         
             // К чтению из памяти
-            m <= 4'h3;   
+            m  <= `MODM_GET;   
             rd <= 1'b1;        
         
         end
         
         // Извлечение данных из памяти
-        4'h3: begin
+        `MODM_GET: begin
         
-            
+            // op1 <= ...
         
         end
         
         // Исполнение операции
-        4'h4: begin
+        `INSTRUCTION: begin
         
         end
 

@@ -27,6 +27,13 @@
         int     13h
         mov     si, sz_errload
         jc      boot_error
+        
+        mov     ax, 0003h
+        int     10h
+        mov     ah, 02h
+        xor     bx, bx
+        mov     dx, 1A00h
+        int     10h
 
         ; И перейти к программе
         jmp     0800h : 0000h
