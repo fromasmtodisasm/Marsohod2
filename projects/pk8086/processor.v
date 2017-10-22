@@ -15,11 +15,14 @@ module processor(
 `define MODM         4'h1
 `define MODM_DISP    4'h2
 `define MODM_GET     4'h3
-`define INSTRUCTION  4'h4
-
+`define MODM_GET2    4'h4
+`define INSTRUCTION  4'h5       // Исполнение инструкции
+`define SUB_PUSH     4'h6       // Операция помещения в стек
+`define SUB_POP      4'h7       // Извлечение из стека
+`define RES_SAVE     4'h8       // Сохранение результата в регистр или в память
 
 // Текущий указатель на память
-assign o_addr = rd ? {XS, 4'h0} + ea : {CS, 4'h0} + IP;
+assign o_addr = rd ? {WS, 4'h0} + ea : {CS, 4'h0} + IP;
 
 // Т.к. данные 16-битные, то записывается то, что находится либо в старшем, либо в младшем байте
 assign o_data = o_addr[0] ? {o8_data, i_data[7:0]} : {i_data[15:8], o8_data};
@@ -38,13 +41,16 @@ assign o_data = o_addr[0] ? {o8_data, i_data[7:0]} : {i_data[15:8], o8_data};
     reg [15:0] SS;
     
     // Рабочий (эффективный) адрес
-    reg [15:0] XS; reg [15:0] ea;
+    reg [15:0] WS; reg [15:0] ea;
 
     // Регистры общего назначения
     reg [15:0] AX; reg [15:0] BP;
     reg [15:0] CX; reg [15:0] SP; 
     reg [15:0] DX; reg [15:0] SI;
     reg [15:0] BX; reg [15:0] DI;
+    
+    // Флаги :: https://ru.wikipedia.org/wiki/Регистр_флагов
+    reg [11:0] flags;
 
 // ---------------------------------------------------------------------
 
@@ -57,7 +63,7 @@ wire [7:0]  i8_data = o_addr[0] ? i_data[15:8] : i_data[7:0];
 // Управляющие регистры
 // ---------------------------------------------------------------------
 
-reg         rd;                         // Указатель на XS:EA
+reg         rd;                         // Указатель на WS:EA
 reg [3:0]   m;
 reg [7:0]   opc;
 reg [7:0]   modrm;
@@ -78,16 +84,20 @@ initial begin
     rd = 1'b0;
     o8_data = 8'h00;
     modrm   = 8'h00;
+    flags   = 12'h000;
 
     // Стартовый адрес всегда тут :FFFF0
     CS = 16'h0000; // @TODO ---- 16'hFFFF;
     IP = 16'h0000;
     
-    DS = 16'h1000;
+    DS = 16'h0000;
     ES = 16'h0000;
     SS = 16'hAAAA;
+    WS = 16'h0000;
+    DI = 16'hA000;
     
-    BX = 16'h51FE;
+    AX = 16'hA0B0;
+    BX = 16'h0002;
     SI = 16'h0011;
     DI = 16'h0202;
     BP = 16'h4003;
@@ -95,7 +105,8 @@ initial begin
     opc = 1'b0;
     ea = 1'b0;
     
-    t_RepNZ = 1'b0; 
+    m_align = 1'b0;
+    t_RepNZ = 1'b0;
     t_RepZ  = 1'b0;
     t_Override = 1'b0;
 
@@ -113,7 +124,18 @@ wire [3:0] m8_stage = IP[0] ? `MODM_DISP : `MODM_GET;
 wire       r8_stage = (m8_stage == `MODM_GET);
 
 // Запись предыдущего состояния IP[0]
-reg        m_align;
+reg   m_align;
+
+// Immediate
+reg  [7:0]  imm8;            // Временное значение Immediate
+reg         imm8_a;          // В каком состоянии было? (защелка выровненности)
+wire [15:0] imm16 = imm8_a ? i_data : {i_data[7:0], imm8}; // 16 битное значение
+
+// Режим получения ModRM
+// 8C MOV rm16, sreg
+// 8E MOV sreg, rm16
+// C4 LES r16, rm
+wire  modm_bits = opc[0] | (opc == 8'h8C) | (opc == 8'h8E) | (opc == 8'hC4);
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // ОСНОВНОЙ ПРОЦЕССОРНЫЙ ТАКТ
@@ -125,21 +147,23 @@ always @(posedge clock) if (locked) begin
 
         // Разбор инструкции или их выполнение в 1Т
         `INIT: begin 
-        
-            IP <= IP + 1'b1;
 
             // Префиксы
-            if      (i8_data == 8'h26) begin t_Override <= 1'b1; XS <= ES; end
-            else if (i8_data == 8'h2E) begin t_Override <= 1'b1; XS <= CS; end
-            else if (i8_data == 8'h36) begin t_Override <= 1'b1; XS <= SS; end
-            else if (i8_data == 8'h3E) begin t_Override <= 1'b1; XS <= DS; end  
-            else if (i8_data == 8'hF2) begin t_RepNZ <= 1'b1; end
-            else if (i8_data == 8'hF3) begin t_RepZ  <= 1'b1; end
+            if      (i8_data == 8'h26) begin IP <= IP + 1'b1; t_Override <= 1'b1; WS <= ES; end
+            else if (i8_data == 8'h2E) begin IP <= IP + 1'b1; t_Override <= 1'b1; WS <= CS; end
+            else if (i8_data == 8'h36) begin IP <= IP + 1'b1; t_Override <= 1'b1; WS <= SS; end
+            else if (i8_data == 8'h3E) begin IP <= IP + 1'b1; t_Override <= 1'b1; WS <= DS; end  
+            else if (i8_data == 8'hF2) begin IP <= IP + 1'b1; t_RepNZ <= 1'b1; end
+            else if (i8_data == 8'hF3) begin IP <= IP + 1'b1; t_RepZ  <= 1'b1; end
             // Исполнение опкода
             else begin
+            
+                // Запись в кеш "попадания" выровненных данных
+                imm8   <= i_data[15:8];
+                imm8_a <= IP[0];
 
                 // Выбор рабочего сегмента
-                XS <= t_Override ? XS : DS;
+                WS <= t_Override ? WS : DS;
 
                 // Перенос "теневых" к исполняемым
                 // Сброс временных флагов исполнения
@@ -152,12 +176,42 @@ always @(posedge clock) if (locked) begin
                 
                 // Определить те поля, которые пойдут на ModRM
                 casex (i8_data)
+                    
+                    8'b00_xxx0xx, //       Арифметические
+                    8'b10_00xxxx, // 80-8F Разные арифметические
+                    8'b11_0001xx, // C4-C7
+                    8'b11_0100xx, // D0-D3 Сдвиговые
+                    8'b11_011xxx, // D8-DF Сопроцессор
+                    8'b11_11x11x: // F6-F7, FE-FF Групповые
+                    begin
 
-                    // Арифметические инструкции с ModRM
-                    8'b00_xxx_0xx: m <= `MODM;
+                        IP <= IP + 1'b1;
+                        m  <= `MODM;
+
+                    end
                     
                     // Nop Operation (NOP)
-                    8'h90: m <= `INIT;
+                    8'h90: begin IP <= IP + 1'b1; m <= `INIT; end
+                    
+                    // Быстрые флаговые операции
+                    8'b1111_100x: begin IP <= IP + 1'b1; flags[0] <= i8_data[0]; m <= `INIT;  end // CLC/STC
+                    8'b1111_101x: begin IP <= IP + 1'b1; flags[9] <= i8_data[0]; m <= `INIT;  end // CLI/STI
+                    8'b1111_110x: begin IP <= IP + 1'b1; flags[10] <= i8_data[0]; m <= `INIT; end // CLD/STD
+                    
+                    // JMP rel16
+                    // CALL rel16                    
+                    8'hE8, 8'hE9: begin IP <= IP + 2'h2; m <= `INSTRUCTION; end
+
+                    // JMP rel8
+                    8'hEB: begin
+                        
+                        // Приплюсовать тут же
+                        IP <= IP + 2'h2 + (IP[0] ? 1'b0 : {{8{i_data[15]}}, i_data[15:8]});
+
+                        // Невыровненный rel8 дособрать
+                        if (IP[0]) m <= `INSTRUCTION;
+
+                    end
                     
                     // Неизвестная инструкция. Сообщить об этом!
                     default: m <= `INIT;
@@ -216,7 +270,7 @@ always @(posedge clock) if (locked) begin
                 8'b01_xxx_01x, 8'b01_xxx_110,
                 8'b10_xxx_01x, 8'b10_xxx_110:
 
-                    XS <= override ? XS : SS;
+                    WS <= override ? WS : SS;
             
             endcase
             
@@ -244,14 +298,14 @@ always @(posedge clock) if (locked) begin
             // Если 1-й бит = 0, то используется [0:2] вместо memory-destination для операнда 1
             case (opc[1] ? i8_data[5:3] : i8_data[2:0])
             
-                3'b000: begin op1 <= opc[0] ? AX[15:0] : AX[ 7:0]; end
-                3'b001: begin op1 <= opc[0] ? CX[15:0] : AX[15:8]; end
-                3'b010: begin op1 <= opc[0] ? DX[15:0] : CX[ 7:0]; end
-                3'b011: begin op1 <= opc[0] ? BX[15:0] : CX[15:8]; end
-                3'b100: begin op1 <= opc[0] ? SP[15:0] : DX[ 7:0]; end
-                3'b101: begin op1 <= opc[0] ? BP[15:0] : DX[15:8]; end
-                3'b110: begin op1 <= opc[0] ? SI[15:0] : BX[ 7:0]; end
-                3'b111: begin op1 <= opc[0] ? DI[15:0] : BX[15:8]; end
+                3'b000: begin op1 <= modm_bits ? AX[15:0] : AX[ 7:0]; end
+                3'b001: begin op1 <= modm_bits ? CX[15:0] : AX[15:8]; end
+                3'b010: begin op1 <= modm_bits ? DX[15:0] : CX[ 7:0]; end
+                3'b011: begin op1 <= modm_bits ? BX[15:0] : CX[15:8]; end
+                3'b100: begin op1 <= modm_bits ? SP[15:0] : DX[ 7:0]; end
+                3'b101: begin op1 <= modm_bits ? BP[15:0] : DX[15:8]; end
+                3'b110: begin op1 <= modm_bits ? SI[15:0] : BX[ 7:0]; end
+                3'b111: begin op1 <= modm_bits ? DI[15:0] : BX[15:8]; end
 
             endcase    
             
@@ -259,20 +313,20 @@ always @(posedge clock) if (locked) begin
             // Аналогично, то [5:3] является обычным местоположением регистровой части
             case (opc[1] ? i8_data[2:0] : i8_data[5:3])
             
-                3'b000: begin op2 <= opc[0] ? AX[15:0] : AX[ 7:0]; end
-                3'b001: begin op2 <= opc[0] ? CX[15:0] : AX[15:8]; end
-                3'b010: begin op2 <= opc[0] ? DX[15:0] : CX[ 7:0]; end
-                3'b011: begin op2 <= opc[0] ? BX[15:0] : CX[15:8]; end
-                3'b100: begin op2 <= opc[0] ? SP[15:0] : DX[ 7:0]; end
-                3'b101: begin op2 <= opc[0] ? BP[15:0] : DX[15:8]; end
-                3'b110: begin op2 <= opc[0] ? SI[15:0] : BX[ 7:0]; end
-                3'b111: begin op2 <= opc[0] ? DI[15:0] : BX[15:8]; end
+                3'b000: begin op2 <= modm_bits ? AX[15:0] : AX[ 7:0]; end
+                3'b001: begin op2 <= modm_bits ? CX[15:0] : AX[15:8]; end
+                3'b010: begin op2 <= modm_bits ? DX[15:0] : CX[ 7:0]; end
+                3'b011: begin op2 <= modm_bits ? BX[15:0] : CX[15:8]; end
+                3'b100: begin op2 <= modm_bits ? SP[15:0] : DX[ 7:0]; end
+                3'b101: begin op2 <= modm_bits ? BP[15:0] : DX[15:8]; end
+                3'b110: begin op2 <= modm_bits ? SI[15:0] : BX[ 7:0]; end
+                3'b111: begin op2 <= modm_bits ? DI[15:0] : BX[15:8]; end
 
             endcase        
         
         end
         
-        // Невыровненные данные - добавить disp8/disp16
+        // Добавить +disp8 или +disp16
         `MODM_DISP: begin
         
             casex (modrm)
@@ -306,22 +360,72 @@ always @(posedge clock) if (locked) begin
             
             endcase
         
-            // К чтению из памяти
+            // К чтению операнда из памяти
             m  <= `MODM_GET;   
             rd <= 1'b1;        
         
         end
         
-        // Извлечение данных из памяти
+        // Извлечение данных из памяти (8/16 бит)
         `MODM_GET: begin
         
-            // op1 <= ...
+            // =======================
+            // opc[1] = 0 --> rm, reg
+            //        = 1 --> reg, rm
+            // =======================
+        
+            // 16 bit
+            if (modm_bits) begin
+            
+                // Не выровнено
+                if (ea[0]) begin
+                
+                    m  <= `MODM_GET2;
+                    ea <= ea + 1'b1;
+                    if (opc[1]) op2 <= i_data[15:8]; else op1 <= i_data[15:8];
+                
+                end else begin
+                
+                    m <= `INSTRUCTION;
+                    if (opc[1]) op2 <= i_data; else op1 <= i_data;
+                
+                end
+
+            // 8 bit
+            end else begin
+            
+                m <= `INSTRUCTION;
+                if (opc[1]) op2 <= i8_data; else op1 <= i8_data;
+                    
+            end
+        
+        end
+        
+        // В случае невыровненных 16-битных данных
+        `MODM_GET2: begin
+        
+            ea <= ea - 1'b1;
+            m  <= `INSTRUCTION;
+            if (opc[1]) op2[15:8] <= i_data[7:0]; else op1[15:8] <= i_data[7:0];
         
         end
         
         // Исполнение операции
         `INSTRUCTION: begin
         
+            casex (opc)
+            
+                // CALL rel16
+                8'hE8: begin end // Vpush <= IP; IP <= imm16; m <= `SUB_PUSH; next_status <= `INIT;
+            
+                // JMP rel16
+                8'hE9: begin IP <= IP + 1'b1 + imm16; m <= `INIT; end
+
+                // JMP rel8
+                8'hEB: begin IP <= IP + {{8{i_data[7]}}, i_data[7:0]}; m <= `INIT; end
+            
+            endcase
+
         end
 
     endcase    
