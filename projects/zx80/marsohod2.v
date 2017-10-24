@@ -59,19 +59,15 @@ wire locked;
 wire clock;     // 10.00
 
 wire        m_ready = 1'b1;     // @TODO Готовность памяти
-wire [19:0] o_addr;
-wire [15:0] o_data;
+wire [15:0] o_addr;
+wire [7:0]  o_data;
 wire        o_wr;
-
-// В зависимости от адреса
-// $Cxxxx -- извлечение данных из ROM (32 кб + зеркало)
-wire [15:0] i_data = o_addr[19:16] == 4'hC ? i_data_rom : 1'b0;
 
 // Память BIOS
 // ---------------------------------------------------------------------
 
 // Задействован только $C0000-$C7FFF (BIOS)
-wire [15:0] i_data_rom;
+wire [7:0] i_data_rom;
 
 rom ROM(
 
@@ -87,7 +83,7 @@ pll PLL(
 
     .clk        (clk),          // Входящие 100 Мгц
     .locked     (locked),       // 0 - устройство генератора ещё не сконфигурировано, 1 - готово и стабильно
-    .clock      (clock)         // 10,0 Mhz    
+    .clock      (clock)         // 12,5 Mhz    
 
     // добавить 25 Мгц
 );

@@ -4,22 +4,22 @@
 module rom (clock, addr_rd, addr_wr, data_wr, wren, q, qw);
 input    clock;
 input    [13:0] addr_wr;
-input    [15:0] data_wr;
-input          wren;
+input    [7:0]  data_wr;
+input           wren;
 input    [13:0] addr_rd;
-output   [15:0] q;
-output   [15:0] qw;
-wire     [15:0] sub_wire0;
-wire     [15:0] sub_wire1;
-wire     [15:0] q  = sub_wire0[15:0];
-wire     [15:0] qw = sub_wire1[15:0];
+output   [7:0]  q;
+output   [7:0]  qw;
+wire     [7:0] sub_wire0;
+wire     [7:0] sub_wire1;
+wire     [7:0] q  = sub_wire0[7:0];
+wire     [7:0] qw = sub_wire1[7:0];
 altsyncram	altsyncram_component (
     .clock0 (clock),
     .wren_a (1'b0),
     .wren_b (wren),
     .address_a (addr_rd),
     .address_b (addr_wr),
-    .data_a (16'h0),
+    .data_a (8'h0),
     .data_b (data_wr),
     .q_a (sub_wire0),
     .q_b (sub_wire1),
@@ -61,8 +61,8 @@ defparam
     altsyncram_component.read_during_write_mode_port_b = "NEW_DATA_WITH_NBE_READ",
     altsyncram_component.widthad_a = 14,
     altsyncram_component.widthad_b = 14,
-    altsyncram_component.width_a = 16,
-    altsyncram_component.width_b = 16,
+    altsyncram_component.width_a = 8,
+    altsyncram_component.width_b = 8,
     altsyncram_component.width_byteena_a = 1,
     altsyncram_component.width_byteena_b = 1,
     altsyncram_component.wrcontrol_wraddress_reg_b = "CLOCK0";

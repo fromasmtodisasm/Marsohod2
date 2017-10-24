@@ -74,11 +74,13 @@ initial begin
 end 
 // --------------------------------------------------------------------------
 
-wire [19:0] o_addr;
-wire [15:0] i_data;
-wire [15:0] o_data;
+wire [15:0] o_addr;
+wire [7:0]  i_data;
+wire [7:0]  o_data;
 wire        o_wr;
-reg         m_ready;
+wire [7:0]  _unused_qw;
+wire        locked = 1'b1;
+wire        m_ready = 1'b1;
 
 // создаем файл VCD для последующего анализа сигналов
 initial
@@ -86,32 +88,27 @@ begin
 
     $dumpfile("icarus_result.vcd");
     $dumpvars(0, main);
-    
-    m_ready = 1'b1;
 
 end
-
-wire [15:0] _unused_qw;
 
 // ПАМЯТЬ
 // --------------------------------------------------------------------------
 memory M20(
 
     clk,
-    o_addr[19:1],
+    o_addr,
     i_data,
-    o_addr[19:1],
+    o_addr,
     o_data,
-    o_wr, // @TODO переделать
+    o_wr,
     _unused_qw
 );
-
 
 // ПРОЦЕССОР
 // --------------------------------------------------------------------------
 processor PK8086(
     clock_12,
-    1'b1,       // locked
+    locked,
     m_ready,
     o_addr,
     i_data,

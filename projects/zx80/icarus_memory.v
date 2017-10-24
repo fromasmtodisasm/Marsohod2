@@ -2,9 +2,9 @@
  * Отладочный модуль icarus verilog для памяти
  */
  
-`define BITS_ADDR 19            // 20 bit = 19 + 1 bit
-`define BITS_DATA 16
-`define ADDR_SIZE 524288
+`define BITS_ADDR 16
+`define BITS_DATA 8
+`define ADDR_SIZE 65536
 `define MEM_BINFILE "icarus_rom.hex"
 
 /*
