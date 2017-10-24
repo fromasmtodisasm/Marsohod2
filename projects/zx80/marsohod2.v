@@ -52,13 +52,8 @@ module marsohod2(
 );
 // ---------------------------------------------------------------------
 
-assign sound_left = clk;
-assign sound_right = clock;
-
-wire locked;
-wire clock;     // 10.00
-
-wire        m_ready = 1'b1;     // @TODO Готовность памяти
+wire        locked;
+wire        m_ready = 1'b1;
 wire [15:0] o_addr;
 wire [7:0]  o_data;
 wire        o_wr;
@@ -69,7 +64,6 @@ wire        o_wr;
 
 wire [3:0]  cpu_led;
 wire [15:0] address;     // Àäðåñóåìàÿ ÂÑß ïàìÿòü
-wire        locked;
 wire        clock_25;    // Äåëåííàÿ íà 4 ñêîðîñòü ïðîöåññîðà (25 ìãö)
 wire        clock_12;
 wire        clock_6;
@@ -82,7 +76,7 @@ reg  wren_100mhz = 1'b0;
 // ÃÅÍÅÐÀÒÎÐ PLL. Ãåíåðèðóåò èìïóëüñû èç 100 ìãö â 25 ìãö (îñíîâíàÿ ÷àñòîòà).
 
 pll PLL(
-    .inclk0(clock_100), 
+    .inclk0(clk), 
     .c0(clock_25), 
     .c1(clock_12), 
     .c2(clock_6), 
@@ -116,7 +110,7 @@ wire [7:0]  port_in;
 wire [2:0]  vga_border;
 
 // Çàïèñü â ïàìÿòü íà CLOCK = 0
-always @(posedge clock_100) begin
+always @(posedge clk) begin
 
     // Ïðè âûñîêîì ñèãíàëå CLK25 îñòàíàâëèâàòü çàïèñü 
     if (clock_cpu) begin    
@@ -139,7 +133,7 @@ end
 // ------------------------------------
 rom  ROM(
     
-    .clock   (clock_100),
+    .clock   (clk),
     .addr_rd (address[13:0]),
     .q       (data8_rom)
 
@@ -149,7 +143,7 @@ rom  ROM(
 // ------------------------------------
 ram  RAM(
 
-    .clock   (clock_100),
+    .clock   (clk),
 
     // Read/Write
     .addr_rw (address[13:0]),
@@ -179,10 +173,10 @@ end
 // --------------------------------------------------------------------------------
 // Öåíòðàëüíûé ïðîöåññîð. ßäðî âñåé ñèñòåìû.
 
-cpu CPU(
+processor CPU(
 
     .clock   (clock_cpu & locked),
-    .o_addr  (data8),        
+    .i_data  (data8),        
     .o_data  (data8_w),
     .o_addr  (address),
     .o_wr    (wren),  
@@ -203,8 +197,6 @@ port PORT(
     .addr       (port_addr),        
     .data_in    (port_data),
     .data_out   (port_in),
-    
-    // Бордюр
     .vga_border (vga_border),
 );
 
@@ -213,7 +205,7 @@ port PORT(
 
 video VID(
 
-    .clock   (clock_25),
+    .clock      (clock_25),
 
     // Данные для чтения
     .d8_chr     (data8_vid),
