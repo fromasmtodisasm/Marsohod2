@@ -82,6 +82,11 @@ wire [7:0]  _unused_qw;
 wire        locked = 1'b1;
 wire        m_ready = 1'b1;
 
+wire        port_clock;
+wire [15:0] port_addr;
+wire [7:0]  port_in;
+wire [7:0]  port_data;
+
 // создаем файл VCD для последующего анализа сигналов
 initial
 begin
@@ -106,14 +111,18 @@ memory M20(
 
 // ПРОЦЕССОР
 // --------------------------------------------------------------------------
-processor PK8086(
+processor ZX80_processor(
+
     clock_12,
-    locked,
-    m_ready,
     o_addr,
     i_data,
     o_data,
-    o_wr
+    o_wr,
+
+    port_addr,
+    port_data,
+    port_in,
+    port_clock
 );
 
 endmodule

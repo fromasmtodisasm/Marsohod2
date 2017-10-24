@@ -63,52 +63,169 @@ wire [15:0] o_addr;
 wire [7:0]  o_data;
 wire        o_wr;
 
-// Память BIOS
-// ---------------------------------------------------------------------
 
-// Задействован только $C0000-$C7FFF (BIOS)
-wire [7:0] i_data_rom;
+// Îáúÿâëåíèå êîíñòàíò
+// --------------------------------------------------------------------------------
 
-rom ROM(
+wire [3:0]  cpu_led;
+wire [15:0] address;     // Àäðåñóåìàÿ ÂÑß ïàìÿòü
+wire        locked;
+wire        clock_25;    // Äåëåííàÿ íà 4 ñêîðîñòü ïðîöåññîðà (25 ìãö)
+wire        clock_12;
+wire        clock_6;
+wire        clock_cpu = clock_25; // CPU clock    
 
-    .clock (clk), 
-    .addr_rd(o_addr[14:1]),  // 14+1 бит (32 кб)
-    .q(i_data_rom)
+// Çàïèñü äàííûõ â ïàìÿòè
+reg  wren_100mhz = 1'b0;
 
-);
+// --------------------------------------------------------------------------------
+// ÃÅÍÅÐÀÒÎÐ PLL. Ãåíåðèðóåò èìïóëüñû èç 100 ìãö â 25 ìãö (îñíîâíàÿ ÷àñòîòà).
 
-// Генератор частоты 10 Mhz
-// ---------------------------------------------------------------------
 pll PLL(
-
-    .clk        (clk),          // Входящие 100 Мгц
-    .locked     (locked),       // 0 - устройство генератора ещё не сконфигурировано, 1 - готово и стабильно
-    .clock      (clock)         // 12,5 Mhz    
-
-    // добавить 25 Мгц
+    .inclk0(clock_100), 
+    .c0(clock_25), 
+    .c1(clock_12), 
+    .c2(clock_6), 
+    .locked(locked)
 );
 
-// Управляющий модуль SDRAM
+// --------------------------------------------------------------------------------
+// ÏÀÌßÒÜ ROM  (16 êèëîáàéò) $0000-$3FFF
+// ÏÀÌßÒÜ RAM  (16 êèëîáàéò) $4000-$7FFF
 
-// Видеоадаптер (текстовый режим)
+// Óêàçàòåëü íà âèäåîïàìÿòü
+wire [13:0] address_vm;
 
-// Клавиатура PS/2
+// Data Memory IO
+wire [7:0] data8_rom;
+wire [7:0] data8_ram;
+wire [7:0] data8_vid;
+wire [7:0] data8_w;
+reg  [7:0] data8;
 
-// Звук
+// Write Enabled
+reg  wren_ram;
+reg  wren_distr;
+wire wren;
 
-// Центральный процессор
-// ---------------------------------------------------------------------
-processor(
+// Ïîðòû
+wire        port_clock;
+wire [15:0] port_addr;
+wire [7:0]  port_data;
+wire [7:0]  port_in;
+wire [2:0]  vga_border;
 
-    .clock      (clock),
-    .locked     (locked),
-    
-    .m_ready    (m_ready),
-    .o_addr     (o_addr),
-    .i_data     (i_data),
-    .o_data     (o_data),
-    .o_wr       (o_wr)
+// Çàïèñü â ïàìÿòü íà CLOCK = 0
+always @(posedge clock_100) begin
+
+    // Ïðè âûñîêîì ñèãíàëå CLK25 îñòàíàâëèâàòü çàïèñü 
+    if (clock_cpu) begin    
+
+        wren_100mhz <= 1'b0;
+        wren_distr  <= 1'b0;
         
+    end
+    // Ïðè ïåðâîì íèçêîì ñèãíàëå çàïèñàòü òîëüêî 1 ðàç
+    else if (!clock_cpu && !wren_100mhz) begin
+
+        wren_100mhz <= 1'b1;
+        wren_distr  <= wren;
+
+    end
+
+end
+
+// $0000-$3FFF 16 êá ROM 
+// ------------------------------------
+rom  ROM(
+    
+    .clock   (clock_100),
+    .addr_rd (address[13:0]),
+    .q       (data8_rom)
+
+);
+
+// $4000-$7FFF 16 êá RAM  
+// ------------------------------------
+ram  RAM(
+
+    .clock   (clock_100),
+
+    // Read/Write
+    .addr_rw (address[13:0]),
+    .data    (data8_w),
+    .wren    (wren_ram & wren_distr),
+    .q_rw    (data8_ram),
+    
+    // Video Adapter
+    .addr_rd (address_vm[13:0]),
+    .q       (data8_vid)
+);
+
+// --------------------------------------------------------------------------------
+// Ìàïïåð äàííûõ èç ðàçíûõ èñòî÷íèêîâ
+
+// Ðàñïðåäåëåíèå, îòêóäà áðàòü äàííûå (ROM, RAM, SDRAM)
+always @* begin
+
+    // ROM 16K
+    if (address < 16'h4000)       begin data8[7:0] = data8_rom[7:0]; wren_ram = 1'b0; end   
+                   
+    // RAM 16K
+    else if (address < 16'h8000)  begin data8[7:0] = data8_ram[7:0]; wren_ram = 1'b1; end
+
+end
+
+// --------------------------------------------------------------------------------
+// Öåíòðàëüíûé ïðîöåññîð. ßäðî âñåé ñèñòåìû.
+
+cpu CPU(
+
+    .clock   (clock_cpu & locked),
+    .o_addr  (data8),        
+    .o_data  (data8_w),
+    .o_addr  (address),
+    .o_wr    (wren),  
+    
+    // Ïîðòû, ñâÿçü ñ ìèðîì        
+    .port_clock (port_clock), // Ñòðîá äëÿ çàïèñè â ïîðò
+    .port_addr  (port_addr),
+    .port_in    (port_in),    // PORT <-- CPU
+    .port_data  (port_data),  // CPU  --> PORT
+);
+
+// --------------------------------------------------------------------------------
+// Работа с портами ввода-вывода
+
+port PORT(
+
+    .clock      (port_clock),
+    .addr       (port_addr),        
+    .data_in    (port_data),
+    .data_out   (port_in),
+    
+    // Бордюр
+    .vga_border (vga_border),
+);
+
+// --------------------------------------------------------------------------------
+// Видеоадаптер
+
+video VID(
+
+    .clock   (clock_25),
+
+    // Данные для чтения
+    .d8_chr     (data8_vid),
+    .addr       (address_vm),
+    .vga_border (vga_border),        
+
+    // Видеовыходы
+    .r(vga_red),
+    .g(vga_green),
+    .b(vga_blue),
+    .hs(vga_hs),
+    .vs(vga_vs)
 );
 
 endmodule

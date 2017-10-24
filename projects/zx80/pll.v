@@ -2,19 +2,29 @@
 `timescale 1 ps / 1 ps
 
 // synopsys translate_on
-module pll (clk, locked, clock);
+module pll (
+    inclk0,
+    locked,
+    c0, // 25,0 Mhz
+    c1, // 12,5 Mhz
+    c2  // 6,25 Mhz
+);
 
-    input	  clk;
-    output	  clock;
+    input	  inclk0;
+    output	  c0;
+    output	  c1;
+    output	  c2;
     output    locked;
 
-    wire  clock  = clock_wire[0];
+    wire  c0 = clock_wire[0];
+    wire  c1 = clock_wire[1];
+    wire  c2 = clock_wire[2];    
     wire  locked = lck;
 
     wire [4:0] clock_wire;
 
     altpll altpll_component (
-        .inclk ({1'h0, clk}),
+        .inclk ({1'h0, inclk0}),
         .clk (clock_wire),
         .activeclock (),
         .areset (1'b0),
@@ -57,11 +67,23 @@ defparam
 
     altpll_component.bandwidth_type = "AUTO",
 
-    // CLOCK 25 Mhz
+    // CLOCK-4
     altpll_component.clk0_multiply_by = 1,
-    altpll_component.clk0_divide_by   = 10,
+    altpll_component.clk0_divide_by   = 4,
     altpll_component.clk0_duty_cycle  = 50,
     altpll_component.clk0_phase_shift = "0",
+
+    // CLOCK-8
+    altpll_component.clk1_multiply_by = 1,
+    altpll_component.clk1_divide_by   = 8,
+    altpll_component.clk1_duty_cycle  = 50,
+    altpll_component.clk1_phase_shift = "0",
+
+    // CLOCK-16
+    altpll_component.clk2_multiply_by = 1,
+    altpll_component.clk2_divide_by   = 16,
+    altpll_component.clk2_duty_cycle  = 50,
+    altpll_component.clk2_phase_shift = "0",
 
     altpll_component.inclk0_input_frequency = 10000,
     altpll_component.intended_device_family = "Cyclone III",
