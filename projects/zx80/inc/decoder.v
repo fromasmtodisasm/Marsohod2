@@ -29,18 +29,18 @@ wire I_PREFIX_IY    = o == 8'hFD;
 wire I_OUT8A        = o == 8'hD3;
 wire I_INA8         = o == 8'hDB;
 // grp
-wire I_JR_CC8       = {o[7:5], o[2:0]} == 6'b001000;
-wire I_LD_R16I      = {o[7:6], o[3:0]} == 6'b000001;
-wire I_ADD_HLR16    = {o[7:6], o[3:0]} == 6'b001001;
-wire I_LDXXA        = {o[7:5], o[3:0]} == 7'b0000010;
-wire I_LDAXX        = {o[7:5], o[3:0]} == 7'b0001010;
-wire I_nnnn_HLA     = {o[7:5], o[2:0]} == 6'b001010;
-wire I_INCR16       = {o[7:6], o[3:0]} == 6'b000011;
-wire I_DECR16       = {o[7:6], o[3:0]} == 6'b001011;
+wire I_JR_CC8       = {o[7:5], o[2:0]} == 6'b001000;    // 00 1xx 000   jr cc, *
+wire I_LD_R16I      = {o[7:6], o[3:0]} == 6'b000001;    // 00 xx0 001   ld r16, **
+wire I_ADD_HLR16    = {o[7:6], o[3:0]} == 6'b001001;    // 00 xx1 001   add r16, **
+wire I_LDXXA        = {o[7:5], o[3:0]} == 7'b0000010;   // 00 0x0 010   ld (bc|de), a
+wire I_LDAXX        = {o[7:5], o[3:0]} == 7'b0001010;   // 00 0x1 010   ld a, (bc|de)
+wire I_nnnn_HLA     = {o[7:5], o[2:0]} == 6'b001010;    // 00 1xx 010   ld (**),a/hl | ld a/hl,(**)
+wire I_INCR16       = {o[7:6], o[3:0]} == 6'b000011;    // 00 xx0 011   inc 16
+wire I_DECR16       = {o[7:6], o[3:0]} == 6'b001011;    // 00 xx1 011   dec r16
 wire I_INCR8        = {o[7:6], o[2:0]} == 5'b00100;     // 00 xxx 100   inc r8
 wire I_DECR8        = {o[7:6], o[2:0]} == 5'b00101;     // 00 xxx 101   dec r8
 wire I_LDR8I        = {o[7:6], o[2:0]} == 5'b00110;     // 00 xxx 110   ld  r8, *
-wire I_SSDAA        = {o[7:6], o[2:0]} == 5'b00111;     // 00 xxx 111   rlca, ..., ccf
+wire I_SSDAA        = {o[7:6], o[2:0]} == 5'b00111;     // 00 xxx 111   rlca, rrca, rla, rra, daa, cpl, scf, ccf
 wire I_LD           = {o[7:6]} == 2'b01;                // 01 aaa bbb   ld <a>, <b>
 wire I_ALUR8        = {o[7:6]} == 2'b10;                // 10 aaa rrr   <alu> a, r8
 wire I_POP16        = {o[7:6], o[3:0]} == 6'b110001;    // 11 xx0 001   pop r16
