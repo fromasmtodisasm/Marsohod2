@@ -54,6 +54,7 @@ module marsohod2(
 
 assign sound_left = clk;
 assign sound_right = clock;
+assign sdram_addr = o_addr;
 
 wire locked;
 wire clock;     // 10.00

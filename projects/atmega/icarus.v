@@ -117,25 +117,27 @@ core ACORE(
 // Эмулятор памяти SDRAM
 // ---------------------------------------------------------------------
 
-reg [15:0] ram_8m [21:0];
-reg [15:0] rom_32k [13:0];
+reg [15:0] ram_8m [65535 : 0];
+reg [15:0] rom_32k [32767 : 0];
+reg [15:0] t_DAT_I;
 
 integer j;
 initial begin
 
     $readmemh("core.hex", rom_32k);
     
-    // Заполнение случайными числами (эмуляция памяти)
-    for (j = 0; j < 1024; j = j + 1) begin
-        ram_8m[j] <= $random % 65536;
-    end
+    ram_8m[ 16'h00 ] = 16'h1234;
+    ram_8m[ 16'h01 ] = 16'h2345;
+    ram_8m[ 16'h80 ] = 16'hAFBF;
+    ram_8m[ 16'h81 ] = 16'h2345;
 
 end
 
 always @(posedge clk) begin
 
-    ROM_I <= rom_32k[ ROM_A ];
-    DAT_I <= ram_8m[ ADR_O ];
+      ROM_I <= rom_32k[ ROM_A ];         
+    t_DAT_I <= ram_8m[ ADR_O[21:1] ];
+      DAT_I <= t_DAT_I;
 
 end
 

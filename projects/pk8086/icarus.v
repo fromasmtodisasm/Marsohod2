@@ -1,6 +1,6 @@
 `timescale 10ns / 1ns
 
-module main;
+module icarus;
 
 // --------------------------------------------------------------------------
 // ИНИЦИАЛИЗАЦИЯ ВВОДА-ВЫВОДА
@@ -74,49 +74,52 @@ initial begin
 end 
 // --------------------------------------------------------------------------
 
-wire [19:0] o_addr;
-wire [15:0] i_data;
-wire [15:0] o_data;
-wire        o_wr;
-reg         m_ready;
-
 // создаем файл VCD для последующего анализа сигналов
 initial
 begin
 
     $dumpfile("icarus_result.vcd");
-    $dumpvars(0, main);
-    
-    m_ready = 1'b1;
+    $dumpvars(0, icarus);
 
 end
 
-wire [15:0] _unused_qw;
-
-// ПАМЯТЬ
-// --------------------------------------------------------------------------
-memory M20(
-
-    clk,
-    o_addr[19:1],
-    i_data,
-    o_addr[19:1],
-    o_data,
-    o_wr, // @TODO переделать
-    _unused_qw
-);
-
-
 // ПРОЦЕССОР
 // --------------------------------------------------------------------------
-processor PK8086(
-    clock_12,
-    1'b1,       // locked
-    m_ready,
-    o_addr,
+
+reg     [15:0] i_data;
+wire    [15:0] o_data;
+wire    [19:0] o_addr;
+
+// Тест
+processor i8086(
+
+    clock_25,
+    1'b1,
+    1'b1,
+    o_addr,    
     i_data,
     o_data,
-    o_wr
+    o_wr    
 );
+
+// Эмулятор памяти SDRAM
+// ---------------------------------------------------------------------
+
+reg [7:0] memory [65535 : 0];
+
+
+integer j;
+initial begin
+
+    $readmemh("icarus_memory.hex", memory);
+    
+end
+
+always @(posedge clk) begin
+
+    //                                high byte                     low byte                      
+    i_data <= {memory[ {o_addr[15:1], 1'b1} ], memory[ {o_addr[15:1], 1'b0} ]};
+
+end
 
 endmodule
