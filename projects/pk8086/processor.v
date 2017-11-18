@@ -6,82 +6,88 @@ module processor(
     input   wire            m_ready,    // Готовность данных из памяти (=1 данные готовы)
     output  wire    [19:0]  o_addr,     // Указатель на память
     input   wire    [15:0]  i_data,     // Данные из памяти
-    output  wire     [15:0]  o_data,     // REG Данные за запись
+    output  wire    [15:0]  o_data,     // Данные за запись
     output  reg             o_wr        // Строб записи в память
 
 );
 
-`define I_FETCH             3'h0        // Этап считывания данных
-`define I_DECODE            3'h1        // Декодирование
-`define I_READ_DATA         3'h2        // Чтение из памяти
-`define I_READ_DATA_WIDE    3'h3        // Чтение из памяти
-`define I_EXECUTE           3'h4        // Исполнение инструкции
+`define DECODE              3'h0        // Декодирование
+`define FETCH_MODRM         3'h1
+`define READ_UNALIGNED      3'h2
+`define READ_ALIGNED_DISP   3'h3
+`define READ_DATA           3'h4
+`define READ_DATA_16        3'h5
+`define EXECUTE             3'h6
 
-assign o_addr = alt ? {segment[15:0], 4'h0} + address : {r_cs[15:0], 4'h0} + current;
-assign o_data = r_ax;
+// Выбор адреса. Адрес может указываться либо через READ=1, когда
+// в cs:addr находится вычисленный эффективный адрес, либо READ=0, 
+// когда указатель находится на CS:IP
 
+assign o_addr = read ? {cs[15:0], 4'h0} + addr : 
+                       {CS[15:0], 4'h0} + IP;
+
+assign o_data = 1'b0;
+
+// ---------------------------------------------------------------------
+// Регистры процессора
+// ---------------------------------------------------------------------
+
+// Регистры Общего Назначения
+// Регистры в регистровом файле идут именно в этом порядке
+
+reg     [15:0]    AX = 16'h0000; // AH : AL
+reg     [15:0]    CX = 16'h0000; // CH : CL
+reg     [15:0]    DX = 16'h0000; // DH : DL
+reg     [15:0]    BX = 16'h0000; // BH : BL
+reg     [15:0]    SP = 16'h0000;
+reg     [15:0]    BP = 16'h0000;
+reg     [15:0]    SI = 16'h0000;
+reg     [15:0]    DI = 16'h0000;
+
+// Сегментные
+reg     [15:0]    ES = 16'h0000;
+reg     [15:0]    CS = 16'h0000;
+reg     [15:0]    SS = 16'h0000;
+reg     [15:0]    DS = 16'h0000;
+
+// Специальные
+reg     [11:0] FLAGS = 12'h000;
+reg     [15:0]    IP = 16'h0000;
 
 // ---------------------------------------------------------------------
 // Состояния
 // ---------------------------------------------------------------------
 
-// Кеш инструкции
-reg [47:0] icache;
-
-reg             prefix_0F = 1'b0;       // Есть префикс расширения
-reg             has_prefixed;           // Префиксированная
-reg             has_modrm_byte;         // Инструкция имеет ModRM байт
-
-reg     [2:0]   state = 1'b0;                        // Состояние процессора
-reg             alt = 1'b0;                          // =0 CS:IP, =1 segment:address
-reg     [15:0]  segment;
-reg     [15:0]  address;                             // Адрес для чтения/записи
-reg     [15:0]  current = 16'h0;                     // Адрес, откуда загружать кеш
-reg             wsize;                               // Чтение BYTE (0) WORD (1)
-reg             target;                              // =0 (Прямой порядок операндов), =1 Обратный
-reg     [2:0]   icp = 2'h0;                          // Байт, куда догрузить кеш инструкции
-reg     [2:0]   length = 1'b0;                       // Длина инструкции (1..6)
-reg     [2:0]   modrm_length;
-reg             instruction_done = 1'b1;             // Признак только что выполненной инструкции
-reg             segment_override = 1'b0;             // Инструкция имеет префикс
-reg     [2:0]   segment_override_num = 1'b0;         // Если имеет, то указывается, какой именно
-wire    [7:0]   modrm_byte = prefix_0F ? icache[23:16] : icache[15:8];
-
-// Операнды
-wire    [15:0]  op1 = target ? _op2 : _op1;
-wire    [15:0]  op2 = target ? _op1 : _op2;
-
+reg     [3:0]       state = `DECODE;      // Состояние процессора
+reg     [15:0]      cs;                   // CS:ADDR Для чтений из памяти
+reg     [15:0]      addr;
+reg                 read = 1'b0;
 
 // ---------------------------------------------------------------------
 // Декодер
 // ---------------------------------------------------------------------
 
+// Поскольку из памяти читаются данные по словам, то текущий байт
+// находится либо в нижнем байте слова (2 байта), либо в верхнем, это
+// зависит от младшего бита o_addr
+
+wire    [7:0]   current_byte = o_addr[0] ? i_data[15:8] : i_data[7:0];
+wire    [7:0]   next_byte    = o_addr[0] ? i_data[7:0] : i_data[15:8];
+
+wire            state_decode = state == `DECODE;
+reg     [15:0]  opcode_cache = 8'h00;
+wire    [7:0]   opcode       = state_decode ? current_byte : opcode_cache;
+
+// Индикатор наличия ModRM-байта
+reg             opcode_modrm;       
+
+// Блок для определения, есть ли у данного опкода [current_byte] байт
+// ModRM. Если есть, будет запущен процесс его считывания.
+
 always @* begin
 
-    // Определение наличия префикса
-    // -----------------------------------------------------------------
-    
-    casex (icache[7:0])
-
-        8'b001x_x110, // Segment Override 26,2E,36,3E
-        8'b0110_01xx, // 32-bit 64 FS: 65 GS: 66 Op32 67 Addr32
-        8'b1001_1011, // WAIT
-        8'b1111_0000, // LOCK
-        8'b1001_001x, // REP/REPZ
-        8'b0000_1111: // Opcode Extension
-        
-            has_prefixed = 1'b1;
-            
-        default:
-        
-            has_prefixed = 1'b0;
-
-    endcase
-
-    // ТЕСТ ModRM
-    // -----------------------------------------------------------------
-
-    /*   0 1 2 3  4 5 6 7  8 9 A B  C D E F
+    /*   Опкоды, у которых есть ModRM    
+         0 1 2 3  4 5 6 7  8 9 A B  C D E F
      00  1,1,1,1, -,-,-,-, 1,1,1,1, -,-,-,-,   00xx_x0xx
      10  1,1,1,1, -,-,-,-, 1,1,1,1, -,-,-,-,
      20  1,1,1,1, -,-,-,-, 1,1,1,1, -,-,-,-,
@@ -98,250 +104,130 @@ always @* begin
      D0  1,1,1,1, -,-,-,-, 1,1,1,1, 1,1,1,1,   1101_00xx 1101_1xxx
      E0  -,-,-,-, -,-,-,-, -,-,-,-, -,-,-,-,
      F0  -,-,-,-, -,-,1,1, -,-,-,-, -,-,1,1,   1111_x11x
+     */
      
-0F 00    1,1,1,1, -,-,-,-, -,-,-,-, -,1,-,1,   0000_01xx 0000_10xx 0000_11x0
-0F 10    1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1,
-0F 20    1,1,1,1, 1,-,1,-, 1,1,1,1, 1,1,1,1,
-0F 30    -,-,-,-, -,-,-,-, 1,-,1,-, -,-,-,-,   0011_0xxx 0011_10x1 0011_11xx
-0F 40    1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1,
-0F 50    1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1,
-0F 60    1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1,
-0F 70    1,1,1,1, 1,1,1,-, 1,1,-,-, 1,1,1,1,   0111_0111 0111_100x
-0F 80    -,-,-,-, -,-,-,-, -,-,-,-, -,-,-,-,   1000_xxxx
-0F 90    1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1,
-0F A0    -,-,-,1, 1,1,-,-, -,-,-,1, 1,1,1,1,   1011_000x 1011_0010 1011_011x 1011_100x 1011_1010
-0F B0    1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1,
-0F C0    1,1,1,1, 1,1,1,1, -,-,-,-, -,-,-,-,   1101_1xxx
-0F D0    1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1,
-0F E0    1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1,
-0F F0    1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,0,   1111_1111
-    */
+    // Определить, имеет ли ModRM-байт данный опкод
+    casex (opcode) 
     
-    // Дополнительные 0F-опкоды -- подумать над этим
-    if (icache[7:0] == 8'h0F)
+        8'b00_xxx0xx, // 
+        8'b10_00xxxx, // 80-8F
+        8'b11_00000x, // C0-C1
+        8'b11_0001xx, // C4-C7
+        8'b11_0100xx, // D0-D3 Сдвиговые
+        8'b11_011xxx, // D8-DF Сопроцессор 
+        8'b11_11x11x: // F6-F7, FE-FF Групповые         
+            opcode_modrm = 1'b1;
+        default:        
+            opcode_modrm = 1'b0;
     
-        casex(icache[15:8])
-        
-            8'b0000_01xx, 8'b0000_10xx, 8'b0000_11x0,
-            8'b0011_0xxx, 8'b0011_10x1, 8'b0011_11xx,
-            8'b0111_0111, 8'b0111_100x,
-            8'b1000_xxxx,
-            8'b1011_000x, 8'b1011_0010, 8'b1011_011x, 8'b1011_100x, 8'b1011_1010,
-            8'b1101_1xxx,
-            8'b1111_1111:
-            
-                has_modrm_byte = 1'b0;
-                
-            default:
-            
-                has_modrm_byte = 1'b1;
-
-        endcase
-    
-    // Базовые опкоды
-    else
-    
-        // Определить, имеет ли ModRM-байт данный опкод
-        casex(icache[7:0]) 
-        
-            8'b00_xxx0xx, //       Арифметические
-            8'b10_00xxxx, // 80-8F Разные арифметические
-            8'b11_00000x, // C0-C1
-            8'b11_0001xx, // C4-C7
-            8'b11_0100xx, // D0-D3 Сдвиговые
-            8'b11_011xxx, // D8-DF Сопроцессор 
-            8'b11_11x11x: // F6-F7, FE-FF Групповые 
-            
-                has_modrm_byte = 1'b1;
-                
-            default:
-            
-                has_modrm_byte = 1'b0;
-        
-        endcase
+    endcase
        
-end
-
-// ---------------------------------------------------------------------
-// Регистры процессора
-// ---------------------------------------------------------------------
-
-reg     [15:0]  r_ip = 16'h0000;
-reg     [15:0]  n_ip = 16'h0000;        // Следующий IP
-reg     [15:0]  r_ax = 16'h0000;
-reg     [15:0]  r_bx = 16'h0000;
-reg     [15:0]  r_cx = 16'h0000;
-reg     [15:0]  r_dx = 16'h0000;
-reg     [15:0]  r_sp = 16'h0000;
-reg     [15:0]  r_bp = 16'h0000;
-reg     [15:0]  r_si = 16'h0000;
-reg     [15:0]  r_di = 16'h0000;
-reg     [15:0]  r_es = 16'h0000;
-reg     [15:0]  r_cs = 16'h0000;
-reg     [15:0]  r_ss = 16'h0000;
-reg     [15:0]  r_ds = 16'h0000;
-reg     [15:0]  r_fs = 16'h0000;
-reg     [15:0]  r_gs = 16'h0000;
-
-// ---------------------------------------------------------------------
-// Расчёт длины инструкции
-// ---------------------------------------------------------------------
-
-always @* begin
-
-    // Это префикс. Его длина всегда = 1
-    if (has_prefixed) begin
-
-        length = 3'h1;        
-    
-    end
-    // Имеется ModRM-байт, декодировать длину
-    else if (has_modrm_byte) begin
-    
-        casex (modrm_byte)
-
-            8'b00_xxx_110: modrm_length = 3'h4; // 1+1+2 disp16
-            8'b00_xxx_xxx: modrm_length = 3'h2; // 1+1   none
-            8'b01_xxx_xxx: modrm_length = 3'h3; // 1+1+1 disp8            
-            8'b10_xxx_xxx: modrm_length = 3'h4; // 1+1+2 disp16
-            8'b11_xxx_xxx: modrm_length = 3'h2; // 1+1   reg
-
-        endcase
-        
-        // Определение Immediate 8/16
-        // Group Arith, Mov Immediate
-        casex (icache[7:0])
-        
-            8'b1000_00xx, 8'b1100_011x: length = (modrm_length + icache[0]) + 1'b1;
-            // F6/F7
-            // FF
-            default: length = modrm_length;
-        
-        endcase    
-
-    end
-    
-    // Пока что +1 
-    else length = 3'h1;
-
 end
 
 // Основные индексные регистры
 // ---------------------------------------------------------------------
 
-wire    [15:0]  si_bx = r_si + r_bx;
-wire    [15:0]  di_bx = r_di + r_bx;
-wire    [15:0]  si_bp = r_si + r_bp;
-wire    [15:0]  di_bp = r_si + r_bp;
-// Предварительно
-reg     [15:0]  p_addr;
-reg     [15:0]  p_segment;
-// Окончательно
-reg     [15:0]  e_address;
-reg     [15:0]  e_segment;
-// Операнд 1 и 2
-reg     [15:0]  w_op1; reg [15:0] _op1;
-reg     [15:0]  w_op2; reg [15:0] _op2;
+reg             seg_overlap;        // Сигнализирует о том, что есть префикс сегмента
+reg             seg_overlap_cache;  // .. на сеанс
+reg     [1:0]   seg_number = 2'h3;  // Указатель номера 0..3 сегмента
+reg     [1:0]   seg_number_cache;   // 
 
-reg     alu_enable;
-reg     immediate_size;
-reg     operand_is_immediate;
+reg     [1:0]   disp;               // Количество байт на Displacement
+reg     [1:0]   disp_cache;
+reg     [15:0]  segp;               // Значение сегмента-префикса
+reg     [15:0]  sege;               // Вычисленный сегмент с учетом DEFAULT ds:ss: либо PREFIX
+reg     [15:0]  addrx;              // Вычисленный эффективный адрес ДО +displacement
+reg     [15:0]  op1t;               // Значение регистра из ModRM[2:0] 
+reg     [15:0]  op1;                // - конечное
+reg     [15:0]  op2t;               // Значение регистра из ModRM[5:3]
+reg     [15:0]  op2;                // - конечное
+
+wire    [15:0]  si_bx = SI + BX;
+wire    [15:0]  di_bx = DI + BX;
+wire    [15:0]  si_bp = SI + BP;
+wire    [15:0]  di_bp = DI + BP;
+
+// В зависимости от того, какой исполняется сейчас этап
+wire            seg_override = (state_decode ? seg_overlap : seg_overlap_cache);
+wire            seg_id       = (state_decode ? seg_number  : seg_number_cache);
 
 // Вычисление эффективного адреса ModRM
 always @* begin
     
-    // Перегруженный сегмент   
-    case (segment_override_num) 
+    // Перегруженный, либо дефолтный сегмент 
+    case (seg_id) 
 
-        3'h0: p_segment = r_es;
-        3'h1: p_segment = r_cs;
-        3'h2: p_segment = r_ss;
-        3'h3: p_segment = r_ds;
-        3'h4: p_segment = r_fs;
-        3'h5: p_segment = r_gs;
+        3'h0: segp = ES;
+        3'h1: segp = CS;
+        3'h2: segp = SS;
+        3'h3: segp = DS;
 
-    endcase    
+    endcase
     
-    // Эффективный сегмент
-    casex (modrm_byte[7:0]) 
-
-        // DS: по умолчанию
-        8'b00_xxx_11x: e_segment = segment_override ? p_segment : r_ds;
-        8'bxx_xxx_x0x: e_segment = segment_override ? p_segment : r_ds;
-    
-        // SS: по умолчанию
-        8'bxx_xxx_110: e_segment = segment_override ? p_segment : r_ss;
-        8'bxx_xxx_01x: e_segment = segment_override ? p_segment : r_ss;
+    // Рассчитанный сегмент по умолчанию
+    casex (next_byte) 
+        
+        8'b00_xxx_11x: sege = seg_override ? segp : DS; // DS: по умолчанию
+        8'bxx_xxx_x0x: sege = seg_override ? segp : DS;            
+        8'bxx_xxx_110: sege = seg_override ? segp : SS; // SS: по умолчанию
+        8'bxx_xxx_01x: sege = seg_override ? segp : SS;
+        default:       sege = DS;
     
     endcase
 
     // Эффективный адрес
-    casex (modrm_byte[7:0]) 
+    casex (next_byte) 
 
-        8'bxx_xxx_000: p_addr = si_bx;
-        8'bxx_xxx_001: p_addr = di_bx;
-        8'bxx_xxx_010: p_addr = si_bp;
-        8'bxx_xxx_011: p_addr = di_bp;
-        8'bxx_xxx_100: p_addr = r_si;
-        8'bxx_xxx_101: p_addr = r_di;
-        8'b00_xxx_110: p_addr = icache[31:16]; // disp16
-        8'bxx_xxx_110: p_addr = r_bp;
-        8'bxx_xxx_111: p_addr = r_bx;
+        8'bxx_xxx_000: addrx = si_bx;
+        8'bxx_xxx_001: addrx = di_bx;
+        8'bxx_xxx_010: addrx = si_bp;
+        8'bxx_xxx_011: addrx = di_bp;
+        8'bxx_xxx_100: addrx = SI;
+        8'bxx_xxx_101: addrx = DI;
+        8'b00_xxx_110: addrx = 16'h0000;
+        8'bxx_xxx_110: addrx = BP;
+        8'bxx_xxx_111: addrx = BX;
     
     endcase
     
-    // Displacement 8/16
-    casex (modrm_byte[7:0]) 
-    
-        // displacement-8
-        8'b01_xxx_xxx: e_address = p_addr + {{8{icache[23]}}, icache[23:16]}; 
-        // displacement-16
-        8'b10_xxx_xxx: e_address = p_addr + icache[31:16];
-        default:       e_address = p_addr;
+    // Количество байт 0/1/2 на displacement
+    casex (next_byte)     
+        
+        8'b01_xxx_xxx: disp = 2'b01; // disp-8        
+        8'b00_xxx_110: disp = 2'b10; // disp-16
+        8'b10_xxx_xxx: disp = 2'b10; 
+        default:       disp = 2'b00; // disp-0
 
     endcase
-    
-    // Значения регистров для операндов op1/op2
-    
-    // opcode[1]:
-    // 0 = op1 reg/m, op2 - reg
-    // 1 = op1 reg,   op2 - reg/m
-    
+
     // Операнд 1: reg/m8
-    case (modrm_byte[2:0])
+    case (opcode[1] ? next_byte[5:3] : next_byte[2:0])
     
-        3'b000: w_op1 = icache[0] ? r_ax : r_ax[7:0];
-        3'b001: w_op1 = icache[0] ? r_cx : r_cx[7:0];
-        3'b010: w_op1 = icache[0] ? r_dx : r_dx[7:0];
-        3'b011: w_op1 = icache[0] ? r_bx : r_bx[7:0];
-        3'b100: w_op1 = icache[0] ? r_sp : r_ax[15:8];
-        3'b101: w_op1 = icache[0] ? r_bp : r_cx[15:8];
-        3'b110: w_op1 = icache[0] ? r_si : r_dx[15:8];
-        3'b111: w_op1 = icache[0] ? r_di : r_bx[15:8];
+        3'b000: op1t = opcode[0] ? AX : AX[7:0];
+        3'b001: op1t = opcode[0] ? CX : CX[7:0];
+        3'b010: op1t = opcode[0] ? DX : DX[7:0];
+        3'b011: op1t = opcode[0] ? BX : BX[7:0];
+        3'b100: op1t = opcode[0] ? SP : AX[15:8];
+        3'b101: op1t = opcode[0] ? BP : CX[15:8];
+        3'b110: op1t = opcode[0] ? SI : DX[15:8];
+        3'b111: op1t = opcode[0] ? DI : BX[15:8];
     
     endcase
     
     // Операнд 2: reg
-    case (modrm_byte[5:3])
+    case (opcode[1] ? next_byte[2:0] : next_byte[5:3])
     
-        3'b000: w_op2 = icache[0] ? r_ax : r_ax[7:0];
-        3'b001: w_op2 = icache[0] ? r_cx : r_cx[7:0];
-        3'b010: w_op2 = icache[0] ? r_dx : r_dx[7:0];
-        3'b011: w_op2 = icache[0] ? r_bx : r_bx[7:0];
-        3'b100: w_op2 = icache[0] ? r_sp : r_ax[15:8];
-        3'b101: w_op2 = icache[0] ? r_bp : r_cx[15:8];
-        3'b110: w_op2 = icache[0] ? r_si : r_dx[15:8];
-        3'b111: w_op2 = icache[0] ? r_di : r_bx[15:8];
+        3'b000: op2t = opcode[0] ? AX : AX[7:0];
+        3'b001: op2t = opcode[0] ? CX : CX[7:0];
+        3'b010: op2t = opcode[0] ? DX : DX[7:0];
+        3'b011: op2t = opcode[0] ? BX : BX[7:0];
+        3'b100: op2t = opcode[0] ? SP : AX[15:8];
+        3'b101: op2t = opcode[0] ? BP : CX[15:8];
+        3'b110: op2t = opcode[0] ? SI : DX[15:8];
+        3'b111: op2t = opcode[0] ? DI : BX[15:8];
     
     endcase
 
-end
-
-// Определение типа инструкции
-always @* begin
-
-    n_ip = r_ip + length;
-        
 end
 
 // ---------------------------------------------------------------------
@@ -353,203 +239,226 @@ always @(posedge clock) begin
     case (state)    
     
     // =================================================================
-    // Загрузка данных в кеш-линию инструкции
-    // =================================================================
-    
-    `I_FETCH: begin
-    
-        // Очистка предыдущих значений только по завершении инструкции    
-        if (instruction_done) begin
-            
-            segment_override     <= 1'b0;
-            segment_override_num <= 2'b11; // 3=DS
-            prefix_0F            <= 2'b0;
-            operand_is_immediate <= 1'b0;
-            immediate_size       <= 1'b0;
-            alu_enable           <= 1'b0;
-        
-        end
-        
-        // Подготавливаем новую инструкцию
-        instruction_done <= 1'b0;
-        
-        // Невыровненные данные. Сначала в один из 6 байт загружается
-        // старший байт не выровненных данных. После этого данные 
-        // выравниваются (current[0] <-- 0) и происходит загрузка следующих 2 байт
-        if (current[0]) begin
-        
-            case (icp) 
-            
-                3'h0: begin icache[7:0]   <= i_data[15:8]; end
-                3'h1: begin icache[15:8]  <= i_data[15:8]; end
-                3'h2: begin icache[23:16] <= i_data[15:8]; end
-                3'h3: begin icache[31:24] <= i_data[15:8]; end
-                3'h4: begin icache[39:32] <= i_data[15:8]; end
-                3'h5: begin icache[47:40] <= i_data[15:8]; state <= `I_DECODE; end
-            
-            endcase
-
-            current <= current + 1'b1;
-            icp     <= icp + 1'b1;
-        
-        end else begin
-        
-            case (icp)
-            
-                3'h0: begin icp <= 3'h2; icache[15:0]  <= i_data[15:0]; end
-                3'h1: begin icp <= 3'h3; icache[23:8]  <= i_data[15:0]; end
-                3'h2: begin icp <= 3'h4; icache[31:16] <= i_data[15:0]; end
-                3'h3: begin icp <= 3'h5; icache[39:24] <= i_data[15:0]; end
-                3'h4: begin icp <= 3'h0; icache[47:32] <= i_data[15:0]; state <= `I_DECODE; end
-                3'h5: begin icp <= 3'h0; icache[47:40] <= i_data[ 7:0]; state <= `I_DECODE; end    
-            
-            endcase
-                    
-            current <= current + 2'h2;
-            icp     <= icp + 2'h2;
-
-        end
-    
-    end
-    
-    // =================================================================
     // Полный декодер инструкции: ModRM, Imm. После декодинга кеш сдвигается.
     // =================================================================
     
-    `I_DECODE: begin
+    `DECODE: begin
     
-        // Сдвиг кеша инструкции в зависимости от длины инструкции
-        // При успешном BRANCH, тут будет length = 6
+        casex (opcode)
 
-        case (length)
-        
-            3'h1: begin icp <= 3'h5; icache[39:0] <= icache[47:8];  end
-            3'h2: begin icp <= 3'h4; icache[31:0] <= icache[47:16]; end
-            3'h3: begin icp <= 3'h3; icache[23:0] <= icache[47:24]; end
-            3'h4: begin icp <= 3'h2; icache[15:0] <= icache[47:32]; end
-            3'h5: begin icp <= 3'h1; icache[ 7:0] <= icache[47:40]; end
-            3'h6: begin icp <= 3'h0; end
+            8'b001x_x110: /* Префикс сегментов ES: CS: SS: DS: */ begin 
+
+                seg_overlap <= 1'b1; 
+                seg_number  <= current_byte[4:3];
+                IP          <= IP + 1'b1;
+
+            end
+            
+            // 8'b0110_01xx, // 32-bit 64 FS: 65 GS: 66 Op32 67 Addr32            
+            // 8'b1001_1011, // WAIT
+            // 8'b1111_0000, // LOCK
+            // 8'b1001_001x, // REP/REPZ
+            // 8'b0000_1111: // Opcode Extension
+
+            default: /* Чтение опкода */ begin
+            
+                if /* Опкод имеет ModRM */ (opcode_modrm) begin
+                
+                    if /* Байт ModRM ещё не получен */ (IP[0]) begin
+
+                        state <= `FETCH_MODRM;
+                    
+                    end else begin
+                    
+                        // Переписать данные с декодера ModRM
+                        op1  <= op2t;
+                        op2  <= op2t;
+                        cs   <= sege;
+                        addr <= addrx;
+                        disp_cache <= disp;
+
+                        if /* Сразу выполнить код */ (next_byte[7:6] == 2'b11) begin
+
+                            state <= `EXECUTE;
+                        
+                        end else /* Читать операнд из памяти (+d8/16) */ case (disp) 
+
+                            // Прочитать Disp8/16
+                            2'b01, 2'b10: state <= `READ_ALIGNED_DISP; 
+                            
+                            // Иначе к чтению операнда
+                            default: begin  
+
+                                read    <= 1'b1; 
+                                state   <= `READ_DATA; 
+
+                            end
+
+                        endcase
+
+                    end
+                    
+                    IP <= IP + 2'h2; // Опкод(1) + ModRm(1)
+
+                // Без ModRM байта, перейти к исполнению кода
+                end else begin
+                
+                    state   <= `EXECUTE;
+                    IP      <= IP + 1'b1;
+
+                end
+
+                // Сохранить опкод
+                opcode_cache <= current_byte;
+
+                // Сохранить информацию об overlap / seg_id
+                seg_overlap_cache   <= seg_overlap;
+                seg_number_cache    <= seg_number;
+
+                // Сброс значений для следующего сеанса
+                seg_overlap         <= 1'b0;
+                seg_number          <= 2'h3;
+
+            end
 
         endcase
-
-        // if (branched) // Другой случай, когда происходит перенос по причине Branch
-
-        current <= (r_ip + 3'h6);   // Всегда +6 (размер кеша инструкции) от текущего r_ip
-        r_ip    <= n_ip;            // Следующая инструкция
         
-        // Определение типа инструкции
-        //casex(icache[7:0])
+    end   
     
-            // ADD rm,reg
-            // 8'b00xx_x0xx: alu_enable = 1'b1; alu_function = icache[5:3]; operand_is_immediate = 1'b0;
-            // 8'b00xx_010x: alu_enable = 1'b1; alu_function = icache[5:3]; operand_is_immediate = 1'b1; immediate_size = icache[0];
-            
-            // 8'b000x_x110:    
-        
-        //endcase
+    // =================================================================
+    // ЧТЕНИЕ DISPLACEMENT 8 ИЛИ 16.     
+    // Поскольку тут ВЫРОВНЕННЫЕ данные, то читается за 1 раз
+    // =================================================================
+    
+    `READ_ALIGNED_DISP: begin
+    
+        if /* 8-bit */ (disp_cache[0]) begin
 
-        // В первую очередь, префиксы
-        if (has_prefixed) begin
+            addr <= addr + {{8{current_byte[7]}}, current_byte};
+            IP   <= IP + 1'b1;
+            
+        end
+        else /* 16-bit */  begin
         
-            state <= `I_FETCH;
-            casex (icache[7:0])
+            addr <= addr + {next_byte, current_byte};
+            IP   <= IP + 2'h2;
             
-                8'b0000_1111: prefix_0F <= 1'b1;
-            
-                // es: cs: ss: ds
-                8'b001x_x110: begin segment_override <= 1'b1; segment_override_num <= {1'b0,icache[4:3]}; end
-                
-                // fs: gs:
-                8'b0110_010x: begin segment_override <= 1'b1; segment_override_num <= {1'b1,icache[1:0]}; end
-                
-                // default: .. other
+        end
+        
+        read  <= 1'b1;
+        state <= `READ_DATA;
+    
+    end
+    
+    // =================================================================
+    // Чтение НЕВЫРОВНЕННОГО ModRM +d8 если он задан
+    // =================================================================
+    
+    `FETCH_MODRM: begin
 
-            endcase        
+        // Переписать данные с декодера ModRM
+        op1  <= op2t;
+        op2  <= op2t;
+        cs   <= sege;
+
+        if /* Сразу выполнить код */ (next_byte[7:6] == 2'b11) begin
         
+            state <= `EXECUTE;
+        
+        end else /* Читать операнд из памяти (+d8/16) */ begin
+
+            case (disp)
+                     
+                // Прочитать Disp8 и перейти к чтению опкода
+                2'b01: begin 
+                
+                    addr    <= addrx + {{8{current_byte[7]}}, current_byte};
+                    state   <= `READ_DATA; 
+                    read    <= 1'b1; 
+                    IP      <= IP + 1'b1;
+                    
+                end
+                
+                // Писать младшую часть Disp16
+                2'b10: begin 
+                
+                    addr    <= addrx + current_byte; 
+                    state   <= `READ_UNALIGNED; 
+                    IP      <= IP + 2'h2;
+
+                end
+                
+                // Начать чтение сразу же, если нет displacement 8/16
+                default: begin 
+                
+                    read    <= 1'b1; 
+                    addr    <= addrx;
+                    state   <= `READ_DATA; 
+                    
+                end
+                
+            endcase
+
         end    
-        // ModRM-инструкции
-        else if (has_modrm_byte) begin
+    end
+    
+    // =================================================================
+    // Чтение НЕВЫРОВНЕННОГО +d16
+    // =================================================================
+    
+    `READ_UNALIGNED: begin
+    
+        state       <= `READ_DATA; 
+        read        <= 1'b1; 
+        addr[15:8]  <= addr[15:8] + next_byte;
+    
+    end
+    
+    // =================================================================
+    // Чтение 8 или 16 битных данных (в зависимости от выравнивания)
+    // =================================================================
+    
+    `READ_DATA: begin
+    
+        if /* WORD: Читать слово */ (opcode[0]) begin
         
-            // Отметить, что инструкция началась
-            instruction_done <= 1'b1;
+            if /* Не выровнено */ (addr[0]) begin
 
-            // Сохранение полученных операндов из секции разбора ModRM
-            // При установке target, op1/op2 будут правильно указывать далее
-            _op1    <= w_op1;
-            _op2    <= w_op2;
-            target  <= icache[1];
+                if (opcode[1]) op2 <= i_data[15:8];
+                          else op1 <= i_data[15:8];
+                          
+                addr  <= addr + 1'b1;
+                state <= `READ_DATA_16;
             
-            // Если в modrm есть эффективный адрес, то читать его
-            if (modrm_byte[7:6] != 2'b11) begin
-            
-                alt     <= 1'b1;
-                wsize   <= icache[0];
-                segment <= e_segment;
-                address <= e_address;
-                state   <= `I_READ_DATA;
-            
-            end else begin
+            end else /* Выровнено */ begin
 
-                state  <= `I_EXECUTE;
-                
+                if (opcode[1]) op2 <= i_data[15:0];
+                          else op1 <= i_data[15:0];
+                          
+                state <= `EXECUTE;
+                          
             end
+
+        end else /* BYTE: Читать байт */ begin
         
+            if (opcode[1]) op2 <= current_byte;
+                      else op1 <= current_byte;
+                      
+            state <= `EXECUTE;
+
         end
-        // Все остальные
-        else begin
-
-            state <= `I_EXECUTE;
-            
-        end
-
-    end    
-
-    // =================================================================
-    // Читать данные (1 или 2 байт) в Op1/Op2
-    // wsize  = 0 Byte, =1 Word
-    // =================================================================
-
-    `I_READ_DATA: begin
     
-        // WORD
-        if (wsize) begin
-
-            if (address[0]) begin       // Не выровнен
-            
-                state   <= `I_READ_DATA_WIDE;            
-                address <= address + 1'h1;             
-                _op1    <= i_data[15:8];
-
-            end else begin              // Выровнен
-
-                state   <= `I_EXECUTE;
-                _op1    <= i_data[15:0];
-
-            end        
-
-        // BYTE
-        end else begin
-
-            state <= `I_EXECUTE;
-            _op1  <= address[0] ? i_data[15:8] : i_data[7:0];
-
-        end
-
     end
     
-    // Прочитать невыровненные данные
-    `I_READ_DATA_WIDE: begin 
+    // Прочитать старший байт слова данных
+    `READ_DATA_16: begin
     
-        state       <= `I_EXECUTE;
-        _op1[15:8]  <= i_data[7:0];
-        address     <= address - 1'h1;
+        if (opcode[1]) op2[15:8] <= i_data[7:0];
+                  else op1[15:8] <= i_data[7:0];
 
-    end
-    
-    `I_EXECUTE: begin
-    
-        state <= `I_FETCH;
-    
+        addr  <= addr - 1'b1;
+        state <= `EXECUTE;
+
     end
 
     endcase
