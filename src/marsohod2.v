@@ -1,18 +1,13 @@
-/*
- * Программируемый микрокалькулятор
- */
- 
-// --------------------------------------------------------------------------
 module marsohod2(
 
     /* ----------------
-    * Архитектурно в Марсоходе-2
-    * ---------------- */
+     * Archectural Marsohod2
+     * ---------------- */
 
     // CLOCK    100 Mhz
     input   wire        clk,
 
-    // LED      4 
+    // LED      4
     output  wire [3:0]  led,
 
     // KEYS     2
@@ -45,8 +40,8 @@ module marsohod2(
     output  wire        ftdi_tx,
 
     /* ----------------
-    * Шилд расширения
-    * ---------------- */
+     * Extension Shield
+     * ---------------- */
 
     // USB-A    2 pins
     inout   wire [1:0]  usb,
@@ -57,7 +52,7 @@ module marsohod2(
 
     // PS/2     keyb / mouse
     inout   wire [1:0]  ps2_keyb,
-    inout   wire [1:0]  ps2_mouse   
+    inout   wire [1:0]  ps2_mouse
 );
 // --------------------------------------------------------------------------
 
