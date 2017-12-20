@@ -106,7 +106,7 @@ processor i8086(
 // ---------------------------------------------------------------------
 
 reg [7:0] memory [65535 : 0];
-
+reg [1:0] trigger;
 
 integer j;
 initial begin
@@ -117,8 +117,19 @@ end
 
 always @(posedge clk) begin
 
-    //                                high byte                     low byte                      
-    i_data <= {memory[ {o_addr[15:1], 1'b1} ], memory[ {o_addr[15:1], 1'b0} ]};
+    trigger[1:0] <= {trigger[0], o_wr};
+
+    //                                                     
+    i_data <= {memory[ {o_addr[15:1], 1'b1} ],   // high byte
+               memory[ {o_addr[15:1], 1'b0} ]};  // low byte
+
+    // Запись происходит с небольшой задержкой, чтобы данные попали в o_data
+    if (trigger == 2'b01) begin
+    
+        memory[ {o_addr[15:1], 1'b0} ] <= o_data[7:0];
+        memory[ {o_addr[15:1], 1'b1} ] <= o_data[15:8];        
+
+    end
 
 end
 

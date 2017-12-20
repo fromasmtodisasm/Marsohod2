@@ -104,13 +104,8 @@ main MAIN(
 
 reg [7:0] memory [65535 : 0];
 
-
 integer j;
-initial begin
-
-    $readmemh("icarus_memory.hex", memory);
-    
-end
+initial $readmemh("icarus_memory.hex", memory);
 
 always @(posedge clk) begin
 
