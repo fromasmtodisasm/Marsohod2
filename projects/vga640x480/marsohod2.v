@@ -56,13 +56,51 @@
 );
 // --------------------------------------------------------------------------
 
+wire [ 1:0] cmd;
+wire [15:0] dr;
+wire [15:0] dw;
+wire        wren;
+wire [21:0] addr;
+
+sdram SDRAM(
+
+    // Hardware Interface
+    .clock  (clk),
+    .sdclk  (sdram_clock),
+    .addr   (sdram_addr),
+    .bank   (sdram_bank),
+    .dq     (sdram_dq),
+    .ldqm   (sdram_ldqm),
+    .udqm   (sdram_udqm),
+    .ras    (sdram_ras),
+    .cas    (sdram_cas),
+    .we     (sdram_we),
+    
+    // Extension
+    .rden    (rden),
+    .wren    (wren),
+    .address (addr),
+    .data_wr (dw),      // Data for Write
+    .data_rd (dr),      // Data for Read
+    .busy    (busy)
+);
+
 videoadapter VIDEOUT(
+
     .clock  (clk),
     .hs     (vga_hs),
     .vs     (vga_vs),
     .r      (vga_red),
     .g      (vga_green),
-    .b      (vga_blue)
+    .b      (vga_blue),
+    
+    // Control
+    .rden   (rden),
+    .addr   (addr),
+    .dr     (dr),
+    
+    .wren     (wren),
+    .dw       (dw)
 );
 
 
