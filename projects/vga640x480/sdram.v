@@ -114,11 +114,12 @@ always @(posedge div25[0]) begin
         // 1. ACTIVATE
         `STATE_RW: begin
         
-            // Enabled Autoprecharge (0100)
-            addr  <= {4'b0100, address[7:0]};
+            addr  <= {4'b0000, address[7:0]};
+
             ras   <= 1'b1;
             cas   <= 1'b0; 
             we    <= wren ^ 1'b1;
+            
             ldqm  <= 1'b0; 
             udqm  <= 1'b0; 
             state <= `STATE_RW_2;
@@ -131,10 +132,15 @@ always @(posedge div25[0]) begin
         // PRECHARGE
         `STATE_RW_3: begin
   
-            data_rd <= we ? dq : 1'b0; 
-            we      <= 1'b0; 
-            cas     <= 1'b1;
+            data_rd <= we ? dq : 1'b0;
+            
             ras     <= 1'b0;
+            cas     <= 1'b1;
+            we      <= 1'b0; 
+            
+            busy    <= 1'b0;
+            ldqm    <= 1'b1; 
+            udqm    <= 1'b1; 
             state   <= `STATE_WAIT;  
             
         end

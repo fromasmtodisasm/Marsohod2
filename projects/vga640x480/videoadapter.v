@@ -18,6 +18,7 @@ module videoadapter(
     output  wire    [5:0]   g,
     output  wire    [4:0]   b,
     
+    input   wire            busy,
     output  reg             rden,
     output  reg     [21:0]  addr,
     input   wire    [15:0]  dr,
@@ -52,24 +53,21 @@ always @(posedge div25[1]) begin
     // Позиция "курсора" в текущем фрейме
     x <= xend ?         1'b0 : x + 1'b1;
     y <= xend ? (yend ? 1'b0 : y + 1'b1) : y;
-
     
     if (display) begin
 
-        addr <= {y[8:0], x[7:0]}; 
+        dp   <= dr;
+        addr <= {y[8:1], x[8:1]}; 
         rden <= 1'b1;  
-        dp   <= dr; 
         wren <= 1'b0;
     
     // Out of Screen: operate others
     end else begin 
     
-        dp <= 1'b0; 
-        rden <= 1'b0; 
+        rden <= 1'b0;         
+        addr <= {y[8:1], x[8:1]}; 
         
-        addr <= {y[8:0], x[9:0] - 640}; 
-        
-        if (y < 32) begin dw <= {y[7:0],x[7:0]}; wren <= 1'b1; end
+        if (y > 40 && y < 80 && x < 790) begin dw <= {x[4:0],x[5:0],y[4:0]}; wren <= 1'b1; end else wren <= 1'b0;
         
     end
 

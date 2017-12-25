@@ -95,6 +95,7 @@ videoadapter VIDEOUT(
     .b      (vga_blue),
     
     // Control
+    .busy   (busy),
     .rden   (rden),
     .addr   (addr),
     .dr     (dr),
