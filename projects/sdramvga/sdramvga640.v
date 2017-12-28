@@ -72,7 +72,7 @@ assign  we  = initlock ? cmdinit[0] : cmd[0];
 assign addr = initlock ? addrc : addrw;
 
 reg        initlock;        // Блокировка (1) при инициализации
-reg [10:0] init = 1'b0;     // Счетчик [0..1250+21]
+reg [10:0] init = 1'b1;     // Счетчик [0..1250+21]
 
 reg [2:0]  cmd;             // Команды к SDRAM
 reg [11:0] addrw;           // Рабочий адрес
@@ -126,7 +126,7 @@ wire [18:0] caddr = vaddr[18:0] + {bank_num[2:0],7'b0000000};
 
 // ---------- TEST ZONE ------------------
 
-        assign ldqm = wb; 
+        assign ldqm = 1'b0; 
         
 // ---------- TEST ZONE ------------------
 
@@ -176,26 +176,26 @@ always @(posedge clock) begin
             `SDRAM_READ3A: begin
             
                 // Начать чтение
-                if (bank_cnt == 4) begin
+                if (bank_cnt == 3) begin
                 
                     addrw <= {4'b0000, caddr[7:0]};
                     cmd   <= cmd_read;
                 
                 end
                 // CAS=2
-                else if (bank_cnt > 4 && bank_cnt < 7) begin
+                else if (bank_cnt == 4 || bank_cnt == 5) begin
                     
                     addrw[7:0] <= addrw[7:0] + 1'b1; 
                     
                 end
                 // Начать чтение после CAS
-                else if (bank_cnt > 6 && bank_cnt < 5 + 128) begin
+                else if (bank_cnt > 5 && bank_cnt < 5 + 128) begin
                 
                     dw <= dq;
                     wb <= 1'b1;
                     aw <= aw + 1'b1;  // @todo важно! тут будет записано с 1-го WORD, не с 0-го
 
-                    addrw[7:0] <= addrw[7:0] + 1'b1; // листать sdram далее
+                    addrw[7:0] <= addrw[7:0] + 1'b1;
                 
                 end
                 // Перезаряд, закрыть
@@ -206,7 +206,7 @@ always @(posedge clock) begin
                 
                 end
                 // Terminate
-                else if (bank_cnt == 9 + 128) begin
+                else if (bank_cnt == 6 + 128) begin
                 
                     cmd         <= cmd_nop;
                     state       <= bank_num == 3'd4 ? `SDRAM_WAIT : `SDRAM_READ3;
@@ -233,7 +233,7 @@ end
 reg     [10:0]  x;
 reg     [9:0]   y;
 reg     [18:0]  vaddr;
-reg     [10:0]  ar;
+wire    [10:0]  ar = {!y[0], x[9:0]}; // FlipFlop 4k буфер
 reg     [15:0]  dr;
 
 assign  vga_red   = display ? dr[15:11] : 1'b0;
@@ -257,9 +257,6 @@ always @(posedge div[1]) begin
     // Новая строка
     if (xend) vaddr <= y * 640;
     
-    // FlipFlop 4k буфер (задержка 1T)
-    ar <= {y[0] ^ 1'b1, x[9:0]};
-
 end
 
 // ---------------------------------------------------------------------
