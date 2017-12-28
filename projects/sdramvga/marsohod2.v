@@ -101,19 +101,20 @@ always @(posedge clk) begin
 end
 
 reg [10:0] lx;
+reg [15:0] lm;
 reg ly;
 
-always @(posedge divt[13]) begin
+always @(posedge divt[2]) begin
 
     io_clk <= io_clk + 1'b1;
     if (!lock) begin
     
         lx <= lx == 639 ? 0 : lx + 1; 
         ly <= lx == 639 ? ly ^ 1'b1 : ly;
-        
+        lm <= lx == 639 ? lm + 1 : lm;
         
         address <= address + 1'b1;
-        i_data <= lx[0] ^ ly ? 16'hFFFF : 1'b0;
+        i_data <= lx[0] ^ ly ? 16'hFFFF : lm;
     end
     
 end

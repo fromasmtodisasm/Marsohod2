@@ -316,11 +316,10 @@ reg     [18:0]  vaddr = 1'b0;
 // Указатель на предыдущий заполненный буфер ~y[0] (640 WORD)
 reg     [10:0]  ar;
 reg     [15:0]  dr;
-reg     [15:0]  dp;
 
-assign  vga_red   = dp[15:11];
-assign  vga_green = dp[10:5];
-assign  vga_blue  = dp[4:0];
+assign  vga_red   = display ? dr[15:11] : 1'b0;
+assign  vga_green = display ? dr[10:5] : 1'b0;
+assign  vga_blue  = display ? dr[4:0] : 1'b0;
 
 assign  vga_hs  = x > 10'd688 && x <= 10'd784; 
 assign  vga_vs  = y > 10'd513 && y <= 10'd515; 
@@ -337,7 +336,6 @@ always @(posedge div[1]) begin
     y <= xend ? (yend ? 1'b0 : y + 1'b1) : y;
     
     ar <= {y[0] ^ 1'b1, x[9:0]};
-    dp <= display ? dr : 1'b0;
     
     // Новая строка
     if (xend) vaddr <= y * 640;
