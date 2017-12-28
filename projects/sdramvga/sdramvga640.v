@@ -41,7 +41,7 @@ assign dq = we ? 16'bZ : i_data;
 assign clksdram = clock;
 
 localparam debug_init_nl = 1'b0; // 1'b0 Default
-localparam debug_init_sd = 1'b0; // 1'b1 Default
+localparam debug_init_sd = 1'b1; // 1'b1 Default
 
 // Ожидание 100μs перед инициализацией
 localparam iwaitc = 1250;
@@ -129,13 +129,14 @@ wire [18:0] caddr = vaddr[18:0] + {bank_num[2:0],7'b0000000};
 
 // ---------- TEST ZONE ------------------
 
-        assign ldqm = lock; // 1'b0; 
+assign hdqm = 1'b0; // 1'b0; 
+assign ldqm = 1'b0; // 1'b0; 
         
 // ---------- TEST ZONE ------------------
 
 reg [3:0] state = `SDRAM_WAIT;
 reg       nl    = debug_init_nl;
-wire      x_accept = (x < 795);
+wire      x_accept = (x < 798);
 
 // Блок считывания и обработки
 always @(posedge clock) begin
@@ -177,7 +178,7 @@ always @(posedge clock) begin
                 // ecc correction
                 // auto precharge
                 
-                if (clk) state <= rdwr ? `SDRAM_WRITE : `SDRAM_READ;
+                if (clk && x_accept) state <= rdwr ? `SDRAM_WRITE : `SDRAM_READ;
                 
                 // Nop: ничего не делать
                 bank_cnt    <= 1'b0;    
@@ -222,7 +223,7 @@ always @(posedge clock) begin
                 end
                 
                 // Начать чтение после CAS
-                else if (bank_cnt > 5 && bank_cnt < 5 + 128) begin
+                else if (bank_cnt > 5 && bank_cnt < 6 + 128) begin
                 
                     dw <= dq;
                     wb <= 1'b1;
@@ -233,7 +234,7 @@ always @(posedge clock) begin
                 end
                 
                 // Закрыть строку, записав 128-й байт
-                else if (bank_cnt == 5 + 128) begin
+                else if (bank_cnt == 6 + 128) begin 
                 
                     cmd       <= cmd_precharge;
                     addrw[10] <= 1'b1;
@@ -242,7 +243,7 @@ always @(posedge clock) begin
                 end
                 
                 // Прочитать еще 128 байт (если доступно)
-                else if (bank_cnt == 6 + 128) begin
+                else if (bank_cnt == 7 + 128) begin
                 
                     cmd         <= cmd_nop;
                     state       <= bank_num == 3'd4 ? `SDRAM_WAIT : `SDRAM_READ3;
@@ -313,12 +314,13 @@ reg     [9:0]   y = 1'b0;
 reg     [18:0]  vaddr = 1'b0;
 
 // Указатель на предыдущий заполненный буфер ~y[0] (640 WORD)
-wire    [10:0]  ar = {y[0] ^ 1'b1, x[9:0]};
+reg     [10:0]  ar;
 reg     [15:0]  dr;
+reg     [15:0]  dp;
 
-assign  vga_red   = display ? dr[15:11] : 1'b0;
-assign  vga_green = display ? dr[10:5]  : 1'b0;
-assign  vga_blue  = display ? dr[4:0]   : 1'b0;
+assign  vga_red   = dp[15:11];
+assign  vga_green = dp[10:5];
+assign  vga_blue  = dp[4:0];
 
 assign  vga_hs  = x > 10'd688 && x <= 10'd784; 
 assign  vga_vs  = y > 10'd513 && y <= 10'd515; 
@@ -334,9 +336,12 @@ always @(posedge div[1]) begin
     x <= xend ?         1'b0 : x + 1'b1;
     y <= xend ? (yend ? 1'b0 : y + 1'b1) : y;
     
+    ar <= {y[0] ^ 1'b1, x[9:0]};
+    dp <= display ? dr : 1'b0;
+    
     // Новая строка
     if (xend) vaddr <= y * 640;
-    
+
 end
 
 // ---------------------------------------------------------------------

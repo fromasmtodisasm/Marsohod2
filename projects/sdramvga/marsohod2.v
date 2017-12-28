@@ -88,19 +88,34 @@ sdramvga640 SDRAM_VGA640x480(
     .lock       (lock)            // =1 память недоступна на чтение/запись
 );
 
+// ------------testing---
 reg  [21:0] address = 22'h0;
-wire [15:0] i_data  = 16'hEFA6;
+reg  [15:0] i_data  = 16'hFFFF;
 wire [15:0] o_data;
 wire [15:0] rdwr = 1'b1;
-wire [15:0] io_clk = 1'b1;
+reg [15:0] io_clk = 1'b1;
 
 reg [15:0] divt;
-always @(posedge clock) begin
+always @(posedge clk) begin
     divt <= divt + 1'b1;
 end
-always @(posedge divt[15]) begin
-    address <= address + 1'b1;
-    i_data <= i_data + 1'b1;
+
+reg [10:0] lx;
+reg ly;
+
+always @(posedge divt[13]) begin
+
+    io_clk <= io_clk + 1'b1;
+    if (!lock) begin
+    
+        lx <= lx == 639 ? 0 : lx + 1; 
+        ly <= lx == 639 ? ly ^ 1'b1 : ly;
+        
+        
+        address <= address + 1'b1;
+        i_data <= lx[0] ^ ly ? 16'hFFFF : 1'b0;
+    end
+    
 end
 
 endmodule
