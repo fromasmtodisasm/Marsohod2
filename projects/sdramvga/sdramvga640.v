@@ -37,6 +37,9 @@ module sdramvga640(
 
 );
 
+localparam debug_init_nl = 1'b0; // 1'b0 Default
+localparam debug_init_sd = 1'b0; // 1'b1 Default
+
 // Ожидание 100μs перед инициализацией
 localparam iwaitc = 1250;
 
@@ -56,7 +59,7 @@ localparam cmd_nop          = 3'b111;
 `define     SDRAM_READ3A    3'b010
 
 // FIRST, locked at INIT
-initial initlock = 1'b0; // 1'b1
+initial initlock = debug_init_sd;
 initial lock = 1'b1;
 initial addrc = 10'b010000000000; // A[10]=1
 initial cmdinit = cmd_nop;
@@ -87,9 +90,6 @@ reg [11:0] addrc;           // Command Address
  */
 
 reg [2:0] div;
-reg       nl = 1'b1;
-reg [3:0] state = 3'b000;
-
 always @(posedge clock) div <= div + 1'b1;
 
 // Блок инициализации SDRAM
@@ -126,9 +126,12 @@ wire [18:0] caddr = vaddr[18:0] + {bank_num[2:0],7'b0000000};
 
 // ---------- TEST ZONE ------------------
 
-        assign ldqm = 1'b0; 
+        assign ldqm = lock; // 1'b0; 
         
 // ---------- TEST ZONE ------------------
+
+reg [3:0] state = `SDRAM_WAIT;
+reg       nl    = debug_init_nl;
 
 // Блок считывания и обработки
 always @(posedge clock) begin
@@ -141,10 +144,11 @@ always @(posedge clock) begin
         if (nl ^ y[0]) begin 
         
             state    <= `SDRAM_READ3;             
+            cb       <= y[0];
+            aw       <= -1;
             bank_cnt <= 1'b0;
             bank_num <= 1'b0;
-            cb       <= y[0];
-            aw       <= 1'b0; // выбрать также текущий буфер aw
+            lock     <= 1'b1;
             
         end
         // Обработка очередей, буферы и т.д.
@@ -157,7 +161,9 @@ always @(posedge clock) begin
                 // ecc correction
                 // auto precharge
                 
-                // -- в концу строки x = 800 должны быть операции закончены            
+                // -- в концу строки x = 800 должны быть операции закончены    
+                
+                lock <= 1'b0;        
             
             end
             
@@ -175,54 +181,65 @@ always @(posedge clock) begin
             // Считывание
             `SDRAM_READ3A: begin
             
-                // Начать чтение
+                // 0,1,2 -- NOP
+                if (bank_cnt < 3) begin
+                
+                    cmd   <= cmd_nop;
+                
+                end
+            
+                // Запустить чтение 
                 if (bank_cnt == 3) begin
                 
                     addrw <= {4'b0000, caddr[7:0]};
                     cmd   <= cmd_read;
                 
                 end
-                // CAS=2
+                
+                // CAS Latency=2: пропуск 2-х тактов
                 else if (bank_cnt == 4 || bank_cnt == 5) begin
                     
                     addrw[7:0] <= addrw[7:0] + 1'b1; 
                     
                 end
+                
                 // Начать чтение после CAS
                 else if (bank_cnt > 5 && bank_cnt < 5 + 128) begin
                 
                     dw <= dq;
                     wb <= 1'b1;
-                    aw <= aw + 1'b1;  // @todo важно! тут будет записано с 1-го WORD, не с 0-го
+                    aw <= aw + 1'b1;
 
                     addrw[7:0] <= addrw[7:0] + 1'b1;
                 
                 end
-                // Перезаряд, закрыть
+                
+                // Закрыть строку, записав 128-й байт
                 else if (bank_cnt == 5 + 128) begin
                 
-                    cmd <= cmd_precharge;
-                    wb  <= 1'b0;
+                    cmd       <= cmd_precharge;
+                    addrw[10] <= 1'b1;
+                    wb        <= 1'b0;
                 
                 end
                 
-                // Terminate
+                // Прочитать еще 128 байт (если доступно)
                 else if (bank_cnt == 6 + 128) begin
                 
                     cmd         <= cmd_nop;
                     state       <= bank_num == 3'd4 ? `SDRAM_WAIT : `SDRAM_READ3;
                     bank_num    <= bank_num + 1'b1;
-                
+
                 end
                 
-                // Постепенное увеличени
+                // Постепенное увеличение
                 bank_cnt <= bank_cnt + 1'b1;
             
             end            
         
         endcase
 
-    end    
+    end
 
 end
 
@@ -231,24 +248,28 @@ end
 // использует буфер, который прочитался из SDRAM
 // ---------------------------------------------------------------------
 
-reg     [10:0]  x;
-reg     [9:0]   y;
-reg     [18:0]  vaddr;
-wire    [10:0]  ar = {!y[0], x[9:0]}; // FlipFlop 4k буфер
+reg     [10:0]  x = 1'b0;
+reg     [9:0]   y = 1'b0;
+
+// Адрес для считывания новой линии в новый буфер y[0]
+reg     [18:0]  vaddr = 1'b0;
+
+// Указатель на предыдущий заполненный буфер ~y[0] (640 WORD)
+wire    [10:0]  ar = {y[0] ^ 1'b1, x[9:0]};
 reg     [15:0]  dr;
 
 assign  vga_red   = display ? dr[15:11] : 1'b0;
 assign  vga_green = display ? dr[10:5]  : 1'b0;
 assign  vga_blue  = display ? dr[4:0]   : 1'b0;
 
-assign  vga_hs = x > 10'd688 && x <= 10'd784; 
-assign  vga_vs = y > 10'd513 && y <= 10'd515; 
+assign  vga_hs  = x > 10'd688 && x <= 10'd784; 
+assign  vga_vs  = y > 10'd513 && y <= 10'd515; 
 wire    display = x < 10'd640 && y < 10'd480;
 
 wire    xend = x == 11'd800;
 wire    yend = y == 10'd525;
 
-// 640x480 [800 x 525] 25 MHz
+// Видеоразрешение 640x480 [800 x 525] 25 MHz
 always @(posedge div[1]) begin    
 
     // Позиция "курсора" в текущем фрейме
@@ -261,22 +282,18 @@ always @(posedge div[1]) begin
 end
 
 // ---------------------------------------------------------------------
-// FlipFlop. Всегда читается предыдущая строка.
+// Буфер на 2 линии - текущая ~Y[0], и новая Y[0] (cb)
 // ---------------------------------------------------------------------
 
 vidbuf VIDBUF(
 
     .clock   (clksdram),
-    .addr_rd (ar),          // адрес на чтение (порт R)    
-    .q       (dr),          // Выход данных на (порт R)
+    .addr_rd (ar),          // адрес на чтение (R)
+    .q       (dr),          // Выход данных на (R)
     .addr_wr ({cb, aw}),    // Адрес на установку на запись
-    .data_wr (dw),          // Входящие данные на запись
-    .wren    (wb),          // Разрешение записи
-    
-    // Исходящие данные с порта RW
-    // wire [15:0] dt;
-    // .qw      (dt)
-);
+    .data_wr (dw),          // Входящие данные на запись (W)
+    .wren    (wb),          // Разрешение записи (W)
 
+);
 
 endmodule
