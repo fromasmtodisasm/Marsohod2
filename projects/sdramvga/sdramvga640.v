@@ -9,7 +9,7 @@ module sdramvga640(
     // 100 Mhz
     input   wire        clock,
 
-    // Интерфейс подключения к SDRAM микросхеме
+    // SDRAM интерфейс
     output  wire        clksdram,
     output  wire [11:0] addr,
     output  reg  [1:0]  bank,
@@ -20,20 +20,20 @@ module sdramvga640(
     output  wire        cas,
     output  wire        we,
 
-    // I/O Interface
-    input   wire [15:0] data_write,
-    // data_clock
-
-    // VGA Interface
+    // VGA интерфейс
     output  wire [4:0]  vga_red,
     output  wire [5:0]  vga_green,
     output  wire [4:0]  vga_blue,
     output  wire        vga_hs,
     output  wire        vga_vs,
 
-    // If lock=1, data not available for input address
-    input   wire [21:0] address,
-    output  reg         lock
+    // Интерфейс доступа к данным 
+    input   wire [21:0] address,        // Адрес, по словам
+    input   wire [15:0] i_data,         // Входящие данные
+    output  wire [15:0] o_data,         // Исходящие данные
+    input   wire        rdwr,           // =0 (Чтение), =1 (Запись)
+    input   wire        clk,            // Такт на чтение, запись
+    output  reg         lock            // =1 память недоступна на чтение/запись
 
 );
 
