@@ -205,6 +205,7 @@ always @(posedge clock) begin
                     wb  <= 1'b0;
                 
                 end
+                
                 // Terminate
                 else if (bank_cnt == 6 + 128) begin
                 
