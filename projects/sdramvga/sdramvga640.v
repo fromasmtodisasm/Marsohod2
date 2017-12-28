@@ -37,6 +37,9 @@ module sdramvga640(
 
 );
 
+assign dq = we ? 16'bZ : i_data;
+assign clksdram = clock;
+
 localparam debug_init_nl = 1'b0; // 1'b0 Default
 localparam debug_init_sd = 1'b0; // 1'b1 Default
 
@@ -54,9 +57,11 @@ localparam cmd_burst_term   = 3'b110;
 localparam cmd_nop          = 3'b111;
 
 // Статусы обработчика
-`define     SDRAM_WAIT      3'b000
-`define     SDRAM_READ3     3'b001
-`define     SDRAM_READ3A    3'b010
+`define SDRAM_WAIT      3'b000
+`define SDRAM_READ3     3'b001
+`define SDRAM_READ3A    3'b010
+`define SDRAM_WRITE     3'b011
+`define SDRAM_READ      3'b100
 
 // FIRST, locked at INIT
 initial initlock = debug_init_sd;
@@ -65,8 +70,6 @@ initial addrc = 10'b010000000000; // A[10]=1
 initial cmdinit = cmd_nop;
 initial cmd = cmd_nop;
 
-assign dq = we ? 16'bZ : dw;
-assign clksdram = clock;
 
 // RAS/CAS/WE is SDRAM command
 assign ras  = initlock ? cmdinit[2] : cmd[2];
@@ -132,6 +135,7 @@ wire [18:0] caddr = vaddr[18:0] + {bank_num[2:0],7'b0000000};
 
 reg [3:0] state = `SDRAM_WAIT;
 reg       nl    = debug_init_nl;
+wire      x_accept = (x < 795);
 
 // Блок считывания и обработки
 always @(posedge clock) begin
@@ -156,15 +160,29 @@ always @(posedge clock) begin
         
             // Распределение для операции с памятью
             `SDRAM_WAIT: begin
+
+                /*
+                 * Операции доступны только до какого-то момента
+                 * Это связано с тем, что 4*5 = 20Т на чтение может быть
+                 * Поскольку при x=800, произойдет выборка `SDRAM_READ3
+                 * и операции чтения или записи не будут завершены вовремя                 
+                 *
+                 * 1. Блокируется, если получен clk (r/w) x < X_MAX
+                 * 2. Либо же x >= X_MAX 
+                 */ 
+                 
+                lock <= (x_accept & clk) | (!x_accept);
             
                 // queue 
                 // ecc correction
                 // auto precharge
                 
-                // -- в концу строки x = 800 должны быть операции закончены    
+                if (clk) state <= rdwr ? `SDRAM_WRITE : `SDRAM_READ;
                 
-                lock <= 1'b0;        
-            
+                // Nop: ничего не делать
+                bank_cnt    <= 1'b0;    
+                cmd         <= cmd_nop;
+
             end
             
             // ACTIVATE ROW
@@ -178,7 +196,7 @@ always @(posedge clock) begin
 
             end
             
-            // Считывание
+            // Считывание блока
             `SDRAM_READ3A: begin
             
                 // 0,1,2 -- NOP
@@ -237,6 +255,46 @@ always @(posedge clock) begin
             
             end            
         
+            // Одиночная запись
+            `SDRAM_WRITE: begin
+            
+                case (bank_cnt)
+                
+                    // Переключение строки
+                    3'h0: begin
+                    
+                        bank  <= address[21:20];
+                        addrw <= {address[19:8]};
+                        cmd   <= cmd_activate;
+
+                    end
+                    
+                    // Включение записи
+                    3'h3: begin
+                    
+                        addrw <= {4'b0100, address[7:0]};
+                        cmd   <= cmd_write;
+
+                    end
+                    
+                    // Перезаряд
+                    3'h5: begin cmd <= cmd_precharge;  end
+                    
+                    // Выход
+                    3'h6: begin cmd <= cmd_nop; state <= `SDRAM_WAIT; end
+                    
+                
+                endcase
+                
+                bank_cnt <= bank_cnt + 1'b1;
+            
+            end
+            
+            // Одиночное считывание
+            `SDRAM_READ: begin
+            
+            end
+            
         endcase
 
     end

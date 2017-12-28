@@ -59,7 +59,7 @@ module marsohod2(
 sdramvga640 SDRAM_VGA640x480(
 	
 	// 100 Mhz
-	.clock    (clk),
+	.clock      (clk),
 
     // Hardware SDRAM interface
     .clksdram   (sdram_clock),
@@ -79,6 +79,20 @@ sdramvga640 SDRAM_VGA640x480(
     .vga_hs     (vga_hs),
     .vga_vs     (vga_vs),
 
+    // Read/Write 
+    .address    (address),        // Адрес, по словам
+    .i_data     (i_data),         // Входящие данные
+    .o_data     (o_data),         // Исходящие данные
+    .rdwr       (rdwr),           // =0 (Чтение), =1 (Запись)
+    .clk        (io_clk),            // Такт на чтение, запись
+    .lock       (lock)            // =1 память недоступна на чтение/запись
 );
+
+wire [21:0] address = 22'h1234;
+wire [15:0] i_data  = 16'hEFA6;
+wire [15:0] o_data;
+wire [15:0] rdwr = 1'b1;
+wire [15:0] io_clk = 1'b1;
+
 
 endmodule
