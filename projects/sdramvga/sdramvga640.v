@@ -176,20 +176,20 @@ always @(posedge clock) begin
             `SDRAM_READ3A: begin
             
                 // Начать чтение
-                if (bank_cnt == 3) begin
+                if (bank_cnt == 4) begin
                 
                     addrw <= {4'b0000, caddr[7:0]};
                     cmd   <= cmd_read;
                 
                 end
                 // CAS=2
-                else if (bank_cnt > 3 && bank_cnt < 6) begin
+                else if (bank_cnt > 4 && bank_cnt < 7) begin
                     
                     addrw[7:0] <= addrw[7:0] + 1'b1; 
                     
                 end
                 // Начать чтение после CAS
-                else if (bank_cnt > 5 && bank_cnt < 4 + 128) begin
+                else if (bank_cnt > 6 && bank_cnt < 5 + 128) begin
                 
                     dw <= dq;
                     wb <= 1'b1;
@@ -199,14 +199,14 @@ always @(posedge clock) begin
                 
                 end
                 // Перезаряд, закрыть
-                else if (bank_cnt == 4 + 128) begin
+                else if (bank_cnt == 5 + 128) begin
                 
                     cmd <= cmd_precharge;
                     wb  <= 1'b0;
                 
                 end
                 // Terminate
-                else if (bank_cnt == 8 + 128) begin
+                else if (bank_cnt == 9 + 128) begin
                 
                     cmd         <= cmd_nop;
                     state       <= bank_num == 3'd4 ? `SDRAM_WAIT : `SDRAM_READ3;
@@ -254,8 +254,11 @@ always @(posedge div[1]) begin
     x <= xend ?         1'b0 : x + 1'b1;
     y <= xend ? (yend ? 1'b0 : y + 1'b1) : y;
     
+    // Новая строка
+    if (xend) vaddr <= y * 640;
+    
     // FlipFlop 4k буфер (задержка 1T)
-    ar <= {y[0] ^ 1'b1, x[9:0]};    
+    ar <= {y[0] ^ 1'b1, x[9:0]};
 
 end
 
