@@ -256,7 +256,7 @@ always @(posedge clock) begin
             
             end            
         
-            // Одиночная запись
+            // Одиночная запись (6T)
             `SDRAM_WRITE: begin
             
                 case (bank_cnt)
