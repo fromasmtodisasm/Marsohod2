@@ -94,7 +94,7 @@ always @(posedge div25[1]) begin
     x <= x == 11'd799 ? 1'b0 : x + 1;
     y <= x == 11'd799 ? (y == 10'd524 ? 1'b0 : y + 1) : y;
     
-    addr <= (x + y*640);
+    addr <= (x[10:1] + y[9:1]*640);
     case (q)
     
         4'h0: color <= 16'b00000_000000_00000;
