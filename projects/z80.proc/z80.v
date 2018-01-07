@@ -78,7 +78,7 @@ wire [7:0]  operand =  rs == 3'b000 ? b :
 initial begin
 
           a = 1;          b = 5;          c = 3;          d = 0; 
-          e = 0;          h = 0;          l = 0;          f = 0;
+          e = 0;          h = 7;          l = 8;          f = 0;
     a_prime = 2;    b_prime = 0;    c_prime = 0;    d_prime = 0; 
     e_prime = 0;    h_prime = 0;    l_prime = 0;    f_prime = 4;
     
@@ -87,6 +87,8 @@ initial begin
     pc      = 0; sp     = 16'hdff0; 
     imode   = 0; iff1   = 0; 
                  iff2   = 0;
+                 
+    o_wr    = 0;
 
 end
 
@@ -296,6 +298,109 @@ always @(posedge clk_z80) begin
                 
                 end
                                 
+            
+            endcase
+        
+        end
+        
+        // 7T LD (BC|DE), A
+        8'b00_0x0_010: begin
+        
+            case (m_state)
+            
+                // Выставить данные на шину данных, и установить шину адреса
+                1: begin o_data <= a; abus <= 1; ab <= opcode[4] ? {d,e} : {b,c}; m_state <= 2; end
+                // Запись
+                2: begin o_wr <= 1; m_state <= 3; end 
+                // Завершение
+                3: begin o_wr <= 0; abus <= 0; m_state <= 0; t_state <= 7-4; end
+            
+            endcase
+        
+        end
+                
+        // 7T LD A, (BC|DE)
+        8'b00_0x1_010: begin
+        
+            case (m_state)
+            
+                // Выставить данные на шину данных, и установить шину адреса
+                1: begin abus <= 1; ab <= opcode[4] ? {d,e} : {b,c}; m_state <= 2; end
+                // Чтение
+                2: begin abus <= 0; a <= i_data; m_state <= 0; t_state <= 7-3; end
+            
+            endcase
+        
+        end
+        
+        // 16T LD (**), (HL|IX|IY)
+        8'b00_100_010: begin
+        
+            case (m_state)
+            
+                1: begin ab[7:0] <= i_data; pc <= pc + 1; m_state <= 2;  end
+                2: begin 
+                
+                    ab[15:8]    <= i_data; 
+                    pc          <= pc + 1; 
+                    abus        <= 1;                    
+                    m_state     <= 3;
+                     
+                    case (prefix)
+                    
+                        0: o_data <= l;
+                        1: o_data <= ix[7:0];
+                        2: o_data <= iy[7:0];
+                    
+                    endcase
+                    
+                end
+                
+                3: begin o_wr <= 1; m_state <= 4; end
+                4: begin o_wr <= 0; ab <= ab + 1; m_state <= 5; end
+                5: begin
+                
+                    m_state <= 6; 
+                    case (prefix)
+                    
+                        0: o_data <= h;
+                        1: o_data <= ix[15:8];
+                        2: o_data <= iy[15:8];
+                    
+                    endcase
+                
+                end
+                
+                6: begin o_wr <= 1; m_state <= 7; end
+                7: begin o_wr <= 0; abus <= 0; m_state <= 0; t_state <= 16 - 8; end
+            
+            endcase
+        
+        end
+        
+        // 16T LD (HL|IX|IY), (**)
+        8'b00_101_010: begin
+        
+            case (m_state)
+            
+                1: begin ab[ 7:0] <= i_data; pc <= pc + 1; m_state <= 2; end
+                2: begin ab[15:8] <= i_data; pc <= pc + 1; m_state <= 3; abus <= 1; end
+                3: begin tmp[7:0] <= i_data; ab <= ab + 1; m_state <= 4; end
+                4: begin 
+                
+                    case (prefix)
+                    
+                        0: begin h <= i_data; l <= tmp[7:0]; end
+                        1: ix <= {i_data, tmp[7:0]};
+                        2: iy <= {i_data, tmp[7:0]};
+                    
+                    endcase
+                
+                    m_state <= 0; 
+                    t_state <= 16 - 5;
+                    abus    <= 0;
+                    
+                end
             
             endcase
         

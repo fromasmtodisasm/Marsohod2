@@ -56,10 +56,34 @@ module marsohod2(
 );
 // --------------------------------------------------------------------------
 
-assign sdram_clock = clk;
-assign sdram_addr = a;
+assign sdram_addr = o_addr[11:0]; // отладка
 
-reg [11:0] a = 1'b0;
-always @(posedge clk) a <= a + 1'b1;
+wire [15:0] o_addr;
+wire [ 7:0] o_data;
+wire [ 7:0] i_data;
+wire        o_wr;
+
+z80 Z80(
+
+    .clk    (clk),
+    .turbo  (1'b1),
+    .i_data (i_data),
+    .o_data (o_data),
+    .o_addr (o_addr),
+    .o_wr   (o_wr),
+    
+);
+
+// ZX ROM 16K (пока что возможно писать)
+rom ROM16K(
+
+    .clock   (clk),
+    .addr_wr (o_addr[13:0]),
+    .data_wr (o_data),
+    .wren    (o_wr),        // 1'b0
+    .qw      (i_data)
+
+);
+
 
 endmodule
