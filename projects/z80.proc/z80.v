@@ -152,7 +152,7 @@ always @(posedge clk_z80) begin
         // 4T NOP
         8'b00_000_000: begin 
         
-            t_state <= 2; 
+            t_state <= 4-2; 
             m_state <= 0;
             
         end
@@ -160,7 +160,7 @@ always @(posedge clk_z80) begin
         // 4T EX AF, AF'        
         8'b00_001_000: begin 
         
-            t_state <= 2;
+            t_state <= 4-2;
             a       <= a_prime;
             f       <= f_prime;
             a_prime <= a;
@@ -175,12 +175,12 @@ always @(posedge clk_z80) begin
             // На следующем такте B=0, значит, 8Т и к следующему опкоду
             if (b == 1) begin
             
-                t_state <= 6; // 8-2
+                t_state <= 8-2;
                 pc      <= pc + 1;
             
             end else begin
             
-                t_state <= 11; // 13-2
+                t_state <= 13-2;
                 pc      <= pc + 1 + relative8;
             
             end
@@ -193,7 +193,7 @@ always @(posedge clk_z80) begin
         // 12T JR *
         8'b00_011_000: begin
         
-            t_state <= 10; // 12-2
+            t_state <= 12-2;
             m_state <= 0;
             pc      <= pc + 1 + relative8;
         
@@ -209,12 +209,12 @@ always @(posedge clk_z80) begin
             // ZF: если выбран NZ (opcode[3] = 0), то срабатывает при f[6] = 0
             if ((opcode[4] & (opcode[3] ^ f[0] ^ 1)) | (!opcode[4] & (opcode[3] ^ f[6] ^ 1))) begin
                             
-                t_state <= 10; // 12-2
+                t_state <= 12-2;
                 pc      <= pc + 1 + relative8;
                 
             end else begin
             
-                t_state <= 5; // 7-2
+                t_state <= 7-2;
                 pc      <= pc + 1;
             
             end
@@ -252,7 +252,7 @@ always @(posedge clk_z80) begin
 
                     pc <= pc + 1;
                     m_state <= 0;
-                    t_state <= 7; // 10-3
+                    t_state <= 10-3;
                     
                 end
             
@@ -294,7 +294,7 @@ always @(posedge clk_z80) begin
                     f[5] <= addhl_r16[13];
                     
                     m_state <= 0;
-                    t_state <= 8; // 11 - 3
+                    t_state <= 11-3;
                 
                 end
                                 
@@ -401,6 +401,33 @@ always @(posedge clk_z80) begin
                     abus    <= 0;
                     
                 end
+            
+            endcase
+        
+        end
+        
+        // 13T LD (**), A
+        8'b00_110_010: begin
+        
+            case (m_state)
+            
+                1: begin ab[ 7:0] <= i_data; pc <= pc + 1; m_state <= 2; end
+                2: begin ab[15:8] <= i_data; pc <= pc + 1; m_state <= 3; o_data <= a; abus <= 1; end
+                3: begin m_state <= 4; o_wr <= 1; end
+                4: begin m_state <= 0; o_wr <= 0; abus <= 0; t_state <= 13 - 5; end
+            
+            endcase
+        
+        end
+        
+        // 13T A, LD (**)
+        8'b00_111_010: begin
+        
+            case (m_state)
+            
+                1: begin ab[ 7:0] <= i_data; pc <= pc + 1; m_state <= 2; end
+                2: begin ab[15:8] <= i_data; pc <= pc + 1; m_state <= 3; abus <= 1; end
+                3: begin a <= i_data; m_state <= 0; o_wr <= 0; abus <= 0; t_state <= 13 - 4; end
             
             endcase
         
