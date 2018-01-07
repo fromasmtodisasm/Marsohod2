@@ -12,6 +12,7 @@ timing
 *.smsg
 *.qws
 *.vcd
+*.qqq
 qqq
 undo_redo.txt
 PLLJ_PLLSPE_INFO.txt

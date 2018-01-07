@@ -1,30 +1,37 @@
 module z80(
-
+    
     input   wire        clk,            // 100 Mhz
+    input   wire        turbo,          // 1-турборежим
     input   wire [7:0]  i_data,
-    output  wire [7:0]  o_data,
-    output  wire [15:0] o_addr
+    output  reg  [7:0]  o_data,
+    output  wire [15:0] o_addr,
+    output  reg         o_wr
 
 );
 
 // Указатель на шину адреса (pc / ab)
 assign o_addr = abus ? ab : pc;
 
-// ---------------------------------------------------------------------
-
 com_clock_divisor CCD(
     .clk        (clk),
     .clk_z80    (clk_z80),
-    .param_div  (4'd0)      // 3.5 Mhz = 4'd13
+    .param_div  (turbo ? 4'd0 : 4'd13)
 );
 
-// ---------------------------------------------------------------------
+// SZ-H-PNC ФЛаги
+// 76543210
 
 // Регистры общего назначения
 reg [7:0] a; reg [7:0] f;
 reg [7:0] b; reg [7:0] c;
 reg [7:0] d; reg [7:0] e;
 reg [7:0] h; reg [7:0] l;
+
+// H/L зависит от префикса
+wire [7:0] H =  prefix == 1 ? ix[15:8] : 
+                prefix == 2 ? iy[15:8] : h;                 
+wire [7:0] L =  prefix == 1 ? ix[7:0] : 
+                prefix == 2 ? iy[7:0] : l; 
 
 // Дополнительные регистры
 reg [7:0] a_prime; reg [7:0] f_prime;
@@ -46,7 +53,6 @@ reg         iff1;   // Маскируемое прерывание #1
 reg         iff2;   // Маскируемое прерывание #2
 
 // ---------------------------------------------------------------------
-
 reg         abus     = 1'b0;        // address_bus: 0=pc, 1=ab
 reg [15:0]  ab       = 1'b0;
 reg [2:0]   rs       = 3'b000;      // текущий выбранный регистр (0-7)
@@ -55,21 +61,24 @@ reg         delay_ei = 1'b0;        // предыдущая инструкция
 reg [3:0]   m_state  = 1'b0;        // машинное состояние исполнения кода
 reg [3:0]   t_state  = 1'b0;        // инструкции для ожидания
 reg [7:0]   opcode   = 1'b0;        // код операции
+reg [1:0]   prefix   = 1'b0;        // 1-IX, 2-IY
+reg [1:0]   lazy_prefix = 1'b0;     //
+reg [15:0]  tmp      = 1'b0;        // временный регистр
 
 // regsel указывает на определенный операнд из основного регистрового файла
 wire [7:0]  operand =  rs == 3'b000 ? b : 
                        rs == 3'b001 ? c : 
                        rs == 3'b010 ? d : 
                        rs == 3'b011 ? e : 
-                       rs == 3'b100 ? h : 
-                       rs == 3'b101 ? l : 
+                       rs == 3'b100 ? H : 
+                       rs == 3'b101 ? L : 
                        // 6 = (hl), (ix+d), (iy+d)
                        rs == 3'b110 ? i_data : a;
 
 initial begin
 
-          a = 1;          b = 0;          c = 0;          d = 0; 
-          e = 0;          h = 0;          l = 0;          f = 5;
+          a = 1;          b = 5;          c = 3;          d = 0; 
+          e = 0;          h = 0;          l = 0;          f = 0;
     a_prime = 2;    b_prime = 0;    c_prime = 0;    d_prime = 0; 
     e_prime = 0;    h_prime = 0;    l_prime = 0;    f_prime = 4;
     
@@ -81,39 +90,64 @@ initial begin
 
 end
 
-// ---------------------------------------------------------------------
+// Работа с 16-битными операндами
+wire [16:0] addhl_r16    = {H, L} + tmp[15:0];
+wire [12:0] addhl_r16_hf = {H, L} + tmp[11:0];
+
 wire [6:0]  r_inc       = r[6:0] + 1;
 wire [15:0] relative8   = {{8{i_data[7]}}, i_data[7:0]};
 
-// ---------------------------------------------------------------------
+// Декодер инструкции
 always @(posedge clk_z80) begin
 
     // "Пустые инструкции", чтобы подогнать кол-во тактов на инструкцию
-    if (t_state) begin t_state <= t_state - 1; end
-
+    if (t_state & !turbo) begin t_state <= t_state - 1; end 
+    else 
     // Текущая исполнимая инструкция
-    else if (m_state == 1'b0) begin
+    if (m_state == 0) begin
 
         pc <= pc + 1;
         r  <= {r[7], r_inc[6:0]};
         
-        // "Отложенный" DI/EI. Они срабатывают через 1 инструкцию
-             if (delay_di)  begin iff1 <= 0; iff2 <= 0; end
-        else if (delay_ei)  begin iff1 <= 1; iff2 <= 1; end
+        // ПРЕФИКС IX:
+        if (i_data == 8'hDD) begin
+            
+            lazy_prefix <= 2'b01;
+            t_state     <= 3;
+            
+        end
+        else
+        // ПРЕФИКС IY:
+        if (i_data == 8'hFD) begin
         
-        delay_di    <= 0;
-        delay_ei    <= 0;
-        m_state     <= 1;       // К декодеру инструкции (2-й такт)
-        opcode      <= i_data;  // Записать опкод с шины данных
+            lazy_prefix <= 2'b10;  
+            t_state     <= 3;
+
+        end 
+        // ОПЕРАЦИЯ
+        else begin        
+        
+            // "Отложенный" DI/EI. Они срабатывают через 1 инструкцию
+            if (delay_di) begin iff1 <= 0; iff2 <= 0; end
+            else 
+            if (delay_ei) begin iff1 <= 1; iff2 <= 1; end
+            
+            prefix      <= lazy_prefix;        
+            lazy_prefix <= 1'b0;
+            opcode      <= i_data;  // Записать опкод с шины данных
+            m_state     <= 1;       // К декодеру инструкции (2-й такт)
+            delay_di    <= 0;
+            delay_ei    <= 0;
+            
+        end
     
     end
-    
+
     // Декодирование и исполнение инструкции
-    else casex (opcode)
+    else     
+    casex (opcode)
         
         // 4T NOP
-        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        
         8'b00_000_000: begin 
         
             t_state <= 2; 
@@ -121,9 +155,7 @@ always @(posedge clk_z80) begin
             
         end
         
-        // 4T EX AF, AF'
-        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        
+        // 4T EX AF, AF'        
         8'b00_001_000: begin 
         
             t_state <= 2;
@@ -136,8 +168,6 @@ always @(posedge clk_z80) begin
         end
         
         // 8T/13T DJNZ *
-        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        
         8'b00_010_000: begin
                     
             // На следующем такте B=0, значит, 8Т и к следующему опкоду
@@ -159,7 +189,6 @@ always @(posedge clk_z80) begin
         end
         
         // 12T JR *
-        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         8'b00_011_000: begin
         
             t_state <= 10; // 12-2
@@ -168,7 +197,112 @@ always @(posedge clk_z80) begin
         
         end
         
+        // 12/7T JR (NZ,Z,NC,C), *
+        8'b00_1xx_000: begin
+        
+            // 00 NZ  10 NC
+            // 01 Z   11 C
+               
+            // CF: если выбран NC (opcode[3] = 0), то срабатывает при f[0] = 0
+            // ZF: если выбран NZ (opcode[3] = 0), то срабатывает при f[6] = 0
+            if ((opcode[4] & (opcode[3] ^ f[0] ^ 1)) | (!opcode[4] & (opcode[3] ^ f[6] ^ 1))) begin
+                            
+                t_state <= 10; // 12-2
+                pc      <= pc + 1 + relative8;
+                
+            end else begin
+            
+                t_state <= 5; // 7-2
+                pc      <= pc + 1;
+            
+            end
+        
+            m_state <= 0;
+
+        end
+
+        // 10T LD r16, **
+        8'b00_xx0_001: begin
+        
+            case (m_state) 
+            
+                1: begin tmp[7:0] <= i_data; m_state <= 2; pc <= pc + 1; end
+                2: begin 
+                
+                    case (opcode[5:4])
+                    
+                        2'b00: begin b <= i_data; c <= tmp[7:0]; end
+                        2'b01: begin d <= i_data; e <= tmp[7:0]; end
+                        2'b10: begin 
+                        
+                            case (prefix)
+                            
+                                0: begin h <= i_data; l <= tmp[7:0]; end
+                                1: ix <= {i_data, tmp[7:0]}; 
+                                2: iy <= {i_data, tmp[7:0]}; 
+                                
+                            endcase
+                            
+                        end
+                        2'b11: begin sp <= {i_data, tmp[7:0]}; end
+                    
+                    endcase
+
+                    pc <= pc + 1;
+                    m_state <= 0;
+                    t_state <= 7; // 10-3
+                    
+                end
+            
+            endcase
+        
+        end
+                
+        // 11T ADD HL, r16
+        8'b00_xx1_001: begin
+        
+            case (m_state) 
+            
+                // (1) Вычисление
+                1: begin 
+                
+                    tmp <= opcode[5:4] == 2'b00 ? {b, c} :
+                           opcode[5:4] == 2'b01 ? {d, e} :
+                           opcode[5:4] == 2'b10 ? {H, L} : sp;
+                        
+                    m_state <= 2;
+
+                end
+                
+                // (2) Запись результата
+                2: begin
+                
+                    case (prefix)
+                            
+                        0: begin h <= addhl_r16[15:8]; l <= addhl_r16[7:0]; end
+                        1: ix <= addhl_r16[15:0]; 
+                        2: iy <= addhl_r16[15:0];
+                        
+                    endcase
+                    
+                    f[0] <= addhl_r16[16];
+                    f[1] <= 1'b0;
+                    f[3] <= addhl_r16[11];
+                    f[4] <= addhl_r16_hf[12];
+                    f[5] <= addhl_r16[13];
+                    
+                    m_state <= 0;
+                    t_state <= 8; // 11 - 3
+                
+                end
+                                
+            
+            endcase
+        
+        end
+        
     endcase
 end
+
 
 endmodule
