@@ -15,7 +15,7 @@ assign o_addr = abus ? ab : pc;
 com_clock_divisor CCD(
     .clk        (clk),
     .clk_z80    (clk_z80),
-    .param_div  (turbo ? 4'd0 : 4'd13)
+    .param_div  (turbo ? 4'd1 : 4'd13)
 );
 
 // SZ-H-PNC ФЛаги
@@ -77,8 +77,8 @@ wire [7:0]  operand =  rs == 3'b000 ? b :
 
 initial begin
 
-          a = 1;          b = 5;          c = 3;          d = 0; 
-          e = 0;          h = 7;          l = 8;          f = 0;
+          a = 1;          b = 0;          c = 3;          d = 0; 
+          e = 0;          h = 0;          l = 8;          f = 0;
     a_prime = 2;    b_prime = 0;    c_prime = 0;    d_prime = 0; 
     e_prime = 0;    h_prime = 0;    l_prime = 0;    f_prime = 4;
     
@@ -95,6 +95,8 @@ end
 // Работа с 16-битными операндами
 wire [16:0] addhl_r16    = {H, L} + tmp[15:0];
 wire [12:0] addhl_r16_hf = {H, L} + tmp[11:0];
+wire [15:0] inc_r16      = tmp + 1;
+wire [15:0] dec_r16      = tmp - 1;
 
 wire [6:0]  r_inc       = r[6:0] + 1;
 wire [15:0] relative8   = {{8{i_data[7]}}, i_data[7:0]};
@@ -420,7 +422,7 @@ always @(posedge clk_z80) begin
         
         end
         
-        // 13T A, LD (**)
+        // 13T LD A, (**)
         8'b00_111_010: begin
         
             case (m_state)
@@ -432,7 +434,248 @@ always @(posedge clk_z80) begin
             endcase
         
         end
+
+        // 6T INC/DEC r16
+        8'b00_xxx_011: begin
         
+            case (m_state)
+            
+                // Чтение
+                1: begin 
+                    
+                    case (opcode[5:4])
+                    
+                        0: tmp <= {b, c};
+                        1: tmp <= {d, e};
+                        2: tmp <= {H, L};
+                        3: tmp <= sp;
+                    
+                    endcase
+                    
+                    m_state <= 2;
+                
+                end
+                
+                // Вычисление
+                2: begin tmp <= opcode[3] ? dec_r16 : inc_r16; m_state <= 3; end
+                
+                // Запись результата
+                3: begin
+                
+                    case (opcode[5:4])
+                    
+                        0: begin b <= tmp[15:8]; c <= tmp[7:0]; end
+                        1: begin d <= tmp[15:8]; e <= tmp[7:0]; end
+                        2: begin 
+                        
+                            case (prefix)
+                            
+                                0: begin h <= tmp[15:8]; l <= tmp[7:0]; end
+                                1: ix <= tmp;
+                                2: iy <= tmp;
+                            
+                            endcase
+
+                        end
+                        
+                            
+                        3: begin sp <= tmp; end
+                    
+                    endcase
+                    
+                    m_state <= 0;
+                    t_state <= 6 - 4;
+                
+                end
+            
+            endcase
+        
+        end
+           
+        // 4T/11T INC/DEC r8
+        8'b00_xxx_10x: begin
+        
+            case (m_state)
+            
+                // если (HL/IX+d/IY+d), то включение режима address bus
+                1: begin
+
+                    rs      <= opcode[5:3];
+                    abus    <= (opcode[5:3] == 3'd6) && (!prefix);
+                    ab      <= {H, L}; 
+                    m_state <= 2;
+                    
+                end
+                   
+                // Вычисление / Переход
+                2: begin
+                
+                    f[1] <= opcode[0];
+
+                    // Используется обращение к (HL), IX+d, IY+d
+                    if (opcode[5:3] == 3'd6) begin
+                    
+                        // IX: IY: Использ
+                        if (prefix) begin
+                        
+                            abus    <= 1;
+                            ab      <= ab + relative8;
+                            pc      <= pc + 1;
+                            t_state <= 8;
+                            prefix  <= 0;
+
+                        // Вычисление и подготовка к записи в память
+                        end else begin
+                        
+                            tmp[8:0]    <= opcode[0] ? i_data - 1 : i_data + 1;
+                            o_data[7:0] <= opcode[0] ? i_data - 1 : i_data + 1;
+                            m_state     <= 4;
+
+                        end
+
+                    end
+                    
+                    // INC/DEC r
+                    else begin
+                    
+                        tmp[8:0]    <= opcode[0] ? operand - 1 : operand + 1;
+                        m_state     <= 3;
+                                        
+                    end
+                
+                end      
+                
+                // Сохранение
+                3: begin
+                
+                    case (rs)
+                    
+                        0: b <= tmp[7:0];
+                        1: c <= tmp[7:0];
+                        2: d <= tmp[7:0];
+                        3: e <= tmp[7:0];
+                        4: case (prefix) 
+                        
+                            0: h        <= tmp[7:0];
+                            1: ix[15:8] <= tmp[7:0];
+                            2: iy[15:8] <= tmp[7:0];
+                            
+                        endcase
+                        5: case (prefix) 
+                        
+                            0: l        <= tmp[7:0];
+                            1: ix[7:0]  <= tmp[7:0];
+                            2: iy[7:0]  <= tmp[7:0];
+                            
+                        endcase
+                        7: a <= tmp[7:0];
+                    
+                    endcase
+                    
+                    /* C */ f[0] <= tmp[8];
+                    /* P */ f[2] <= 0; // !! tmp[7] ^ tmp[6] ^ tmp[5] ^ tmp[4] ^ tmp[3] ^ tmp[2] ^ tmp[1] ^ tmp[0] ^ 1'b1;
+                    /* Y */ f[3] <= tmp[3];
+                    /* H */ f[4] <= tmp[3:0] == (f[1] ? 4'b1111 : 4'b0000);
+                    /* X */ f[5] <= tmp[5];
+                    /* Z */ f[6] <= tmp[7:0] == 0;
+                    /* S */ f[7] <= tmp[7];
+                    
+                    m_state <= 0;
+
+                end  
+                
+                // Запись в память
+                4: begin o_wr <= 1; m_state <= 5; end   
+                
+                // Выход к сохранению флагов
+                5: begin o_wr <= 0; abus <= 0; m_state <= 3; t_state <= 11 - 6; end            
+                
+            endcase
+        
+        end
+           
+        // 7/10T LD r8, *
+        8'b00_xxx_110: begin
+        
+            case (m_state)
+            
+                // Загрузка Immediate
+                1: begin
+                
+                    tmp[7:0] <= i_data;
+                    pc      <= pc + 1;
+                    m_state <= 2;
+                    ab      <= {H, L};
+                
+                end
+                
+                // Запись в регистр
+                2: begin
+                
+                    case (opcode[5:3])
+                    
+                        0: b <= tmp[7:0];
+                        1: c <= tmp[7:0];
+                        2: d <= tmp[7:0];
+                        3: e <= tmp[7:0];
+                        4: case (prefix)                        
+
+                            0: h         <= tmp[7:0];
+                            1: ix[15:8]  <= tmp[7:0];
+                            2: iy[15:8]  <= tmp[7:0];                            
+
+                        endcase                        
+                        5: case (prefix)                        
+
+                            0: l        <= tmp[7:0];
+                            1: ix[7:0]  <= tmp[7:0];
+                            2: iy[7:0]  <= tmp[7:0];                            
+
+                        endcase                        
+                        6: begin 
+                            
+                            abus <= 1;
+                            
+                            if (prefix) begin
+                                
+                                o_data  <= i_data; 
+                                ab      <= ab + {{8{tmp[7]}}, tmp[7:0]};
+                                pc      <= pc + 1; 
+                                
+                            end else begin
+                                o_data  <= tmp[7:0];
+                            end
+                            
+                        end
+                        7: a <= tmp[7:0];                        
+                    
+                    endcase
+                    
+                    t_state <= 7 - 3;
+                    m_state <= opcode[5:3] == 6 ? 3 : 0;
+                
+                end
+                
+                // Запись в память
+                3: if (prefix) begin
+                                    
+                    prefix  <= 0;
+                    t_state <= 9;
+                
+                end else begin
+
+                    o_wr    <= 1;
+                    m_state <= 4;
+
+                end
+                
+                // Завершить запись
+                4: begin o_wr <= 0; m_state <= 0; abus <= 0; t_state <= 1; end
+            
+            endcase
+        
+        end
+                
     endcase
 end
 
