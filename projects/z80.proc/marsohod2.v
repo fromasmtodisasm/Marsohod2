@@ -60,7 +60,13 @@ assign sdram_addr = o_addr[11:0]; // отладка
 
 wire [15:0] o_addr;
 wire [ 7:0] o_data;
-wire [ 7:0] i_data;
+
+// Роутер - откуда брать данные?
+wire [ 7:0] i_data = o_addr[15:14] == 2'b00 ? i_data_0 :
+                     o_addr[15:14] == 2'b01 ? i_data_1 : 8'hFF;
+
+wire [ 7:0] i_data_0;
+wire [ 7:0] i_data_1;
 wire        o_wr;
 
 z80 Z80(
@@ -74,16 +80,35 @@ z80 Z80(
     
 );
 
-// ZX ROM 16K (пока что возможно писать)
+// ZX ROM 16K
 rom ROM16K(
+
+    .clock   (clk),
+    .addr_rd (o_addr[13:0]),
+    .q       (i_data_0)
+
+);
+
+// ZX RAM 16K ($4000-$7FFF), видеопамять ($4000-$5AFF)
+ram RAM16K(
 
     .clock   (clk),
     .addr_wr (o_addr[13:0]),
     .data_wr (o_data),
-    .wren    (o_wr),        // 1'b0
-    .qw      (i_data)
+    // Запись возможна только при o_addr - [$4000, $7FFF]
+    .wren    (o_wr & (o_addr[15:14] == 2'b01)),
+    .qw      (i_data_1),
+    
+    // Видеопамять
+    //.addr_rd (rd)
+    //.q(q)
 
 );
 
+// 32KB памяти будут отрабатываться через SDRAM
+// 28T будет тратиться на чтение, запись, refresh блоков
+
+// Активная нагрузка (13) + Пассивная (13)
+// ACTIVATE (3) CAS (1) READ/WRITE (3) PRECHARGE (2)
 
 endmodule
