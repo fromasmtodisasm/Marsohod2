@@ -65,6 +65,8 @@ reg [7:0]   opcode   = 1'b0;        // код операции
 reg [1:0]   prefix   = 1'b0;        // 1-IX, 2-IY
 reg [1:0]   lazy_prefix = 1'b0;     //
 reg [15:0]  tmp      = 1'b0;        // временный регистр
+reg         cb_prefix = 1'b0;       // =1 обработка CB-префиксированного опкода
+reg         ed_prefix = 1'b0;       // =1 обработка ED-префиксированного опкода
 
 // regsel указывает на определенный операнд из основного регистрового файла
 wire [7:0]  operand =  rs == 3'b000 ? b :
@@ -81,6 +83,12 @@ reg [7:0]   alu_dest = 4'h0;    // Либо A, либо (HL)
 reg [8:0]   alu_res;            // Результат - значение
 reg [7:0]   alu_flag;           // Результат - флаги
 
+// RET/CALL/JP <ccc>
+wire        cond_success =  (opcode[5:4] == 3'b00 & f[6] == opcode[3]) || // NZ(0),Z(1)
+                            (opcode[5:4] == 3'b01 & f[0] == opcode[3]) || // NC(0),C(1)
+                            (opcode[5:4] == 3'b10 & f[2] == opcode[3]) || // PO(0),PE(1)
+                            (opcode[5:4] == 3'b11 & f[7] == opcode[3]);   // P(0),M(1)
+
 // Тип операции АЛУ
 wire        r_is_sub    = (alu_op == 4'h2) | (alu_op == 4'h3) | (alu_op == 4'h7);
 wire        r_is_logic  = (alu_op == 4'h4) | (alu_op == 4'h5) | (alu_op == 4'h6);
@@ -94,9 +102,9 @@ wire        r_overflow_add = (alu_dest[7] &  operand[7] & !alu_res[7]) | (!alu_d
 wire        r_overflow_sub = (alu_dest[7] & !operand[7] & !alu_res[7]) | (!alu_dest[7] &  operand[7] & alu_res[7]);
 
 // Флаг четности @todo для логических операции
-wire        r_parity8 = alu_res[7] ^ alu_res[6] ^ alu_res[5] ^ alu_res[4] ^ 
-                        alu_res[3] ^ alu_res[2] ^ alu_res[1] ^ alu_res[0] ^ 1'b1;   
-          
+wire        r_parity8 = alu_res[7] ^ alu_res[6] ^ alu_res[5] ^ alu_res[4] ^
+                        alu_res[3] ^ alu_res[2] ^ alu_res[1] ^ alu_res[0] ^ 1'b1;
+
 // Инструкция DAA
 wire [7:0]  DAA = a   + ((f[4] | (a[3:0] > 8'h09)) ? 8'h06 : 8'h00);
 wire [7:0]  DAS = a   - ((f[4] | (a[3:0] > 8'h09)) ? 8'h06 : 8'h00);
@@ -115,13 +123,14 @@ wire [7:0]  daa_flag = {
     /* P */ daa_res[0] ^ daa_res[1] ^ daa_res[2] ^ daa_res[3] ^ daa_res[4] ^ daa_res[5] ^ daa_res[6] ^ daa_res[7] ^ 1'b1,
     /* N */ f[1],
     /* C */ f[0] | (a > 8'h99)
-    
+
 };
-                                                          
+
+// Арифметико-логическое устройство
 always @* begin
 
-    case (alu_op) 
-            
+    case (alu_op)
+
         /* ADD */ 4'h0: alu_res = alu_dest + operand;
         /* ADC */ 4'h1: alu_res = alu_dest + operand + f[0];
         /* SUB */ 4'h2: alu_res = alu_dest - operand;
@@ -130,7 +139,7 @@ always @* begin
         /* XOR */ 4'h5: alu_res = alu_dest ^ operand;
         /* OR  */ 4'h6: alu_res = alu_dest | operand;
         /* CP  */ 4'h7: alu_res = alu_dest - operand;
-        
+
         /* БИТОВЫЕ СДВИГИ */
         /* RLC */ 4'h8: alu_res = {alu_dest[6:0],   alu_dest[7]};
         /* RRC */ 4'h9: alu_res = {alu_dest[0],     alu_dest[7:1]};
@@ -142,12 +151,12 @@ always @* begin
         /* SRL */ 4'hF: alu_res = {1'b0,            alu_dest[7:1]};
 
     endcase
-    
+
     // Арифметические операции
     if (alu_op < 8) begin
-    
+
         alu_flag = {
-        
+
             /* S */ alu_res[7],
             /* Z */ alu_res[7:0] == 1'b0,
             /* - */ alu_res[5],
@@ -157,12 +166,14 @@ always @* begin
             /* N */ r_is_sub,
             /* C */ alu_res[8]
         };
-        
+
+    end
+
     // Сдвиговые
-    end else begin
+    else begin
 
         alu_flag = {
-            
+
             /* S */ f[7],
             /* Z */ f[6],
             /* - */ alu_res[5],
@@ -171,9 +182,9 @@ always @* begin
             /* P */ f[2],
             /* N */ 1'b0,
             /* C */ alu_op[0] ? alu_res[0] : alu_res[7]
-        
+
         };
-    
+
     end
 
 end
@@ -209,13 +220,29 @@ always @(posedge clk_z80) begin
 
     // "Пустые инструкции", чтобы подогнать кол-во тактов на инструкцию
     if (t_state & !turbo) begin t_state <= t_state - 1; end
-    else
+        
     // Текущая исполнимая инструкция
-    if (m_state == 0) begin
+    else if (m_state == 0) begin
 
         pc <= pc + 1;
         r  <= {r[7], r_inc[6:0]};
+        
+        // ПРЕФИКС CB: Bit
+        if (i_data == 8'hCB) begin
+        
+            cb_prefix   <= 1;
+            m_state     <= 1;
+        
+        end
 
+        // ПРЕФИКС ED: Extended
+        else if (i_data == 8'hED) begin
+        
+            ed_prefix   <= 1;
+            m_state     <= 1;
+        
+        end
+        
         // ПРЕФИКС IX:
         if (i_data == 8'hDD) begin
 
@@ -224,6 +251,7 @@ always @(posedge clk_z80) begin
 
         end
         else
+        
         // ПРЕФИКС IY:
         if (i_data == 8'hFD) begin
 
@@ -231,6 +259,7 @@ always @(posedge clk_z80) begin
             t_state     <= 3;
 
         end
+        
         // ОПЕРАЦИЯ
         else begin
 
@@ -251,9 +280,11 @@ always @(posedge clk_z80) begin
 
     end
 
+    // else if (cb_prefix) begin
+    // else if (eb_prefix) begin
+    
     // Декодирование и исполнение инструкции
-    else
-    casex (opcode)
+    else casex (opcode)
 
         // 4T NOP
         8'b00_000_000: begin
@@ -782,206 +813,361 @@ always @(posedge clk_z80) begin
 
         // 4T RLCA, RRCA, RLA, RRA
         8'b00_0xx_111: begin
-        
+
             case (m_state)
-            
+
                 1: begin alu_dest <= a; alu_op <= {1'b1, opcode[5:3]}; m_state <= 2; end
                 2: begin a <= alu_res[7:0]; f <= alu_flag; m_state <= 0; t_state <= 4 - 3; end
 
             endcase
-        
+
         end
-        
+
         // 4T DAA
-        8'b00_100_111: begin 
-        
-            a <= daa_res; 
-            f <= daa_flag; 
-            m_state <= 0; 
-            t_state <= 4 - 2; 
-        
+        8'b00_100_111: begin
+
+            a <= daa_res;
+            f <= daa_flag;
+            m_state <= 0;
+            t_state <= 4 - 2;
+
         end
-        
+
         // 4T CPL
-        8'b00_101_111: begin 
-        
-            a <= a ^ 8'hFF; 
-            f[1] <= 1'b1; 
-            f[4] <= 1'b1; 
-            f[5] <= a[5]; 
-            f[3] <= a[3]; 
-            m_state <= 0; 
-            t_state <= 4 - 2; 
-            
-        end 
-        
-        // 4T CCF       
-        8'b00_110_111: begin 
-        
-            f <= {f[7:6], a[5], 1'b0, a[3], f[2], 1'b1, f[0]}; 
-            m_state <= 0; 
-            t_state <= 4 - 2; 
-            
-        end        
-        
+        8'b00_101_111: begin
+
+            a <= a ^ 8'hFF;
+            f[1] <= 1'b1;
+            f[4] <= 1'b1;
+            f[5] <= a[5];
+            f[3] <= a[3];
+            m_state <= 0;
+            t_state <= 4 - 2;
+
+        end
+
+        // 4T CCF
+        8'b00_110_111: begin
+
+            f <= {f[7:6], a[5], 1'b0, a[3], f[2], 1'b1, f[0]};
+            m_state <= 0;
+            t_state <= 4 - 2;
+
+        end
+
         // 4T CPL
-        8'b00_111_111: begin 
-            
-            f <= {f[7:6], a[5], f[0], a[3], f[2], 1'b0, f[0] ^ 1'b1}; 
-            m_state <= 0; 
-            t_state <= 4 - 2; 
-            
-        end        
+        8'b00_111_111: begin
+
+            f <= {f[7:6], a[5], f[0], a[3], f[2], 1'b0, f[0] ^ 1'b1};
+            m_state <= 0;
+            t_state <= 4 - 2;
+
+        end
 
         // 76h HALT
         8'b01_110_110: begin
-        
+
             pc      <= pc - 1'b1;
             is_halt <= 1;
             m_state <= 0;
-        
+
         end
 
         // 4/7T LD r8, r8
         8'b01_xxx_xxx: begin
-        
+
             case (m_state)
-            
+
                 // Декодинг
-                1: begin            
-                
-                    rs      <= opcode[2:0]; 
-                    ab      <= {H, L};       
+                1: begin
+
+                    rs      <= opcode[2:0];
+                    ab      <= {H, L};
                     m_state <= 2;
-                    
+
                 end
-                
+
                 // Разбор
                 2: begin
 
                     // Либо А, либо B - (HL)
                     if ((opcode[2:0] == 3'b110) || (opcode[5:3] == 3'b110)) begin
-                    
+
                         if (prefix) begin
-                            
+
                             ab      <= ab + relative8;
                             pc      <= pc + 1;
                             t_state <= 8;
                             prefix  <= 0;
-                            
+
                         end else begin
 
                             abus    <= 1;
                             m_state <= 3;
                             t_state <= 7 - 6;
-                        
-                        end
-                    
-                    end 
-                    
-                    else m_state  <= 3;                
 
-                end   
-                
+                        end
+
+                    end
+
+                    else m_state  <= 3;
+
+                end
+
                 // Сохранение в указанный регистр
                 3: begin
-                
+
                     case (opcode[5:3])
-                    
+
                         0: b <= operand;
                         1: c <= operand;
                         2: d <= operand;
                         3: e <= operand;
                         4: case (prefix)
-                        
+
                             0: h <= operand;
                             1: ix[15:8] <= operand;
                             2: iy[15:8] <= operand;
-                            
+
                         endcase
                         5: case (prefix)
-                        
+
                             0: l <= operand;
                             1: ix[7:0] <= operand;
                             2: iy[7:0] <= operand;
-                            
+
                         endcase
                         6: o_data <= operand;
                         7: a <= operand;
-                    
+
                     endcase
 
                     abus    <= (opcode[5:3] == 3'b110) ? 1 : 0;
                     m_state <= (opcode[5:3] == 3'b110) ? 4 : 0;
-                
-                end         
-                
-                // Запись данных 
+
+                end
+
+                // Запись данных
                 4: begin o_wr <= 1; m_state <= 5; end
-                5: begin o_wr <= 0; m_state <= 0; abus <= 0; end                
+                5: begin o_wr <= 0; m_state <= 0; abus <= 0; end
 
             endcase
-        
+
         end
 
         // ALU инструкции
         8'b10_xxx_xxx: begin
-        
+
             case (m_state)
-            
+
                 // Подготовка
                 1: begin
-                
+
                     ab       <= {H, L};
                     alu_dest <= a;              // A
                     rs       <= opcode[2:0];    // r8
                     alu_op   <= opcode[5:3];
                     m_state  <= 2;
-                
+
                 end
-                
-                // Разбор и запись
+
+                // Разбор
                 2: begin
-                
+
                     if (opcode[2:0] == 3'b110) begin
 
                         if (prefix) begin
-                        
+
                             ab      <= ab + relative8;
+                            pc      <= pc + 1;
                             t_state <= 8;
                             prefix  <= 0;
-                        
+
                         end else begin
-                    
+
                             m_state <= 3;
                             t_state <= 7 - 4; // +3 такта
 
                         end
 
                         abus <= 1;
-                    
+
                     // 4T операция
                     end else m_state <= 3;
-                    
 
                 end
-                
+
                 // Запись результата
                 3: begin
-                
-                    if (opcode[5:3] !== 3'b111) 
+
+                    if (opcode[5:3] !== 3'b111)
                         a <= alu_res[7:0];
 
                     f       <= alu_flag;
                     abus    <= 0;
                     m_state <= 0;
+
+                end
+
+            endcase
+
+        end
+
+        // 5/11T RET ccc
+        // 10T   RET
+        8'b11_xxx_000,
+        8'b11_001_001: begin
+
+            case (m_state)
+
+                // Проверка условия
+                1: if (cond_success || opcode[0]) begin
+
+                    m_state <= 2;
+                    abus    <= 1;
+                    ab      <= sp;
+                    sp      <= sp + 2;
+                    t_state <= opcode[0] ? (10 - 4) : (11 - 4);
+
+                end else begin
+
+                    m_state <= 0;
+                    t_state <= 5 - 2;
+
+                end
+
+                // Загрузка из стека
+                2: begin pc[7:0]  <= i_data; ab <= ab + 1; m_state <= 3; end
+                3: begin pc[15:8] <= i_data; ab <= ab + 1; m_state <= 0; abus <= 0; end
+
+            endcase
+
+        end
+
+        // POP r16
+        8'b11_xx0_001: begin
+
+            case (m_state)
+
+                // Подготовка
+                1: begin ab <= sp; sp <= sp + 2; abus <= 1; m_state <= 2; t_state <= 10 - 4; end
+
+                // Младший байт
+                2: begin
+
+                    case (opcode[5:4])
+
+                        0: c <= i_data;
+                        1: e <= i_data;
+                        2: case (prefix)
+
+                            0: l <= i_data;
+                            1: ix[7:0] <= i_data;
+                            2: iy[7:0] <= i_data;
+
+                        endcase
+                        3: f <= i_data;
+
+                    endcase
+
+                    ab <= ab + 1;
+                    m_state <= 3;
+
+                end
+
+                // Старший байт
+                3: begin
+
+                    case (opcode[5:4])
+
+                        0: b <= i_data;
+                        1: d <= i_data;
+                        2: case (prefix)
+
+                            0: h <= i_data;
+                            1: ix[15:8] <= i_data;
+                            2: iy[15:8] <= i_data;
+
+                        endcase
+                        3: a <= i_data;
+
+                    endcase
+
+                    abus <= 0;
+                    m_state <= 0;
+
+                end
+
+            endcase
+
+        end
+
+        // 4T EXX
+        8'b11_011_001: begin
+        
+            t_state <= 4 - 2;
+            m_state <= 0;
+            
+            b <= b_prime; b_prime <= b;
+            c <= c_prime; c_prime <= c;
+            d <= d_prime; d_prime <= d;
+            e <= e_prime; e_prime <= e;
+            h <= h_prime; h_prime <= h;
+            l <= l_prime; l_prime <= l;
+        
+        end
+
+        // 4T JP (HL)
+        8'b11_101_001: begin
+
+            m_state <= 0;
+            t_state <= 4 - 2;
+            pc <= {H, L};
+        
+        end
+        
+        // 6T LD SP, HL
+        8'b11_111_001: begin
+
+            m_state <= 0;
+            t_state <= 6 - 2;
+            sp <= {H, L};
+        
+        end
+        
+        // 10T JP ccc, **
+        // 10T JP **
+        8'b11_xxx_010,
+        8'b11_000_011: begin
+        
+            case (m_state)
+            
+                // Загрузка младшего байта
+                1: begin 
                 
+                    tmp[7:0] <= i_data;                     
+                    pc       <= pc + 1; 
+                    m_state  <= 2; 
+                
+                end
+                
+                // Старшего + переход (либо нет)
+                2: begin 
+                
+                    if (cond_success || opcode[0]) 
+                        pc <= {i_data, tmp[7:0]}; 
+                    else    
+                        pc <= pc + 1;                    
+
+                    m_state <= 0; 
+                    t_state <= 10 - 3; 
+                    
                 end
             
             endcase
         
         end
-
+        
     endcase
 end
 
