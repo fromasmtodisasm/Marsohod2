@@ -372,8 +372,9 @@ always @(posedge clk_z80) begin
                     /* P */ f[2]    <= f[6];
                     /* S */ f[7]    <= (opcode[5:3] == 3'b111) & !f[6];                    
                     
-                    m_state <= 0;
-                    abus    <= 0;
+                    m_state     <= 0;
+                    cb_prefix   <= 0;
+                    abus        <= 0;
                 
                 end
                 
@@ -397,8 +398,9 @@ always @(posedge clk_z80) begin
                     if (opcode[7:6] == 2'b00) f <= alu_flag;
                     
                     // Выбор, как завершить инструкцию
-                    m_state <= (opcode[2:0] == 3'b110) ? 4 : 0;   
-                    abus    <= (opcode[2:0] == 3'b110) ? 1 : 0;                     
+                    m_state     <= (opcode[2:0] == 3'b110) ? 4 : 0;   
+                    cb_prefix   <= (opcode[2:0] == 3'b110) ? 1 : 0;
+                    abus        <= (opcode[2:0] == 3'b110) ? 1 : 0;                     
                     
                 end
             
@@ -406,7 +408,7 @@ always @(posedge clk_z80) begin
             
             // Сохранение результата в памяти
             4: begin o_wr <= 1; m_state <= 5; end
-            5: begin o_wr <= 0; abus <= 0; m_state <= 0; t_state <= 11 - 6; end
+            5: begin o_wr <= 0; abus <= 0; m_state <= 0; cb_prefix <= 0; t_state <= 11 - 6; end
 
         endcase
 
