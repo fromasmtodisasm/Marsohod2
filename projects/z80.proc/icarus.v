@@ -21,6 +21,10 @@ reg  [7:0]  i_data;
 wire [7:0]  o_data;
 wire [15:0] o_addr;
 wire        o_wr;
+wire [15:0] port;
+wire [7:0]  port_in; 
+wire [7:0]  port_out;
+wire        port_clk;
 
 z80 IZ80(
     i_clk,
@@ -28,7 +32,11 @@ z80 IZ80(
     i_data,
     o_data,
     o_addr,
-    o_wr
+    o_wr,    
+    port,
+    port_in,
+    port_out,
+    port_clk
 );
 
 // ---------------------------------------------------------------------
