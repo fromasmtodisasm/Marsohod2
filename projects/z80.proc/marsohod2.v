@@ -72,7 +72,7 @@ wire        o_wr;
 z80 Z80(
 
     .clk    (clk),
-    .turbo  (1'b1),
+    .turbo  (1'b0),
     .i_data (i_data),
     .o_data (o_data),
     .o_addr (o_addr),
@@ -89,6 +89,9 @@ rom ROM16K(
 
 );
 
+wire [7:0]  d8_chr;
+wire [13:0] rd_addr;
+
 // ZX RAM 16K ($4000-$7FFF), видеопамять ($4000-$5AFF)
 ram RAM16K(
 
@@ -100,9 +103,23 @@ ram RAM16K(
     .qw      (i_data_1),
     
     // Видеопамять
-    //.addr_rd (rd)
-    //.q(q)
+    .addr_rd (rd_addr),
+    .q       (d8_chr)
 
+);
+
+// Видеоадаптер
+vadapter VGA(
+
+    .clock      (clk),          // 100 Mhz -> 25 Mhz
+    .addr       (rd_addr),
+    .d8_chr     (d8_chr),
+    .vga_border (0),
+    .r          (vga_red),
+    .g          (vga_green),
+    .b          (vga_blue),
+    .hs         (vga_hs),
+    .vs         (vga_vs)
 );
 
 // 32KB памяти будут отрабатываться через SDRAM

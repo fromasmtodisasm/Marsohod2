@@ -112,13 +112,13 @@ wire        r_parity8 = alu_res[7] ^ alu_res[6] ^ alu_res[5] ^ alu_res[4] ^
                         alu_res[3] ^ alu_res[2] ^ alu_res[1] ^ alu_res[0] ^ 1'b1;
 
 // Битовые инструкции (RES / SET)
-wire [7:0]  bits    = opcode[5:3] == 3'b000 ? {operand[7:1], opcode[6]} : 
-                      opcode[5:3] == 3'b001 ? {operand[7:2], opcode[6], operand[0]} : 
-                      opcode[5:3] == 3'b010 ? {operand[7:3], opcode[6], operand[1:0]} : 
-                      opcode[5:3] == 3'b011 ? {operand[7:4], opcode[6], operand[2:0]} : 
-                      opcode[5:3] == 3'b100 ? {operand[7:5], opcode[6], operand[3:0]} : 
-                      opcode[5:3] == 3'b101 ? {operand[7:6], opcode[6], operand[4:0]} : 
-                      opcode[5:3] == 3'b110 ? {operand[7],   opcode[6], operand[5:0]} : 
+wire [7:0]  bits    = opcode[5:3] == 3'b000 ? {operand[7:1], opcode[6]} :
+                      opcode[5:3] == 3'b001 ? {operand[7:2], opcode[6], operand[0]} :
+                      opcode[5:3] == 3'b010 ? {operand[7:3], opcode[6], operand[1:0]} :
+                      opcode[5:3] == 3'b011 ? {operand[7:4], opcode[6], operand[2:0]} :
+                      opcode[5:3] == 3'b100 ? {operand[7:5], opcode[6], operand[3:0]} :
+                      opcode[5:3] == 3'b101 ? {operand[7:6], opcode[6], operand[4:0]} :
+                      opcode[5:3] == 3'b110 ? {operand[7],   opcode[6], operand[5:0]} :
                                               {              opcode[6], operand[6:0]};
 
 wire [7:0]  bit_res = opcode[7] ? bits[7:0] : alu_res[7:0];
@@ -308,42 +308,42 @@ always @(posedge clk_z80) begin
 
     // Префикс CB:
     else if (cb_prefix) begin
-                
+
         case (m_state)
-           
+
            // Декодирование опкода CBh
            1: begin
-           
+
                 if (lazy_prefix) begin
-                
+
                     case (lazy_prefix)
 
                         1: ab <= ix + relative8;
                         2: ab <= iy + relative8;
-                    
+
                     endcase
-                    
+
                     lazy_prefix <= 0;
                     prefix      <= 1;
                     pc          <= pc + 1;
-                
+
                 end else begin
-                                       
+
                     opcode      <= i_data;
                     alu_op      <= {1'b1, i_data[5:3]};
                     rs          <= i_data[2:0];
                     pc          <= pc + 1;
                     m_state     <= 2;
-                    
+
                     if (prefix == 0) ab <= {h, l};
 
                 end
-                
+
             end
-            
+
             // Расчет
             2: begin
-            
+
                 if (prefix) begin
 
                     rs      <= 3'b110;
@@ -351,38 +351,38 @@ always @(posedge clk_z80) begin
 
                 end
                 else begin
-                
+
                     abus    <= (opcode[2:0] == 3'b110);
-                
+
                 end
-            
+
                 m_state <= 3;
 
             end
 
             //  Запись результата в регистр
             3: begin
-                        
+
                 // BIT n, r8
                 if (opcode[7:6] == 2'b01) begin
-                
+
                     /* N */ f[1]    <= 1'b0;
                     /* Z */ f[6]    <= !operand[ opcode[5:3] ];
                     /* H */ f[4]    <= 1'b1;
                     /* P */ f[2]    <= f[6];
-                    /* S */ f[7]    <= (opcode[5:3] == 3'b111) & !f[6];                    
-                    
+                    /* S */ f[7]    <= (opcode[5:3] == 3'b111) & !f[6];
+
                     m_state     <= 0;
                     cb_prefix   <= 0;
                     abus        <= 0;
-                
+
                 end
-                
+
                 // Запись результата (shift, res, set)
-                else begin 
-                
+                else begin
+
                     case (opcode[2:0])
-                    
+
                         0: b <= bit_res[7:0];
                         1: c <= bit_res[7:0];
                         2: d <= bit_res[7:0];
@@ -391,21 +391,21 @@ always @(posedge clk_z80) begin
                         5: l <= bit_res[7:0];
                         6: o_data <= bit_res[7:0];
                         7: a <= bit_res[7:0];
-                    
+
                     endcase
-                    
+
                     // Сохранить флаги только на операциях сдвига
                     if (opcode[7:6] == 2'b00) f <= alu_flag;
-                    
+
                     // Выбор, как завершить инструкцию
-                    m_state     <= (opcode[2:0] == 3'b110) ? 4 : 0;   
+                    m_state     <= (opcode[2:0] == 3'b110) ? 4 : 0;
                     cb_prefix   <= (opcode[2:0] == 3'b110) ? 1 : 0;
-                    abus        <= (opcode[2:0] == 3'b110) ? 1 : 0;                     
-                    
+                    abus        <= (opcode[2:0] == 3'b110) ? 1 : 0;
+
                 end
-            
+
             end
-            
+
             // Сохранение результата в памяти
             4: begin o_wr <= 1; m_state <= 5; end
             5: begin o_wr <= 0; abus <= 0; m_state <= 0; cb_prefix <= 0; t_state <= 11 - 6; end
@@ -414,7 +414,87 @@ always @(posedge clk_z80) begin
 
     end
 
-    // else if (eb_prefix) begin
+    // Префикс ED:
+    else if (ed_prefix) begin
+
+        if (m_state == 1) begin
+
+            opcode  <= i_data;
+            pc      <= pc + 1;
+            m_state <= 2;
+
+        end else casex (opcode)
+
+            // 12T IN r8, (c)
+            8'b01_xxx_000: begin
+
+
+
+            end
+
+            // 12T OUT (c), r8
+            8'b01_xxx_001: begin
+
+
+
+            end
+
+            // 15T SUB HL, r16
+            8'b01_xx0_010: begin
+
+
+
+            end
+
+            // 15T ADC HL, r16
+            8'b01_xx1_010: begin
+
+
+
+            end
+
+            // 20T LD (**), r16
+            8'b01_xx0_011: begin
+
+
+
+            end
+
+            // 20T LD r16, (**)
+            8'b01_xx1_011: begin
+
+
+
+            end
+
+            // 14T RETN
+            8'b01_xxx_101: begin
+
+
+
+            end
+
+            // 8T IM *
+            8'b01_xxx_110: begin
+
+
+
+            end
+
+            // LD I, A
+            // LD R, A
+            // LD A, I
+            // LD A, R
+            // RRD
+            // RLD
+
+            // Не работающий опкод (NOP)
+            default: begin m_state <= 0; t_state <= 4 - 2; end
+
+        endcase
+
+
+    end
 
     // Декодирование и исполнение инструкции
     else casex (opcode)
