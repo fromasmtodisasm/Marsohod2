@@ -32,13 +32,55 @@ wire       bitset = mask[ 3'h7 ^ rx[3:1] ];
 reg [1:0] bdiv = 2'b00;
 always @(posedge clock) bdiv <= bdiv + 1'b1;
 
+reg [15:0] color_fr;
+reg [15:0] color_bg;
+
+// Цвета
+always @* begin
+
+    case ({attr[6],attr[2:0]})
+    
+        4'b0000: color_fr = 16'b00000_000000_00000;
+        4'b0001: color_fr = 16'b00000_000000_01111;
+        4'b0010: color_fr = 16'b01111_000000_00000;
+        4'b0011: color_fr = 16'b01111_000000_01111;
+        4'b0100: color_fr = 16'b00000_011111_00000;
+        4'b0101: color_fr = 16'b00000_011111_01111;
+        4'b0110: color_fr = 16'b01111_011111_00000;
+        4'b0111: color_fr = 16'b01111_011111_01111;
+        4'b1000: color_fr = 16'b00000_000000_00000;
+        4'b1001: color_fr = 16'b10000_100000_11111;
+        4'b1010: color_fr = 16'b11111_100000_10000;
+        4'b1011: color_fr = 16'b11111_100000_11111;
+        4'b1100: color_fr = 16'b10000_111111_10000;
+        4'b1101: color_fr = 16'b10000_111111_11111;
+        4'b1110: color_fr = 16'b11111_111111_10000;
+        4'b1111: color_fr = 16'b11111_111111_11111;
+    
+    endcase
+    
+    case (attr[5:3]) 
+    
+        3'b000: color_bg = 16'b00000_000000_00000;
+        3'b001: color_bg = 16'b00000_000000_01111;
+        3'b010: color_bg = 16'b01111_000000_00000;
+        3'b011: color_bg = 16'b01111_000000_01111;
+        3'b100: color_bg = 16'b00000_011111_00000;
+        3'b101: color_bg = 16'b00000_011111_01111;
+        3'b110: color_bg = 16'b01111_011111_00000;
+        3'b111: color_bg = 16'b01111_011111_01111;
+
+    endcase
+
+end
+
 // 25 Mhz
 always @(posedge bdiv[1]) begin
 
-    if (x == 10'd800) begin
+    if (x == 10'd799) begin
     
         x <= 1'b0;
-        y <= (y == 10'd525) ? 1'b0 : (y + 1'b1); 
+        y <= (y == 10'd524) ? 1'b0 : (y + 1'b1); 
         
     end else x <= x + 1'b1;
     
@@ -53,16 +95,14 @@ always @(posedge bdiv[1]) begin
         if (x >= 64 && x < 576 && y >= 48 && y < 432) begin
         
             // Пока что серый цвет
-            r <= bitset? 1'b0 : 5'h0F; 
-            g <= bitset? 1'b0 : 6'h1F;
-            b <= bitset? 1'b0 : 5'h0F;
-        
+            {r, g, b} <=  bitset ? color_fr : color_bg;
+            
         // Пока что серый цвет
         end else begin 
         
-            r <= vga_border[0] ? 5'h0F : 1'b0; 
-            g <= vga_border[1] ? 6'h1F : 1'b0;
-            b <= vga_border[2] ? 5'h0F : 1'b0;
+            r <= 5'h0F; // vga_border[0] ? 5'h0F : 4'h2; 
+            g <= 5'h1F; // vga_border[1] ? 6'h1F : 4'h2;
+            b <= 5'h0F; // vga_border[2] ? 5'h0F : 4'h2;
             
         end
     
