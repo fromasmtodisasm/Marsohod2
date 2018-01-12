@@ -28,7 +28,7 @@ wire        port_clk;
 
 z80 IZ80(
     i_clk,
-    1'b1,
+    1'b0, // 1'b1 -- turbo
     i_data,
     o_data,
     o_addr,

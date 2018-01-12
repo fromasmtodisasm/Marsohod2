@@ -241,7 +241,7 @@ wire [15:0] relative8       = {{8{i_data[7]}}, i_data[7:0]};
 always @(posedge clk_z80) begin
 
     // "Пустые инструкции", чтобы подогнать кол-во тактов на инструкцию
-    if (t_state & !turbo) begin t_state <= t_state - 1; end
+    if (t_state && !turbo) begin t_state <= t_state - 1; end
 
     // Текущая исполнимая инструкция
     else if (m_state == 0) begin
