@@ -93,13 +93,15 @@ always @(posedge bdiv[1]) begin
             
             // Каждые 1/2 секунд - blink
             if (frame == 6'd24) begin
+                
                 frame <= 1'b0;
                 blink <= !blink;
-            end else begin
+                
+            end else begin            
                 frame <= frame + 1'b1; 
             end
             
-            // call interrupt            
+            // @todo do call interrupt 
             
         end else n <= n + 1'b1;
         
