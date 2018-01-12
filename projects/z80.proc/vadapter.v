@@ -35,6 +35,10 @@ always @(posedge clock) bdiv <= bdiv + 1'b1;
 reg [15:0] color_fr;
 reg [15:0] color_bg;
 
+reg [6:0] frame = 1'b0; // 0..49
+reg [9:0] n = 1'b0; // счетчик
+reg       blink;
+
 // Цвета
 always @* begin
 
@@ -80,7 +84,24 @@ always @(posedge bdiv[1]) begin
     if (x == 10'd799) begin
     
         x <= 1'b0;
-        y <= (y == 10'd524) ? 1'b0 : (y + 1'b1); 
+        y <= (y == 10'd524) ? 1'b0 : (y + 1'b1);
+        
+        // 50 Гц симуляция фрейма
+        if (n == 10'd624) begin 
+        
+            n <= 1'b0; 
+            
+            // Каждые 1/2 секунд - blink
+            if (frame == 6'd24) begin
+                frame <= 1'b0;
+                blink <= !blink;
+            end else begin
+                frame <= frame + 1'b1; 
+            end
+            
+            // call interrupt            
+            
+        end else n <= n + 1'b1;
         
     end else x <= x + 1'b1;
     
@@ -94,8 +115,8 @@ always @(posedge bdiv[1]) begin
     
         if (x >= 64 && x < 576 && y >= 48 && y < 432) begin
         
-            // Пока что серый цвет
-            {r, g, b} <=  bitset ? color_fr : color_bg;
+            // Если есть атрибут "мерцание", использовать blink
+            {r, g, b} <= (attr[7] ? (bitset ^ blink) : bitset) ? color_fr : color_bg;
             
         // Пока что серый цвет
         end else begin 
