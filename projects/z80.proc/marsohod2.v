@@ -79,11 +79,13 @@ z80 Z80(
     .o_data (o_data),
     .o_addr (o_addr),
     .o_wr   (o_wr),
-    
+
 );
 
+// ---------------------------------------------------------------------
 // ZX ROM 16K
-reg  [14:0] rom_i_addr = 1'b0;
+
+reg  [15:0] rom_i_addr = 1'b0;
 reg  [7:0]  prg_i_data = 1'b0;
 
 rom ROM16K(
@@ -91,27 +93,32 @@ rom ROM16K(
     .clock   (clk),
     .addr_rd (o_addr[13:0]),
     .q       (i_data_0),
-    
+
     // Программатор
-    .wren    (rom_bank_wr),
+    .wren    (rom_bank_wr & (rom_i_addr[15:14] == 2'b00)),
     .addr_wr (rom_i_addr[13:0]),
     .data_wr (prg_i_data)
 
 );
 
-wire [7:0]  d8_chr;
-wire [13:0] rd_addr;
+// ---------------------------------------------------------------------
+// Выбор источника записи и чтения
+
+wire wr_idata = programm ? (rom_bank_wr & (rom_i_addr[15:14] == 2'b01)) : (o_wr & (o_addr[15:14] == 2'b01));
+wire wr_oaddr = programm ? rom_i_addr[13:0] : o_addr[13:0];
+wire wr_odata = programm ? prg_i_data[7:0]  : o_data[7:0];
 
 // ZX RAM 16K ($4000-$7FFF), видеопамять ($4000-$5AFF)
+// Запись возможна только при o_addr - [$4000, $7FFF]
+
 ram RAM16K(
 
     .clock   (clk),
-    .addr_wr (o_addr[13:0]),
-    .data_wr (o_data),
-    // Запись возможна только при o_addr - [$4000, $7FFF]
-    .wren    (o_wr & (o_addr[15:14] == 2'b01)),
+    .wren    (wr_idata),
+    .addr_wr (wr_oaddr),
+    .data_wr (wr_odata),
     .qw      (i_data_1),
-    
+
     // Видеопамять
     .addr_rd (rd_addr),
     .q       (d8_chr)
@@ -119,6 +126,11 @@ ram RAM16K(
 );
 
 // Видеоадаптер
+// ---------------------------------------------------------------------
+
+wire [7:0]  d8_chr;
+wire [13:0] rd_addr;
+
 vadapter VGA(
 
     .clock      (clk),          // 100 Mhz -> 25 Mhz
@@ -132,22 +144,24 @@ vadapter VGA(
     .vs         (vga_vs)
 );
 
+// ---------------------------------------------------------------------
+
 /*
  * Адаптер частот PLL
  */
- 
+
 wire locked;
 wire clock_25;  // 25.00
 wire clock_12;  // 12.00
 wire clock_6;   //  6.00
-.
+
 pll PLL(
 
     .clk        (clk),          // Входящие 100 Мгц
     .locked     (locked),       // 0 - устройство генератора ещё не сконфигурировано, 1 - готово и стабильно
     .c0         (clock_25),     // 25,0 Mhz
     .c1         (clock_12),     // 12,0 Mhz
-    .c2         (clock_6)       // 6,25 Mhz
+    .c2         (clock_6)       //  6,0 Mhz
 
 );
 
@@ -155,44 +169,41 @@ pll PLL(
  * Последовательный порт
  * Скорость 230400 бод или 25600 байт в секунду (25 кбайт/с)
  */
- 
+
 wire [7:0]  rx_byte;
 wire        rx_ready;
 wire        clk12;
- 
+
 serial SERIAL(
 
-	.clk12    (clock_12),      // Частота 12.0 Mhz
-	.rx       (ftdi_rx),       // Входящие данные
-	.rx_byte  (rx_byte),       // Исходящий байт (8 bit)
-	.rx_ready (rx_ready)       // Строб готовности
+	.clk12    (locked & clock_12),  // Частота 12.0 Mhz
+	.rx       (ftdi_rx),            // Входящие данные
+	.rx_byte  (rx_byte),            // Исходящий байт (8 bit)
+	.rx_ready (rx_ready)            // Строб готовности
 
 );
 
-// Включение программатора 16 КБ ROM памяти 
-// пока что именно 16, потом будет больше -- до 64 Кб
-// а может и никогда не буду делать это на этой плате
-
+// Включение программатора 32 КБ ROM памяти
 always @(posedge rx_ready) begin
-    
-    prg_i_data  <= rx_byte;
+
+    prg_i_data <= rx_byte;
 
     if (programm == 1'b0) begin
-    
+
         programm    <= 1'b1;
         rom_bank_wr <= 1'b1;
         rom_i_addr  <= 1'b0;
 
     end
     else begin
-    
-        if (rom_i_addr == 14'h4000) begin
+
+        if (rom_i_addr == 16'h8000) begin
             programm    <= 1'b0;
             rom_bank_wr <= 1'b0;
         end
-    
+
         rom_i_addr <= rom_i_addr + 1'b1;
-    
+
     end
 
 end
