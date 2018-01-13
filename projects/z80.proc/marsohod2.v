@@ -194,10 +194,14 @@ serial SERIAL(
 // Синхронизация для избежания "накладки" неверных данных
 always @(posedge clk) begin
 
-    programm    <= t_programm;
-    rom_bank_wr <= t_rom_bank_wr;
-    rom_i_addr  <= t_rom_i_addr;
-    prg_i_data  <= t_prg_i_data;
+    if (!clock_12) begin
+
+        programm    <= t_programm;
+        rom_bank_wr <= t_rom_bank_wr;
+        rom_i_addr  <= t_rom_i_addr;
+        prg_i_data  <= t_prg_i_data;
+        
+    end
 
 end
 
