@@ -1,5 +1,6 @@
 module z80(
 
+    input   wire        reset,
     input   wire        clk,            // 100 Mhz
     input   wire        turbo,          // 1-турборежим
     input   wire [7:0]  i_data,
@@ -240,8 +241,15 @@ wire [15:0] relative8       = {{8{i_data[7]}}, i_data[7:0]};
 // Декодер инструкции
 always @(posedge clk_z80) begin
 
+    // Нажата кнопка сброса
+    if (reset) begin
+    
+        pc <= 0;
+    
+    end
+
     // "Пустые инструкции", чтобы подогнать кол-во тактов на инструкцию
-    if (t_state && !turbo) begin t_state <= t_state - 1; end
+    else if (t_state && !turbo) begin t_state <= t_state - 1; end
 
     // Текущая исполнимая инструкция
     else if (m_state == 0) begin

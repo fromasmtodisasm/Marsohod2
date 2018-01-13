@@ -71,6 +71,7 @@ wire        o_wr;
 
 z80 Z80(
 
+    .reset  (!keys[0]),
     .clk    (clk),
     .turbo  (1'b0),
     .i_data (i_data),
