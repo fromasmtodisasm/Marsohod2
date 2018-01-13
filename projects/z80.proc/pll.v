@@ -123,9 +123,9 @@ defparam
     altpll_component.port_clk4 = "PORT_UNUSED",
     altpll_component.port_clk5 = "PORT_UNUSED",
 
-    altpll_component.port_clkena0 = "PORT_UNUSED",
-    altpll_component.port_clkena1 = "PORT_UNUSED",
-    altpll_component.port_clkena2 = "PORT_UNUSED",
+    altpll_component.port_clkena0 = "PORT_USED",
+    altpll_component.port_clkena1 = "PORT_USED",
+    altpll_component.port_clkena2 = "PORT_USED",
     altpll_component.port_clkena3 = "PORT_UNUSED",
     altpll_component.port_clkena4 = "PORT_UNUSED",
     altpll_component.port_clkena5 = "PORT_UNUSED",

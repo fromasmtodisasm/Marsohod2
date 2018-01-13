@@ -1,3 +1,9 @@
+/*
+ * mode com4 baud=460800 data=8
+ * copy <file.bin> /b com4
+ * ВАЖНО! com1..9 -- только эти порты!
+ */
+ 
 module marsohod2(
 
     /* ----------------
@@ -8,7 +14,7 @@ module marsohod2(
     input   wire        clk,
 
     // LED      4
-    output  wire [3:0]  led,
+    output  reg  [3:0]  led,
 
     // KEYS     2
     input   wire [1:0]  keys,
@@ -56,7 +62,8 @@ module marsohod2(
 );
 // --------------------------------------------------------------------------
 
-assign sdram_addr = o_addr[11:0]; // отладка
+// assign sdram_addr = o_addr[11:0]; // отладка
+initial led = 4'b0000;
 
 wire [15:0] o_addr;
 wire [ 7:0] o_data;
@@ -69,7 +76,7 @@ wire [ 7:0] i_data_0;
 wire [ 7:0] i_data_1;
 wire        o_wr;
 reg         programm  = 1'b0;
-
+/*
 z80 Z80(
 
     .reset  (programm | !keys[0]),
@@ -81,7 +88,7 @@ z80 Z80(
     .o_wr   (o_wr),
 
 );
-
+*/
 // ---------------------------------------------------------------------
 // ZX ROM 16K
 
@@ -104,9 +111,9 @@ rom ROM16K(
 // ---------------------------------------------------------------------
 // Выбор источника записи и чтения
 
-wire wr_idata = programm ? (rom_bank_wr & (rom_i_addr[15:14] == 2'b01)) : (o_wr & (o_addr[15:14] == 2'b01));
-wire wr_oaddr = programm ? rom_i_addr[13:0] : o_addr[13:0];
-wire wr_odata = programm ? prg_i_data[7:0]  : o_data[7:0];
+wire        wr_idata = programm ? (rom_bank_wr & (rom_i_addr[15:14] == 2'b01)) : (o_wr & (o_addr[15:14] == 2'b01));
+wire [13:0] wr_oaddr = programm ? rom_i_addr[13:0] : o_addr[13:0];
+wire [7:0]  wr_odata = programm ? prg_i_data[7:0]  : o_data[7:0];
 
 // ZX RAM 16K ($4000-$7FFF), видеопамять ($4000-$5AFF)
 // Запись возможна только при o_addr - [$4000, $7FFF]
@@ -173,6 +180,7 @@ pll PLL(
 wire [7:0]  rx_byte;
 wire        rx_ready;
 wire        clk12;
+reg         rom_bank_wr;
 
 serial SERIAL(
 
@@ -183,26 +191,43 @@ serial SERIAL(
 
 );
 
+// Синхронизация для избежания "накладки" неверных данных
+always @(posedge clk) begin
+
+    programm    <= t_programm;
+    rom_bank_wr <= t_rom_bank_wr;
+    rom_i_addr  <= t_rom_i_addr;
+    prg_i_data  <= t_prg_i_data;
+
+end
+
+reg [7:0]  t_prg_i_data = 1'b0;
+reg [15:0] t_rom_i_addr = 1'b0;
+reg        t_rom_bank_wr = 1'b0;
+reg        t_programm = 1'b0;
+
 // Включение программатора 32 КБ ROM памяти
 always @(posedge rx_ready) begin
+    
+    t_prg_i_data <= rx_byte;
 
-    prg_i_data <= rx_byte;
+    if (t_programm == 1'b0) begin
 
-    if (programm == 1'b0) begin
-
-        programm    <= 1'b1;
-        rom_bank_wr <= 1'b1;
-        rom_i_addr  <= 1'b0;
+        t_programm    <= 1'b1;
+        t_rom_bank_wr <= 1'b1;
+        t_rom_i_addr  <= 16'h0000;
+        led[0]        <= 1'b1;
 
     end
     else begin
 
-        if (rom_i_addr == 16'h8000) begin
-            programm    <= 1'b0;
-            rom_bank_wr <= 1'b0;
+        if (t_rom_i_addr == 16'h7FFE) begin
+            t_programm    <= 1'b0;
+            t_rom_bank_wr <= 1'b0;
+            led[0]        <= 1'b0;
         end
 
-        rom_i_addr <= rom_i_addr + 1'b1;
+        t_rom_i_addr <= t_rom_i_addr + 1'b1;
 
     end
 

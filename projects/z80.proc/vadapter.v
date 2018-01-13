@@ -134,8 +134,8 @@ always @(posedge bdiv[1]) begin
     
     case (rx[3:0])
     
-        // 10y yyyy | yyyx xxxx
-        4'h0: begin addr <= {2'b10, ry[8:1], rx[8:4]}; end 
+        // 10Y Yyyy | YYYx xxxx
+        4'h0: begin addr <= {2'b10, ry[8:7], ry[3:1], ry[6:4], rx[8:4]}; end 
         
         // 101 10yy | yyyx xxxx
         4'h1: begin addr <= {5'b10110, ry[8:4], rx[8:4]}; bit8 <= d8_chr; end 
