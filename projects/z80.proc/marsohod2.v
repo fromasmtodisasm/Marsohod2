@@ -68,10 +68,11 @@ wire [ 7:0] i_data = o_addr[15:14] == 2'b00 ? i_data_0 :
 wire [ 7:0] i_data_0;
 wire [ 7:0] i_data_1;
 wire        o_wr;
+reg         programm  = 1'b0;
 
 z80 Z80(
 
-    .reset  (!keys[0]),
+    .reset  (programm | !keys[0]),
     .clk    (clk),
     .turbo  (1'b0),
     .i_data (i_data),
@@ -82,11 +83,19 @@ z80 Z80(
 );
 
 // ZX ROM 16K
+reg  [14:0] rom_i_addr = 1'b0;
+reg  [7:0]  prg_i_data = 1'b0;
+
 rom ROM16K(
 
     .clock   (clk),
     .addr_rd (o_addr[13:0]),
-    .q       (i_data_0)
+    .q       (i_data_0),
+    
+    // Программатор
+    .wren    (rom_bank_wr),
+    .addr_wr (rom_i_addr[13:0]),
+    .data_wr (prg_i_data)
 
 );
 
@@ -122,6 +131,71 @@ vadapter VGA(
     .hs         (vga_hs),
     .vs         (vga_vs)
 );
+
+/*
+ * Адаптер частот PLL
+ */
+ 
+wire locked;
+wire clock_25;  // 25.00
+wire clock_12;  // 12.00
+wire clock_6;   //  6.00
+.
+pll PLL(
+
+    .clk        (clk),          // Входящие 100 Мгц
+    .locked     (locked),       // 0 - устройство генератора ещё не сконфигурировано, 1 - готово и стабильно
+    .c0         (clock_25),     // 25,0 Mhz
+    .c1         (clock_12),     // 12,0 Mhz
+    .c2         (clock_6)       // 6,25 Mhz
+
+);
+
+/*
+ * Последовательный порт
+ * Скорость 230400 бод или 25600 байт в секунду (25 кбайт/с)
+ */
+ 
+wire [7:0]  rx_byte;
+wire        rx_ready;
+wire        clk12;
+ 
+serial SERIAL(
+
+	.clk12    (clock_12),      // Частота 12.0 Mhz
+	.rx       (ftdi_rx),       // Входящие данные
+	.rx_byte  (rx_byte),       // Исходящий байт (8 bit)
+	.rx_ready (rx_ready)       // Строб готовности
+
+);
+
+// Включение программатора 16 КБ ROM памяти 
+// пока что именно 16, потом будет больше -- до 64 Кб
+// а может и никогда не буду делать это на этой плате
+
+always @(posedge rx_ready) begin
+    
+    prg_i_data  <= rx_byte;
+
+    if (programm == 1'b0) begin
+    
+        programm    <= 1'b1;
+        rom_bank_wr <= 1'b1;
+        rom_i_addr  <= 1'b0;
+
+    end
+    else begin
+    
+        if (rom_i_addr == 14'h4000) begin
+            programm    <= 1'b0;
+            rom_bank_wr <= 1'b0;
+        end
+    
+        rom_i_addr <= rom_i_addr + 1'b1;
+    
+    end
+
+end
 
 // 32KB памяти будут отрабатываться через SDRAM
 // 28T будет тратиться на чтение, запись, refresh блоков
