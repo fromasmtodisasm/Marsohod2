@@ -28,8 +28,8 @@ BITABLE:
         defb    1, 2, 4, 8, 16, 32, 64, 128
 
 ; ------------------------------------------------------        
-        
-MAIN:        
+                
+MAIN:   
 
         ; CLEAR SCREEN
         LD      HL, $4000
@@ -47,12 +47,23 @@ BELOW:  LD      (HL), A
         JR      CYCLE          
         
 CLRQ:   ; --------------------------
+
+        LD      HL, $4000
+        LD      DE, $3D18
+        LD      B, 8
+
+CHRI:
+        
+        LD      A, (DE)
+        LD      (HL), A
+        INC     H
+        INC     DE
+        DJNZ    CHRI        
         
         LD      BC, $0000
 CP:     CALL    CALC_PLOT
         XOR     (HL)
         LD      (HL), A
-
         INC     BC
         LD      A, B
         CP      $C0
