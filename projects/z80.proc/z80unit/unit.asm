@@ -48,27 +48,18 @@ BELOW:  LD      (HL), A
         
 CLRQ:   ; --------------------------
 
-        LD      HL, $4000
-        LD      DE, $3D18
-        LD      B, 8
-
-CHRI:
-        
-        LD      A, (DE)
-        LD      (HL), A
-        INC     H
-        INC     DE
-        DJNZ    CHRI        
-        
         LD      BC, $0000
-CP:     CALL    CALC_PLOT
-        XOR     (HL)
-        LD      (HL), A
-        INC     BC
-        LD      A, B
-        CP      $C0
-        JR      NZ, CP
-        JR      CLRQ
+        LD      A, $20
+INC1:        
+        PUSH    AF
+        CALL    PRNCHR
+        POP     AF
+        INC     C
+        INC     A
+        CP      $80
+        JR      NZ, INC1
+        
+        JR      $
 
 ; -----------------------------------
 CALC_PLOT:
@@ -105,4 +96,56 @@ CALC_PLOT:
         LD      H, A
         EX      AF, AF'
         RET
+
+; ------------------------------------------------------        
+; A - Char; B,C - y,x ==> HL
+
+PRNCHR:
+
+        PUSH    BC
+        PUSH    DE
+
+        ; ---76`321 543x`xxxx
+        ;           ---
+        
+        EX      AF, AF'
+        LD      A, B
+        AND     $38
+        ADD     A
+        ADD     A
+        OR      C
+        LD      L, A
+        LD      A, B
+        AND     $C0
+        SRL     A
+        SRL     A
+        SRL     A
+        OR      $40
+        LD      H, A
+        EX      AF, AF'
+        SUB     $20
+        
+        EX      DE, HL    
+        LD      H, 0
+        LD      L, A
+        ADD     HL, HL
+        ADD     HL, HL
+        ADD     HL, HL
+        LD      B, H
+        LD      C, L
+        LD      HL, $3D00
+        ADD     HL, BC
+        EX      DE, HL
+
+        LD      B, 8
+PCINC:  LD      A, (DE)
+        LD      (HL), A
+        INC     H
+        INC     DE
+        DJNZ    PCINC
+        
+        POP     DE
+        POP     BC
+        RET
+        
         
