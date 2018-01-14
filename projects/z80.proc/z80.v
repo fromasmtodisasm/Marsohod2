@@ -565,14 +565,14 @@ always @(posedge clk_z80) begin
 
             // CF: если выбран NC (opcode[3] = 0), то срабатывает при f[0] = 0
             // ZF: если выбран NZ (opcode[3] = 0), то срабатывает при f[6] = 0
-            if ((opcode[4] & (opcode[3] ^ f[0] ^ 1)) | (!opcode[4] & (opcode[3] ^ f[6] ^ 1))) begin
+            if (opcode[3] == f[ opcode[4] ? 0 : 6 ]) begin
 
-                t_state <= 12-2;
+                t_state <= 12 - 2;
                 pc      <= pc + 1 + relative8;
 
             end else begin
 
-                t_state <= 7-2;
+                t_state <= 7 - 2;
                 pc      <= pc + 1;
 
             end
