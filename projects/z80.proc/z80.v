@@ -217,7 +217,7 @@ initial begin
 
     ix      = 0; iy     = 0;
     i       = 0; r      = 0;
-    pc      = 0; sp     = 16'hdff0;
+    pc      = 0; sp     = 16'h8000; // 16'hDFF0
     imode   = 0; iff1   = 0;
                  iff2   = 0;
 
