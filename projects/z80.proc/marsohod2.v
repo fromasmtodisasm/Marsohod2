@@ -77,17 +77,37 @@ wire [ 7:0] i_data_1;
 wire        o_wr;
 reg         programm  = 1'b0;
 
+wire [15:0] port;
+wire [ 7:0] port_in;
+wire [ 7:0] port_out;
+wire        port_clk;
+
 z80 Z80(
 
-    .reset  (programm | !keys[0]),
-    .clk    (clk),
-    .turbo  (1'b0),
-    .i_data (i_data),
-    .o_data (o_data),
-    .o_addr (o_addr),
-    .o_wr   (o_wr),
+    .reset    (programm | !keys[0]),
+    .clk      (clk),
+    .turbo    (1'b0),
+    .i_data   (i_data),
+    .o_data   (o_data),
+    .o_addr   (o_addr),
+    .o_wr     (o_wr),    
+    .port     (port),
+    .port_in  (port_in),
+    .port_out (port_out),
+    .port_clk (port_clk),
 
 );
+
+// ---------------------------------------------------------------------
+
+// Запись в порт от процессора
+always @(posedge port_clk) begin
+
+    if (port[7:0] == 8'hFE) begin   
+        vga_border[2:0] <= port_out[2:0];    
+    end
+
+end
 
 // ---------------------------------------------------------------------
 // ZX ROM 16K
@@ -137,13 +157,14 @@ ram RAM16K(
 
 wire [7:0]  d8_chr;
 wire [13:0] rd_addr;
+reg  [2:0]  vga_border = 3'b111;
 
 vadapter VGA(
 
     .clock      (clk),          // 100 Mhz -> 25 Mhz
     .addr       (rd_addr),
     .d8_chr     (d8_chr),
-    .vga_border (0),
+    .vga_border (vga_border),
     .r          (vga_red),
     .g          (vga_green),
     .b          (vga_blue),

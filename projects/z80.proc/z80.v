@@ -1406,7 +1406,7 @@ always @(posedge clk_z80) begin
 
             case (m_state)
 
-                1: begin port <= i_data; port_clk <= 1; pc <= pc + 1; m_state <= 2; end
+                1: begin port <= i_data; pc <= pc + 1; m_state <= 2; end
                 2: begin a <= port_in; m_state <= 0; t_state <= 11 - 3; end
 
             endcase

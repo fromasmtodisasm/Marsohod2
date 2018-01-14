@@ -34,6 +34,7 @@ always @(posedge clock) bdiv <= bdiv + 1'b1;
 
 reg [15:0] color_fr;
 reg [15:0] color_bg;
+reg [15:0] border;
 
 reg [6:0] frame = 1'b0; // 0..49
 reg [9:0] n = 1'b0; // счетчик
@@ -73,6 +74,19 @@ always @* begin
         3'b101: color_bg = 16'b00000_110000_11000;
         3'b110: color_bg = 16'b11000_110000_00000;
         3'b111: color_bg = 16'b11000_110000_11000;
+
+    endcase
+    
+    case (vga_border[2:0]) 
+    
+        3'b000: border = 16'b00010_000011_00011; // Хак, чтобы монитор не "ехал"
+        3'b001: border = 16'b00000_000000_11000;
+        3'b010: border = 16'b11000_000000_00000;
+        3'b011: border = 16'b11000_000000_11000;
+        3'b100: border = 16'b00000_110000_00000;
+        3'b101: border = 16'b00000_110000_11000;
+        3'b110: border = 16'b11000_110000_00000;
+        3'b111: border = 16'b11000_110000_11000;
 
     endcase
 
@@ -123,9 +137,7 @@ always @(posedge bdiv[1]) begin
         // Пока что серый цвет
         end else begin 
         
-            r <= 5'b11000;  // vga_border[0] ? 5'h0F : 4'h2; 
-            g <= 6'b110000; // vga_border[1] ? 6'h1F : 4'h2;
-            b <= 5'b11000;  // vga_border[2] ? 5'h0F : 4'h2;
+            {r, g, b} <= border;
             
         end
     
