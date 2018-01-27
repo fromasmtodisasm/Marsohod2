@@ -17,14 +17,11 @@ initial begin $dumpfile("result.vcd"); $dumpvars(0, main); end
 wire [19:0] o_addr;
 wire [19:0] o_ip;
 wire [19:0] o_mem_addr;
-wire [15:0] i_data;
-wire [15:0] o_data;
+wire [ 7:0] i_data;
+wire [ 7:0] o_data;
 wire        o_write;
-wire        o_wsize;
-wire        o_ready_mem_cntrl;
-wire [47:0] o_instr_cache;
-reg  [15:0] i_mem_data;
-reg  [15:0] o_mem_data;
+reg  [ 7:0] i_mem_data;
+reg  [ 7:0] o_mem_data;
 wire        o_mem_write;
 
 reg [1:0] mhz = 2'b00;
@@ -44,9 +41,6 @@ mem_cntrl InternalMemoryController(
     i_data,
     o_data,
     o_write,
-    o_ready_mem_cntrl,
-    o_ip,
-    o_instr_cache,
     
     // К внутрисхемной памяти
     i_mem_data,
@@ -57,8 +51,8 @@ mem_cntrl InternalMemoryController(
 );
 
 // 1 Мб общей памяти
-reg [7:0]  allmemory[1048575:0];
-reg [15:0] casl2;
+reg [7:0] allmemory[1048575:0];
+reg [7:0] casl2;
 
 initial begin $readmemh("rom.hex", allmemory, 20'hFC000); end
 initial begin $readmemh("ram.hex", allmemory, 20'h00000); end
@@ -71,13 +65,11 @@ always @(posedge clk) begin
     begin
     
         /* ТАКТ 1 */ i_mem_data  <= casl2;
-        /* ТАКТ 2 */      casl2  <= {   allmemory[ {o_mem_addr[19:1], 1'b1} ], 
-                                        allmemory[ {o_mem_addr[19:1], 1'b0} ] };
-
+        /* ТАКТ 2 */      casl2  <= allmemory[ o_mem_addr[19:0] ];
+        
         if (o_mem_write) begin
         
-            allmemory[ {o_mem_addr[19:1], 1'b0} ] <= o_mem_data[7:0];
-            allmemory[ {o_mem_addr[19:1], 1'b1} ] <= o_mem_data[15:8];
+            allmemory[ o_mem_addr[19:0] ] <= o_mem_data;
         
         end
     
@@ -93,14 +85,12 @@ end
 cpu CPUx8086(
 
     mhz[1],
-    o_ready_mem_cntrl,      // READY
+    1'b0,
     o_addr,
     i_data,
     o_data,
-    o_write,
-    o_ip,
-    o_instr_cache
-
+    o_write
+    
 );
 
 // Видеоадаптер 80x30 (4800 байт) + шрифты 8x16 (4096 байт)
