@@ -1,6 +1,6 @@
 module cpu(
 
-    input   wire        clk,            // 100 Mhz
+    input   wire        clk,            // 25 Mhz
     input   wire        lock,           // Memory Locked?
     output  wire [19:0] o_addr,         // Адрес на чтение, 1 Мб
     input   wire [7:0]  i_data,         // Входящие данные
@@ -81,8 +81,16 @@ reg [15:0]  ma = 1'b0;
 reg [1:0]   prefix_id = 2'b00;
 
 // Если равен 1, значит, инструкция имеет префикс
-reg         prefix     = 1'b0;
-reg         prefix_tmp = 1'b0;
+reg prefix     = 1'b0;
+reg repnz      = 1'b0;
+reg repz       = 1'b0;
+reg prefix_tmp = 1'b0;
+reg lock_tmp   = 1'b0;
+reg repnz_tmp  = 1'b0;
+reg repz_tmp   = 1'b0;
+
+// относительный переход (8 бит)
+wire [15:0] ip_rel8 = ip + {{8{i_data[7]}}, i_data[7:0]} + 1'b1;
 
 always @(posedge clk) begin
 
@@ -94,7 +102,7 @@ always @(posedge clk) begin
         opcode      <= i_data;
         mcode       <= 1'b0;
 
-        // Декодирование префиксов    
+        // Декодирование префиксов
         casex (i_data)
 
             // 26, 2e, 36, 3e (es: cs: ss: ds:)
@@ -105,13 +113,23 @@ always @(posedge clk) begin
 
             end
 
+            // LOCK: это вообще не нужная вещь
+            8'b1111_0000: begin lock_tmp <= 1'b1; end
+            8'b1111_0010: begin repnz_tmp <= 1'b1; end
+            8'b1111_0011: begin repz_tmp <= 1'b1; end
+
             // Это реальный опкод, удаляем временные префиксы, перенося
             // данные о наличии префикса далее, в саму инструкцию
 
             default: begin
 
-                prefix     <= prefix_tmp;
-                prefix_tmp <= 1'b0;
+                prefix      <= prefix_tmp;
+                repnz       <= repnz_tmp;
+                repz        <= repz_tmp;
+                prefix_tmp  <= 1'b0;
+                lock_tmp    <= 1'b0;
+                repnz_tmp   <= 1'b0;
+                repz_tmp    <= 1'b0;
 
             end
 
@@ -149,11 +167,11 @@ always @(posedge clk) begin
                 sp      <= sp - 2'h2;
                 memory  <= 1'b1;
                 o_write <= 1'b1;
-                
+
                 if (i_data[6])
-                
+
                     case (i_data[2:0])
-                    
+
                         3'b000: begin o_data <= ax[7:0]; hibyte <= ax[15:8]; end
                         3'b001: begin o_data <= cx[7:0]; hibyte <= cx[15:8]; end
                         3'b010: begin o_data <= dx[7:0]; hibyte <= dx[15:8]; end
@@ -162,9 +180,9 @@ always @(posedge clk) begin
                         3'b101: begin o_data <= bp[7:0]; hibyte <= bp[15:8]; end
                         3'b110: begin o_data <= si[7:0]; hibyte <= si[15:8]; end
                         3'b111: begin o_data <= di[7:0]; hibyte <= di[15:8]; end
-                    
+
                     endcase
-                    
+
                 else
 
                     case (i_data[4:3])
@@ -192,9 +210,9 @@ always @(posedge clk) begin
 
             // INC/DEC r16
             8'b0100_xxxx: begin
-            
+
                 case (i_data[2:0])
-                
+
                     3'b000: op1 <= i_data[3] ? ax - 1'b1 : ax + 1'b1;
                     3'b001: op1 <= i_data[3] ? cx - 1'b1 : cx + 1'b1;
                     3'b010: op1 <= i_data[3] ? dx - 1'b1 : dx + 1'b1;
@@ -207,8 +225,38 @@ always @(posedge clk) begin
                 endcase
 
                 m <= `OPCODE_EXEC;
+
+            end
+
+            // J<ccc>
+            8'b0111_xxxx: m <= `OPCODE_EXEC;        
             
-            end            
+            // XCHG ax, r16
+            8'b1001_0xxx: begin
+
+                case (i_data[2:0])
+
+                    3'b001: begin ax <= cx; cx <= ax; end
+                    3'b010: begin ax <= dx; dx <= ax; end
+                    3'b011: begin ax <= bx; bx <= ax; end
+                    3'b100: begin ax <= sp; sp <= ax; end
+                    3'b101: begin ax <= bp; bp <= ax; end
+                    3'b110: begin ax <= si; si <= ax; end
+                    3'b111: begin ax <= di; di <= ax; end
+
+                endcase
+
+            end
+
+            // MOV r8/16, i8/16
+            8'b1011_xxxx: m <= `OPCODE_EXEC;
+
+            // CLC, STC
+            8'b1111_100x: fl[ `CARRY ] <= i_data[0];
+            // CLI, STI
+            8'b1111_101x: fl[ `INTERRUPT ] <= i_data[0];
+            // CLD, STD
+            8'b1111_110x: fl[ `DIRECTION ] <= i_data[0];
 
         endcase
 
@@ -562,7 +610,7 @@ always @(posedge clk) begin
             8'b0101_1xxx: case (mcode)
 
                 /* LO */ 4'h0: begin
-                
+
                     if (opcode[6])
                         case (opcode[2:0])
                             3'b000: ax[7:0] <= i_data;
@@ -615,7 +663,7 @@ always @(posedge clk) begin
 
             // INC/DEC r16
             8'b0100_xxxx: begin
-            
+
                 fl <= {
                     /* OF */ opcode[3] ? op1 == 8'h7f : op1 == 8'h80,
                     /* DF */ fl[10],
@@ -630,9 +678,9 @@ always @(posedge clk) begin
                     /*    */ 1'b1,
                     /* CF */ opcode[3] ? op1 == 16'hffff : op1 == 16'h0000
                 };
-                
+
                 case (opcode[2:0])
-                
+
                     3'b000: ax <= op1;
                     3'b001: cx <= op1;
                     3'b010: dx <= op1;
@@ -646,9 +694,114 @@ always @(posedge clk) begin
 
 
                 m <= `OPCODE_DECODER;
-            
+
             end
-    
+
+            // MOV r8/16, i8/16
+            8'b1011_xxxx: case (mcode)
+
+                4'h0: begin
+
+                    case (opcode[2:0])
+
+                        3'b000: ax[7:0] <= i_data;
+                        3'b001: cx[7:0] <= i_data;
+                        3'b010: dx[7:0] <= i_data;
+                        3'b011: bx[7:0] <= i_data;
+                        3'b100: if (opcode[3]) sp[7:0] <= i_data; else ax[15:8] <= i_data;
+                        3'b101: if (opcode[3]) bp[7:0] <= i_data; else cx[15:8] <= i_data;
+                        3'b110: if (opcode[3]) si[7:0] <= i_data; else dx[15:8] <= i_data;
+                        3'b111: if (opcode[3]) di[7:0] <= i_data; else bx[15:8] <= i_data;
+
+                    endcase
+
+                    mcode <= 1'b1;
+                    ip <= ip + 1'b1;
+                    m <= opcode[3] ? `OPCODE_EXEC : `OPCODE_DECODER;
+
+                end
+
+                4'h1: begin
+
+                    ip <= ip + 1'b1;
+                    m  <= `OPCODE_DECODER;
+
+                    case (opcode[2:0])
+
+                        3'b000: ax[15:8] <= i_data;
+                        3'b001: cx[15:8] <= i_data;
+                        3'b010: dx[15:8] <= i_data;
+                        3'b011: bx[15:8] <= i_data;
+                        3'b100: sp[15:8] <= i_data;
+                        3'b101: bp[15:8] <= i_data;
+                        3'b110: si[15:8] <= i_data;
+                        3'b111: di[15:8] <= i_data;
+
+                    endcase
+                end
+
+
+            endcase
+
+            // J<ccc>
+            8'b0111_xxxx: begin
+                        
+                case (opcode[3:0])
+                
+                    /* JO  */ 4'b0000: if (fl[ `OVERFLOW ] == 1'b1) 
+                        ip <= ip_rel8; else ip <= ip + 1'b1;
+                        
+                    /* JNO */ 4'b0001: if (fl[ `OVERFLOW ] == 1'b0) 
+                        ip <= ip_rel8; else ip <= ip + 1'b1;
+                        
+                    /* JB  */ 4'b0010: if (fl[ `CARRY ] == 1'b1) 
+                        ip <= ip_rel8; else ip <= ip + 1'b1;
+                        
+                    /* JNB */ 4'b0011: if (fl[ `CARRY ] == 1'b0) 
+                        ip <= ip_rel8; else ip <= ip + 1'b1;
+                        
+                    /* JZ  */ 4'b0100: if (fl[ `ZERO ] == 1'b1) 
+                        ip <= ip_rel8; else ip <= ip + 1'b1;
+                        
+                    /* JNZ */ 4'b0101: if (fl[ `ZERO ] == 1'b0) 
+                        ip <= ip_rel8; else ip <= ip + 1'b1;
+                        
+                    /* JBE */ 4'b0110: if (fl[ `CARRY ] == 1'b1 || fl[ `ZERO ] == 1'b1) 
+                        ip <= ip_rel8; else ip <= ip + 1'b1;
+                        
+                    /* JA  */ 4'b0111: if (fl[ `CARRY ] == 1'b0 && fl[ `ZERO ] == 1'b0) 
+                        ip <= ip_rel8; else ip <= ip + 1'b1;
+                        
+                    /* JS  */ 4'b1000: if (fl[ `SIGN ] == 1'b1) 
+                        ip <= ip_rel8; else ip <= ip + 1'b1;
+                        
+                    /* JNS */ 4'b1001: if (fl[ `SIGN ] == 1'b0) 
+                        ip <= ip_rel8; else ip <= ip + 1'b1;
+                        
+                    /* JP  */ 4'b1010: if (fl[ `PARITY ] == 1'b1) 
+                        ip <= ip_rel8; else ip <= ip + 1'b1;
+                        
+                    /* JNP */ 4'b1011: if (fl[ `PARITY ] == 1'b1) 
+                        ip <= ip_rel8; else ip <= ip + 1'b1;
+                        
+                    /* JL  */ 4'b1100: if (fl[ `SIGN ] != fl[ `OVERFLOW ]) 
+                        ip <= ip_rel8; else ip <= ip + 1'b1;
+                        
+                    /* JNL */ 4'b1101: if (fl[ `SIGN ] == fl[ `OVERFLOW ]) 
+                        ip <= ip_rel8; else ip <= ip + 1'b1;
+                        
+                    /* JLE */ 4'b1110: if (fl[ `ZERO ] == 1'b1 || fl[ `SIGN ] != fl[ `OVERFLOW ]) 
+                        ip <= ip_rel8; else ip <= ip + 1'b1;
+                        
+                    /* JG  */ 4'b1111: if (fl[ `ZERO ] == 1'b0 && fl[ `SIGN ] == fl[ `OVERFLOW ]) 
+                        ip <= ip_rel8; else ip <= ip + 1'b1;
+                
+                endcase
+                
+                m <= `OPCODE_DECODER;
+                
+            end
+
         endcase
 
     end
