@@ -19,8 +19,10 @@ module mem_cntrl(
 
 );
 
-assign o_mem_addr = i_addr;
-assign o_data     = i_mem_data;
+assign o_mem_addr  = i_addr;
+assign o_data      = i_mem_data;
+assign o_mem_data  = i_data;
+assign o_mem_write = i_write;
 
 always @(posedge clk) begin
 
