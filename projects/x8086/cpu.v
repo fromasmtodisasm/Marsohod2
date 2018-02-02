@@ -13,6 +13,7 @@ module cpu(
 `define OPCODE_DECODER      3'h0
 `define MODRM_DECODE        3'h1
 `define OPCODE_EXEC         3'h2
+`define WRITE_BACK_MODRM    3'h3
 // ---------------------------------------------------------------------
 `define CARRY               0
 `define PARITY              2
@@ -67,8 +68,11 @@ reg [15:0]  op1 = 1'b0;
 reg [15:0]  op2 = 1'b0;
 reg [ 7:0]  hibyte = 1'b0;
 
+reg [1:0]   wbmcode = 1'b0;
+reg [15:0]  wb_data = 1'b0;
+
 // режим АЛУ
-reg [2:0]   alu;
+reg [2:0]   alu = 1'b0;
 reg [16:0]  result;
 reg [11:0]  rflags;
 
@@ -91,6 +95,7 @@ reg repz_tmp   = 1'b0;
 
 // относительный переход (8 бит)
 wire [15:0] ip_rel8 = ip + {{8{i_data[7]}}, i_data[7:0]} + 1'b1;
+wire [15:0] ip_next = ip + 1'b1;
 
 always @(posedge clk) begin
 
@@ -101,6 +106,8 @@ always @(posedge clk) begin
         modm_stage  <= 1'b0;
         opcode      <= i_data;
         mcode       <= 1'b0;
+        wbmcode     <= 1'b0;
+        wb_data     <= 1'b0;
 
         // Декодирование префиксов
         casex (i_data)
@@ -139,7 +146,9 @@ always @(posedge clk) begin
         casex (i_data)
 
             // <ALU> ModRM
-            8'b00xx_x0xx: begin
+            // MOV ModrM
+            8'b00xx_x0xx,
+            8'b1000_10xx: begin
 
                 m       <= `MODRM_DECODE;
                 wide    <= i_data[0];
@@ -157,9 +166,31 @@ always @(posedge clk) begin
 
             end
 
-            // PUSH seg | r16
+            // MOV rm16, sreg
+            // MOV sreg, rm16
+            // LEA r16, rm
+            8'b1000_11x0,
+            8'b1000_1101: begin
+
+                m       <= `MODRM_DECODE;
+                wide    <= 1'b1;
+                direct  <= 1'b0;
+
+            end
+
+            // ModRM=<ALU>, r/m
+            8'b1000_00xx: begin
+
+                m       <= `MODRM_DECODE;
+                wide    <= i_data[0];
+                direct  <= 1'b0;
+
+            end
+
+            // PUSH seg | r16 | PUSHF
             8'b000x_x110,
-            8'b0101_0xxx: begin
+            8'b0101_0xxx,
+            8'b1001_1100: begin
 
                 m       <= `OPCODE_EXEC;
                 ms      <= ss;
@@ -168,7 +199,16 @@ always @(posedge clk) begin
                 memory  <= 1'b1;
                 o_write <= 1'b1;
 
-                if (i_data[6])
+                // PUSHF
+                if (i_data[7]) begin
+
+                    o_data <= fl[7:0];
+                    hibyte <= {4'b0000, fl[11:8]};
+
+                end
+
+                // PUSH r16
+                else if (i_data[6])
 
                     case (i_data[2:0])
 
@@ -196,9 +236,10 @@ always @(posedge clk) begin
 
             end
 
-            // POP seg | r16
+            // POP seg | r16 | POPF
             8'b000x_x111,
-            8'b0101_1xxx: begin
+            8'b0101_1xxx,
+            8'b1001_1101: begin
 
                 m       <= `OPCODE_EXEC;
                 ms      <= ss;
@@ -207,6 +248,10 @@ always @(posedge clk) begin
                 memory  <= 1'b1;
 
             end
+
+            // SAHF, LAHF
+            8'b1001_1110: fl[7:0] <= ax[15:8];
+            8'b1001_1111: ax[15:8] <= fl[7:0];
 
             // INC/DEC r16
             8'b0100_xxxx: begin
@@ -229,8 +274,8 @@ always @(posedge clk) begin
             end
 
             // J<ccc>
-            8'b0111_xxxx: m <= `OPCODE_EXEC;        
-            
+            8'b0111_xxxx: m <= `OPCODE_EXEC;
+
             // XCHG ax, r16
             8'b1001_0xxx: begin
 
@@ -251,483 +296,489 @@ always @(posedge clk) begin
             // MOV r8/16, i8/16
             8'b1011_xxxx: m <= `OPCODE_EXEC;
 
+            // MOV al/ax, [m16]
+            // MOV [m16], al/ax
+            8'b1010_00xx: m <= `OPCODE_EXEC;
+
+            // TEST rm, r8/16
+            8'b1000_010x: begin
+
+                m       <= `MODRM_DECODE;
+                direct  <= 1'b0;
+                wide    <= i_data[0];
+                alu     <= 3'b100; // AND
+                op2     <= i_data[0] ? ax : ax[7:0];
+
+            end
+
+            // TEST al/ax, i8/16
+            8'b1010_100x: begin
+
+                alu  <= 3'b100;
+                wide <= i_data[0];
+                op1  <= i_data[0] ? ax : ax[7:0];
+                m    <= `OPCODE_EXEC;
+
+            end
+
+            // CBW / CWD
+            8'b1001_1000: ax[15:8] <= {8{ax[7]}};
+            8'b1001_1001: dx[15:0] <= {16{ax[15]}};
             // CLC, STC
             8'b1111_100x: fl[ `CARRY ] <= i_data[0];
             // CLI, STI
             8'b1111_101x: fl[ `INTERRUPT ] <= i_data[0];
             // CLD, STD
             8'b1111_110x: fl[ `DIRECTION ] <= i_data[0];
+            // CMC
+            8'b1111_0101: fl[ `CARRY ] <= !fl[ `CARRY ];
+
+            // MOV rm, i8
+            8'b1100_011x: begin
+
+                m       <= `MODRM_DECODE;
+                wide    <= i_data[0];
+                direct  <= 1'b0;
+
+            end
+
+            // JMP rel8/rel16/far; CALL; CALL far
+            8'b1110_10xx, 8'b1001_1010: m <= `OPCODE_EXEC;
+
+            // RET/RETF
+            8'b1100_x011: begin
+            
+                ms <= ss;
+                ma <= sp;
+                memory <= 1'b1;
+                sp <= sp + i_data[3] ? 4'h4 : 2'h2;
+                m <= `OPCODE_EXEC;
+            
+            end
 
         endcase
 
-        ip <= ip + 1'b1;
+        // HLT
+        if (i_data != 8'hF4)
+            ip <= ip + 1'b1;
 
     end
 
     // Декодирование байта ModRM
-    else if (m == `MODRM_DECODE) begin
+    else if (m == `MODRM_DECODE) case (modm_stage)
 
-        case (modm_stage)
+        2'h0: begin
 
-            2'h0: begin
+            modrm   <= i_data;
+            ip      <= ip + 1'b1;
 
-                modrm   <= i_data;
-                ip      <= ip + 1'b1;
+            // Операнд 1
+            case (direct ? i_data[5:3] : i_data[2:0])
 
-                // Операнд 1
-                case (direct ? i_data[5:3] : i_data[2:0])
+                3'b000: op1 <= wide ? ax : ax[ 7:0];
+                3'b001: op1 <= wide ? cx : cx[ 7:0];
+                3'b010: op1 <= wide ? dx : dx[ 7:0];
+                3'b011: op1 <= wide ? bx : bx[ 7:0];
+                3'b100: op1 <= wide ? sp : ax[15:8];
+                3'b101: op1 <= wide ? bp : cx[15:8];
+                3'b110: op1 <= wide ? si : dx[15:8];
+                3'b111: op1 <= wide ? di : bx[15:8];
 
-                    3'b000: op1 <= wide ? ax : ax[ 7:0];
-                    3'b001: op1 <= wide ? cx : cx[ 7:0];
-                    3'b010: op1 <= wide ? dx : dx[ 7:0];
-                    3'b011: op1 <= wide ? bx : bx[ 7:0];
-                    3'b100: op1 <= wide ? sp : ax[15:8];
-                    3'b101: op1 <= wide ? bp : cx[15:8];
-                    3'b110: op1 <= wide ? si : dx[15:8];
-                    3'b111: op1 <= wide ? di : bx[15:8];
+            endcase
 
-                endcase
+            // Операнд 2
+            case (direct ? i_data[2:0] : i_data[5:3])
 
-                // Операнд 2
-                case (direct ? i_data[2:0] : i_data[5:3])
+                3'b000: op2 <= wide ? ax : ax[ 7:0];
+                3'b001: op2 <= wide ? cx : cx[ 7:0];
+                3'b010: op2 <= wide ? dx : dx[ 7:0];
+                3'b011: op2 <= wide ? bx : bx[ 7:0];
+                3'b100: op2 <= wide ? sp : ax[15:8];
+                3'b101: op2 <= wide ? bp : cx[15:8];
+                3'b110: op2 <= wide ? si : dx[15:8];
+                3'b111: op2 <= wide ? di : bx[15:8];
 
-                    3'b000: op2 <= wide ? ax : ax[ 7:0];
-                    3'b001: op2 <= wide ? cx : cx[ 7:0];
-                    3'b010: op2 <= wide ? dx : dx[ 7:0];
-                    3'b011: op2 <= wide ? bx : bx[ 7:0];
-                    3'b100: op2 <= wide ? sp : ax[15:8];
-                    3'b101: op2 <= wide ? bp : cx[15:8];
-                    3'b110: op2 <= wide ? si : dx[15:8];
-                    3'b111: op2 <= wide ? di : bx[15:8];
+            endcase
 
-                endcase
+            // ----------
+            // Определение, какой сегмент будет загружен
+            // ----------
 
-                // ----------
-                // Определение, какой сегмент будет загружен
-                // ----------
+            // сегмент перегружен префиксом
+            if (prefix) case (prefix_id)
+                2'b00: ms <= es;
+                2'b01: ms <= cs;
+                2'b10: ms <= ss;
+                2'b11: ms <= ds;
+            endcase
+            // если выбран b010 [bp+si] или b011 [bp+di]
+            else if (i_data[2:1] == 2'b01) ms <= ss;
+            // если выбран b110, то ss: применяется только к mod <> 2'b00
+            else if (i_data[2:0] == 3'b110) ms <= (i_data[7:6] == 2'b00 ? ds : ss);
+            // все остальные по умолчанию ds:
+            else ms <= ds;
 
-                // сегмент перегружен префиксом
-                if (prefix) case (prefix_id)
-                    2'b00: ms <= es;
-                    2'b01: ms <= cs;
-                    2'b10: ms <= ss;
-                    2'b11: ms <= ds;
-                endcase
-                // если выбран b010 [bp+si] или b011 [bp+di]
-                else if (i_data[2:1] == 2'b01) ms <= ss;
-                // если выбран b110, то ss: применяется только к mod <> 2'b00
-                else if (i_data[2:0] == 3'b110) ms <= (i_data[7:6] == 2'b00 ? ds : ss);
-                // все остальные по умолчанию ds:
-                else ms <= ds;
+            // ----------
+            // Выборка смещения
+            // ----------
 
-                // ----------
-                // Выборка смещения
-                // ----------
+            case (i_data[2:0])
 
-                case (i_data[2:0])
+                3'b000: ma <= bx + si;
+                3'b001: ma <= bx + di;
+                3'b010: ma <= bp + si;
+                3'b011: ma <= bp + di;
+                3'b100: ma <= si;
+                3'b101: ma <= di;
+                // тут +disp16
+                3'b110: ma <= i_data[7:6] == 2'b00 ? 1'b0 : bp;
+                3'b111: ma <= bx;
 
-                    3'b000: ma <= bx + si;
-                    3'b001: ma <= bx + di;
-                    3'b010: ma <= bp + si;
-                    3'b011: ma <= bp + di;
-                    3'b100: ma <= si;
-                    3'b101: ma <= di;
-                    // тут +disp16
-                    3'b110: ma <= i_data[7:6] == 2'b00 ? 1'b0 : bp;
-                    3'b111: ma <= bx;
+            endcase
 
-                endcase
+            // Выбран регистр -> фаза выполнения опкода
+            if (i_data[7:6] == 2'b11) begin
 
-                // Выбран регистр -> фаза выполнения опкода
-                if (i_data[7:6] == 2'b11) begin
+                m <= `OPCODE_EXEC;
 
-                    m <= `OPCODE_EXEC;
+            // Указатель на память
+            end else begin
 
-                // Указатель на память
-                end else begin
+                modm_stage <= 2'h1;
 
-                    modm_stage <= 2'h1;
+                // чтение из памяти на след. такте возможно (mod=00 и r/m != b110)
+                if (i_data[7:6] == 2'b00 && i_data[2:0] !== 3'b110)
+                    memory <= 1'b1;
 
-                    // чтение из памяти на след. такте возможно (mod=00 и r/m != b110)
-                    if (i_data[7:6] == 2'b00 && i_data[2:0] !== 3'b110)
-                        memory <= 1'b1;
+            end
+
+        end
+
+        2'h1: begin
+
+            modm_stage <= 2'h2;
+
+            case (modrm[7:6])
+
+                2'b00: begin
+
+                    // Это чистый disp16
+                    if (modrm[2:0] == 3'b110) begin
+
+                        ip <= ip + 1'b1;
+                        ma[7:0] <= i_data;
+
+                    // чтение данных из памяти
+                    end else begin
+
+                        if (direct) op2 <= i_data; else op1 <= i_data;
+                        if (wide == 1'b0) m <= `OPCODE_EXEC; else ma <= ma + 1'b1;
+
+                    end
 
                 end
 
-            end
+                // +disp8
+                2'b01: begin
 
-            2'h1: begin
+                    ip <= ip + 1'b1;
+                    ma <= ma + {{8{i_data[7]}}, i_data[7:0]};
+                    memory <= 1'b1;
 
-                modm_stage <= 2'h2;
+                end
 
-                case (modrm[7:6])
+                // +disp16
+                2'b10: begin
 
-                    2'b00: begin
+                    ip <= ip + 1'b1;
+                    ma <= ma + {8'h00, i_data[7:0]};
 
-                        // Это чистый disp16
-                        if (modrm[2:0] == 3'b110) begin
+                end
 
-                            ip <= ip + 1'b1;
-                            ma[7:0] <= i_data;
+            endcase
 
-                        // чтение данных из памяти
-                        end else begin
+        end
 
-                            if (direct) op2 <= i_data; else op1 <= i_data;
-                            if (wide == 1'b0) m <= `OPCODE_EXEC; else ma <= ma + 1'b1;
+        2'h2: begin
 
-                        end
+            modm_stage <= 2'h3;
 
-                    end
+            case (modrm[7:6])
 
-                    // +disp8
-                    2'b01: begin
+                2'b00: begin
+
+                    // к чтению из памяти (1 или 2 байта)
+                    if (modrm[2:0] == 3'b110) begin
 
                         ip <= ip + 1'b1;
-                        ma <= ma + {{8{i_data[7]}}, i_data[7:0]};
+                        ma[15:8] <= i_data;
                         memory <= 1'b1;
 
-                    end
-
-                    // +disp16
-                    2'b10: begin
-
-                        ip <= ip + 1'b1;
-                        ma <= ma + {8'h00, i_data[7:0]};
-
-                    end
-
-                endcase
-
-            end
-
-            2'h2: begin
-
-                modm_stage <= 2'h3;
-
-                case (modrm[7:6])
-
-                    2'b00: begin
-
-                        // к чтению из памяти (1 или 2 байта)
-                        if (modrm[2:0] == 3'b110) begin
-
-                            ip <= ip + 1'b1;
-                            ma[15:8] <= i_data;
-                            memory <= 1'b1;
-
-                        // старший байт читается из памяти и переход к исполнению
-                        end else begin
-
-                            m <= `OPCODE_EXEC;
-                            if (direct) op2[15:8] <= i_data; else op1[15:8] <= i_data;
-                            ma <= ma - 1'b1;
-
-                        end
-
-                    end
-
-                    // чтение младшего байта (и переход к исполнению)
-                    2'b01: begin
-
-                        if (direct) op2 <= i_data; else op1 <= i_data;
-                        if (wide == 1'b0) m <= `OPCODE_EXEC; else ma <= ma + 1'b1;
-
-                    end
-
-                    // +disp16
-                    2'b10: begin
-
-                        ip <= ip + 1'b1;
-                        ma[15:8] <= ma[15:8] + i_data;
-                        memory <= 1'b1;
-
-                    end
-
-                endcase
-
-            end
-
-            2'h3: begin
-
-                modm_stage <= 3'h4;
-
-                case (modrm[7:6])
-
-                    // чтение lo-байта
-                    2'b00, 2'b10: begin
-
-                        if (direct) op2 <= i_data; else op1 <= i_data;
-                        if (wide == 1'b0) m <= `OPCODE_EXEC; else ma <= ma + 1'b1;
-
-                    end
-
-                    // завершение чтения hi-байта
-                    2'b01: begin
+                    // старший байт читается из памяти и переход к исполнению
+                    end else begin
 
                         m <= `OPCODE_EXEC;
-                        ma <= ma - 1'b1;
                         if (direct) op2[15:8] <= i_data; else op1[15:8] <= i_data;
+                        ma <= ma - 1'b1;
 
                     end
 
-                endcase
+                end
+
+                // чтение младшего байта (и переход к исполнению)
+                2'b01: begin
+
+                    if (direct) op2 <= i_data; else op1 <= i_data;
+                    if (wide == 1'b0) m <= `OPCODE_EXEC; else ma <= ma + 1'b1;
+
+                end
+
+                // +disp16
+                2'b10: begin
+
+                    ip <= ip + 1'b1;
+                    ma[15:8] <= ma[15:8] + i_data;
+                    memory <= 1'b1;
+
+                end
+
+            endcase
+
+        end
+
+        2'h3: begin
+
+            modm_stage <= 3'h4;
+
+            case (modrm[7:6])
+
+                // чтение lo-байта
+                2'b00, 2'b10: begin
+
+                    if (direct) op2 <= i_data; else op1 <= i_data;
+                    if (wide == 1'b0) m <= `OPCODE_EXEC; else ma <= ma + 1'b1;
+
+                end
+
+                // завершение чтения hi-байта
+                2'b01: begin
+
+                    m <= `OPCODE_EXEC;
+                    ma <= ma - 1'b1;
+                    if (direct) op2[15:8] <= i_data; else op1[15:8] <= i_data;
+
+                end
+
+            endcase
+
+        end
+
+        3'h4: begin
+
+            if (direct) op2[15:8] <= i_data; else op1[15:8] <= i_data;
+            ma <= ma - 1'b1;
+            m <= `OPCODE_EXEC;
+
+        end
+
+    endcase
+
+    // Исполнение инструкции
+    else if (m == `OPCODE_EXEC) casex (opcode)
+
+        // <ALU> ModRM
+        8'b00xx_x0xx: begin
+
+            fl <= rflags;
+
+            /* CMP не сохраняется */
+            if (alu != 3'b111) begin
+
+                m        <= `WRITE_BACK_MODRM;
+                wb_data  <= result;
+
+            end else begin
+
+                m       <= `OPCODE_DECODER;
+                memory  <= 1'b0;
 
             end
 
-            3'h4: begin
+        end
 
-                if (direct) op2[15:8] <= i_data; else op1[15:8] <= i_data;
-                ma <= ma - 1'b1;
-                m <= `OPCODE_EXEC;
+        // <ALU> al/ax, i8/16
+        8'b00xx_x10x: case (mcode)
+
+            // imm8
+            3'h0: begin
+
+                ip      <= ip + 1'b1;
+                op2     <= i_data;
+                mcode   <= opcode[0] ? 3'h1 : 3'h2;
+
+            end
+
+            // imm16
+            3'h1: begin
+
+                ip        <= ip + 1'b1;
+                op2[15:8] <= i_data;
+                mcode     <= 3'h2;
+
+            end
+
+            // Запись результата
+            3'h2: begin
+
+                m <= `OPCODE_DECODER;
+
+                // CMP не писать в регистр
+                if (alu != 3'b111) begin
+                    if (opcode[0])
+                        ax[15:0] <= result;
+                    else
+                        ax[7:0] <= result[7:0];
+                end
+
+                fl <= rflags;
 
             end
 
         endcase
 
-    end
+        // MOV rm16, sreg
+        8'b1000_1100: begin
 
-    // Исполнение инструкции
-    else if (m == `OPCODE_EXEC) begin
+            // Определение регистра для записи в память или регистр
+            case (modrm[4:3])
 
-        casex (opcode)
-
-            // <ALU> ModRM
-            8'b00xx_x0xx: begin
-
-                case (mcode)
-
-                3'h0: begin
-
-                    fl <= rflags;
-
-                    /* CMP не сохраняется */
-                    if (alu != 3'b111) begin
-
-                        // reg, r/m; r/m = reg --> сохранить в регистр
-                        if (direct | (!direct & modrm[7:6] == 2'b11)) begin
-
-                            case (direct ? modrm[5:3] : modrm[2:0])
-
-                                3'b000: if (wide) ax <= result[15:0]; else ax[ 7:0] <= result[7:0];
-                                3'b001: if (wide) cx <= result[15:0]; else cx[ 7:0] <= result[7:0];
-                                3'b010: if (wide) dx <= result[15:0]; else dx[ 7:0] <= result[7:0];
-                                3'b011: if (wide) bx <= result[15:0]; else bx[ 7:0] <= result[7:0];
-                                3'b100: if (wide) sp <= result[15:0]; else ax[15:8] <= result[7:0];
-                                3'b101: if (wide) bp <= result[15:0]; else cx[15:8] <= result[7:0];
-                                3'b110: if (wide) si <= result[15:0]; else dx[15:8] <= result[7:0];
-                                3'b111: if (wide) di <= result[15:0]; else bx[15:8] <= result[7:0];
-
-                            endcase
-
-                            memory <= 1'b0;
-                            m <= `OPCODE_DECODER;
-
-                        end
-
-                        // Сохранить в память
-                        else begin
-
-                            o_data  <= result[ 7:0];
-                            hibyte  <= result[15:8];
-                            mcode   <= wide ? 3'h1 : 3'h2;
-                            o_write <= 1'b1;
-
-                        end
-
-                    // Переход к получению следующего опкода
-                    end else begin
-
-                        memory <= 1'b0;
-                        m <= `OPCODE_DECODER;
-
-                    end
-                end
-
-                // Запись результатов
-                3'h1: begin mcode <= 3'h2; o_data <= hibyte; ma <= ma + 1'b1; end
-                3'h2: begin o_write <= 1'b0; memory <= 1'b0; m <= `OPCODE_DECODER; end
-
-                endcase
-
-            end
-
-            // <ALU> al/ax, i8/16
-            8'b00xx_x10x: begin
-
-                case (mcode)
-
-                // imm8
-                3'h0: begin
-
-                    ip      <= ip + 1'b1;
-                    op2     <= i_data;
-                    mcode   <= opcode[0] ? 3'h1 : 3'h2;
-
-                end
-
-                // imm16
-                3'h1: begin
-
-                    ip        <= ip + 1'b1;
-                    op2[15:8] <= i_data;
-                    mcode     <= 3'h2;
-
-                end
-
-                // Запись результата
-                3'h2: begin
-
-                    m <= `OPCODE_DECODER;
-
-                    // CMP не писать в регистр
-                    if (alu != 3'b111) begin
-                        if (opcode[0])
-                            ax[15:0] <= result;
-                        else
-                            ax[7:0] <= result[7:0];
-                    end
-
-                    fl <= rflags;
-
-                end
-
-                endcase
-
-            end
-
-            // PUSH seg | r16
-            8'b000x_x110,
-            8'b0101_0xxx: case (mcode)
-
-                4'h0: begin ma <= ma + 1'b1; o_data <= hibyte; mcode <= 4'h1; end
-                4'h1: begin o_write <= 1'b0; memory <= 1'b0; m <= `OPCODE_DECODER; end
+                2'b00: wb_data <= es;
+                2'b01: wb_data <= cs;
+                2'b10: wb_data <= ss;
+                2'b11: wb_data <= ds;
 
             endcase
 
-            // POP seg
-            8'b000x_x111,
-            8'b0101_1xxx: case (mcode)
+            m <= `WRITE_BACK_MODRM;
 
-                /* LO */ 4'h0: begin
+        end
 
-                    if (opcode[6])
-                        case (opcode[2:0])
-                            3'b000: ax[7:0] <= i_data;
-                            3'b001: cx[7:0] <= i_data;
-                            3'b010: dx[7:0] <= i_data;
-                            3'b011: bx[7:0] <= i_data;
-                            3'b100: sp[7:0] <= i_data;
-                            3'b101: bp[7:0] <= i_data;
-                            3'b110: si[7:0] <= i_data;
-                            3'b111: di[7:0] <= i_data;
-                        endcase
-                    else
-                        case (opcode[4:3])
-                            2'b00: es[7:0] <= i_data;
-                            2'b10: ss[7:0] <= i_data;
-                            2'b11: ds[7:0] <= i_data;
-                        endcase
+        // MOV sreg, rm16
+        8'b1000_1110: begin
 
-                    ma    <= ma + 1'b1;
-                    mcode <= 1'b1;
-
-                end
-
-                /* HI */ 4'h1: begin
-
-                    if (opcode[6])
-                        case (opcode[2:0])
-                            3'b000: ax[15:8] <= i_data;
-                            3'b001: cx[15:8] <= i_data;
-                            3'b010: dx[15:8] <= i_data;
-                            3'b011: bx[15:8] <= i_data;
-                            3'b100: sp[15:8] <= i_data;
-                            3'b101: bp[15:8] <= i_data;
-                            3'b110: si[15:8] <= i_data;
-                            3'b111: di[15:8] <= i_data;
-                        endcase
-                    else
-                    case (opcode[4:3])
-                        2'b00: es[15:8] <= i_data;
-                        2'b10: ss[15:8] <= i_data;
-                        2'b11: ds[15:8] <= i_data;
-                    endcase
-
-                    memory <= 1'b1;
-                    m <= `OPCODE_DECODER;
-
-                end
-
+            case (modrm[4:3])
+                2'b00: es <= op1;
+                2'b01: cs <= op1;
+                2'b10: ss <= op1;
+                2'b11: ds <= op1;
             endcase
 
-            // INC/DEC r16
-            8'b0100_xxxx: begin
+            memory <= 1'b0;
+            m      <= `OPCODE_DECODER;
 
-                fl <= {
-                    /* OF */ opcode[3] ? op1 == 8'h7f : op1 == 8'h80,
-                    /* DF */ fl[10],
-                    /* IF */ fl[9],
-                    /* TF */ fl[8],
-                    /* SF */ op1[15],
-                    /* ZF */ op1 == 1'b0,
-                    /*    */ 1'b0,
-                    /* AF */ opcode[3] ? op1[3:0] == 4'hF : op1[3:0] == 4'h0,
-                    /*    */ 1'b0,
-                    /* PF */ op1[0] ^ op1[1] ^ op1[2] ^ op1[3] ^ op1[4] ^ op1[5] ^ op1[6] ^ op1[7] ^ 1'b1,
-                    /*    */ 1'b1,
-                    /* CF */ opcode[3] ? op1 == 16'hffff : op1 == 16'h0000
-                };
+        end
 
-                case (opcode[2:0])
+        // ALU Group
+        8'b1000_00xx: case (mcode)
 
-                    3'b000: ax <= op1;
-                    3'b001: cx <= op1;
-                    3'b010: dx <= op1;
-                    3'b011: bx <= op1;
-                    3'b100: sp <= op1;
-                    3'b101: bp <= op1;
-                    3'b110: si <= op1;
-                    3'b111: di <= op1;
+            // Accept
+            4'h0: begin
 
-                endcase
-
-
-                m <= `OPCODE_DECODER;
+                alu    <= modrm[5:3];
+                memory <= 1'b0;
+                mcode  <= 4'h1;
 
             end
 
-            // MOV r8/16, i8/16
-            8'b1011_xxxx: case (mcode)
+            // Imm8
+            4'h1: begin
 
-                4'h0: begin
+                ip    <= ip + 1'b1;
+                op2   <= opcode[1:0] == 2'b11 ? {{8{i_data[7]}}, i_data} : i_data;
+                mcode <= opcode[1:0] == 2'b01 ? 4'h2 : 4'h3;
 
+            end
+
+            // Imm16
+            4'h2: begin
+
+                op2[15:8]   <= i_data;
+                ip          <= ip + 1'b1;
+                mcode       <= 4'h3;
+
+            end
+
+            // Запись результата (скопирован код из 8'b00xx_x0xx)
+            3'h3: begin
+
+                fl <= rflags;
+
+                /* CMP не сохраняется */
+                if (alu != 3'b111) begin
+
+                    m        <= `WRITE_BACK_MODRM;
+                    wb_data  <= result;
+
+                // Переход к получению следующего опкода
+                end else begin m <= `OPCODE_DECODER; end
+
+            end
+
+        endcase
+
+        // PUSH seg | r16 | PUSHF
+        8'b000x_x110,
+        8'b0101_0xxx,
+        8'b1001_1100: case (mcode)
+
+            4'h0: begin ma <= ma + 1'b1; o_data <= hibyte; mcode <= 4'h1; end
+            4'h1: begin o_write <= 1'b0; memory <= 1'b0; m <= `OPCODE_DECODER; end
+
+        endcase
+
+        // POP seg
+        8'b000x_x111,
+        8'b0101_1xxx,
+        8'b1001_1101: case (mcode)
+
+            /* LO */ 4'h0: begin
+
+                if (opcode[7]) begin
+
+                    fl[7:0] <= i_data;
+
+                end
+                else if (opcode[6])
+
+                    // @TODO write back --> modrm == 2'b11_rrr_000, direct = 1, wide = 1
                     case (opcode[2:0])
-
                         3'b000: ax[7:0] <= i_data;
                         3'b001: cx[7:0] <= i_data;
                         3'b010: dx[7:0] <= i_data;
                         3'b011: bx[7:0] <= i_data;
-                        3'b100: if (opcode[3]) sp[7:0] <= i_data; else ax[15:8] <= i_data;
-                        3'b101: if (opcode[3]) bp[7:0] <= i_data; else cx[15:8] <= i_data;
-                        3'b110: if (opcode[3]) si[7:0] <= i_data; else dx[15:8] <= i_data;
-                        3'b111: if (opcode[3]) di[7:0] <= i_data; else bx[15:8] <= i_data;
-
+                        3'b100: sp[7:0] <= i_data;
+                        3'b101: bp[7:0] <= i_data;
+                        3'b110: si[7:0] <= i_data;
+                        3'b111: di[7:0] <= i_data;
+                    endcase
+                else
+                    case (opcode[4:3])
+                        2'b00: es[7:0] <= i_data;
+                        2'b10: ss[7:0] <= i_data;
+                        2'b11: ds[7:0] <= i_data;
                     endcase
 
-                    mcode <= 1'b1;
-                    ip <= ip + 1'b1;
-                    m <= opcode[3] ? `OPCODE_EXEC : `OPCODE_DECODER;
+                ma    <= ma + 1'b1;
+                mcode <= 1'b1;
 
-                end
+            end
 
-                4'h1: begin
+            /* HI */ 4'h1: begin
 
-                    ip <= ip + 1'b1;
-                    m  <= `OPCODE_DECODER;
-
+                if (opcode[7])
+                    fl[11:8] <= i_data[3:0];
+                else if (opcode[6])
                     case (opcode[2:0])
-
                         3'b000: ax[15:8] <= i_data;
                         3'b001: cx[15:8] <= i_data;
                         3'b010: dx[15:8] <= i_data;
@@ -736,79 +787,516 @@ always @(posedge clk) begin
                         3'b101: bp[15:8] <= i_data;
                         3'b110: si[15:8] <= i_data;
                         3'b111: di[15:8] <= i_data;
-
                     endcase
-                end
-
-
-            endcase
-
-            // J<ccc>
-            8'b0111_xxxx: begin
-                        
-                case (opcode[3:0])
-                
-                    /* JO  */ 4'b0000: if (fl[ `OVERFLOW ] == 1'b1) 
-                        ip <= ip_rel8; else ip <= ip + 1'b1;
-                        
-                    /* JNO */ 4'b0001: if (fl[ `OVERFLOW ] == 1'b0) 
-                        ip <= ip_rel8; else ip <= ip + 1'b1;
-                        
-                    /* JB  */ 4'b0010: if (fl[ `CARRY ] == 1'b1) 
-                        ip <= ip_rel8; else ip <= ip + 1'b1;
-                        
-                    /* JNB */ 4'b0011: if (fl[ `CARRY ] == 1'b0) 
-                        ip <= ip_rel8; else ip <= ip + 1'b1;
-                        
-                    /* JZ  */ 4'b0100: if (fl[ `ZERO ] == 1'b1) 
-                        ip <= ip_rel8; else ip <= ip + 1'b1;
-                        
-                    /* JNZ */ 4'b0101: if (fl[ `ZERO ] == 1'b0) 
-                        ip <= ip_rel8; else ip <= ip + 1'b1;
-                        
-                    /* JBE */ 4'b0110: if (fl[ `CARRY ] == 1'b1 || fl[ `ZERO ] == 1'b1) 
-                        ip <= ip_rel8; else ip <= ip + 1'b1;
-                        
-                    /* JA  */ 4'b0111: if (fl[ `CARRY ] == 1'b0 && fl[ `ZERO ] == 1'b0) 
-                        ip <= ip_rel8; else ip <= ip + 1'b1;
-                        
-                    /* JS  */ 4'b1000: if (fl[ `SIGN ] == 1'b1) 
-                        ip <= ip_rel8; else ip <= ip + 1'b1;
-                        
-                    /* JNS */ 4'b1001: if (fl[ `SIGN ] == 1'b0) 
-                        ip <= ip_rel8; else ip <= ip + 1'b1;
-                        
-                    /* JP  */ 4'b1010: if (fl[ `PARITY ] == 1'b1) 
-                        ip <= ip_rel8; else ip <= ip + 1'b1;
-                        
-                    /* JNP */ 4'b1011: if (fl[ `PARITY ] == 1'b1) 
-                        ip <= ip_rel8; else ip <= ip + 1'b1;
-                        
-                    /* JL  */ 4'b1100: if (fl[ `SIGN ] != fl[ `OVERFLOW ]) 
-                        ip <= ip_rel8; else ip <= ip + 1'b1;
-                        
-                    /* JNL */ 4'b1101: if (fl[ `SIGN ] == fl[ `OVERFLOW ]) 
-                        ip <= ip_rel8; else ip <= ip + 1'b1;
-                        
-                    /* JLE */ 4'b1110: if (fl[ `ZERO ] == 1'b1 || fl[ `SIGN ] != fl[ `OVERFLOW ]) 
-                        ip <= ip_rel8; else ip <= ip + 1'b1;
-                        
-                    /* JG  */ 4'b1111: if (fl[ `ZERO ] == 1'b0 && fl[ `SIGN ] == fl[ `OVERFLOW ]) 
-                        ip <= ip_rel8; else ip <= ip + 1'b1;
-                
+                else
+                case (opcode[4:3])
+                    2'b00: es[15:8] <= i_data;
+                    2'b10: ss[15:8] <= i_data;
+                    2'b11: ds[15:8] <= i_data;
                 endcase
-                
+
+                memory <= 1'b1;
                 m <= `OPCODE_DECODER;
-                
+
             end
 
         endcase
 
-    end
+        // INC/DEC r16
+        8'b0100_xxxx: begin
+
+            fl <= {
+                /* OF */ opcode[3] ? op1 == 8'h7f : op1 == 8'h80,
+                /* DF */ fl[10],
+                /* IF */ fl[9],
+                /* TF */ fl[8],
+                /* SF */ op1[15],
+                /* ZF */ op1 == 1'b0,
+                /*    */ 1'b0,
+                /* AF */ opcode[3] ? op1[3:0] == 4'hF : op1[3:0] == 4'h0,
+                /*    */ 1'b0,
+                /* PF */ op1[0] ^ op1[1] ^ op1[2] ^ op1[3] ^ op1[4] ^ op1[5] ^ op1[6] ^ op1[7] ^ 1'b1,
+                /*    */ 1'b1,
+                /* CF */ opcode[3] ? op1 == 16'hffff : op1 == 16'h0000
+            };
+
+            case (opcode[2:0])
+
+                3'b000: ax <= op1;
+                3'b001: cx <= op1;
+                3'b010: dx <= op1;
+                3'b011: bx <= op1;
+                3'b100: sp <= op1;
+                3'b101: bp <= op1;
+                3'b110: si <= op1;
+                3'b111: di <= op1;
+
+            endcase
+
+
+            m <= `OPCODE_DECODER;
+
+        end
+
+        // MOV r8/16, i8/16
+        8'b1011_xxxx: case (mcode)
+
+            4'h0: begin
+
+                case (opcode[2:0])
+
+                    3'b000: ax[7:0] <= i_data;
+                    3'b001: cx[7:0] <= i_data;
+                    3'b010: dx[7:0] <= i_data;
+                    3'b011: bx[7:0] <= i_data;
+                    3'b100: if (opcode[3]) sp[7:0] <= i_data; else ax[15:8] <= i_data;
+                    3'b101: if (opcode[3]) bp[7:0] <= i_data; else cx[15:8] <= i_data;
+                    3'b110: if (opcode[3]) si[7:0] <= i_data; else dx[15:8] <= i_data;
+                    3'b111: if (opcode[3]) di[7:0] <= i_data; else bx[15:8] <= i_data;
+
+                endcase
+
+                mcode <= 1'b1;
+                ip <= ip + 1'b1;
+                m <= opcode[3] ? `OPCODE_EXEC : `OPCODE_DECODER;
+
+            end
+
+            4'h1: begin
+
+                ip <= ip + 1'b1;
+                m  <= `OPCODE_DECODER;
+
+                case (opcode[2:0])
+
+                    3'b000: ax[15:8] <= i_data;
+                    3'b001: cx[15:8] <= i_data;
+                    3'b010: dx[15:8] <= i_data;
+                    3'b011: bx[15:8] <= i_data;
+                    3'b100: sp[15:8] <= i_data;
+                    3'b101: bp[15:8] <= i_data;
+                    3'b110: si[15:8] <= i_data;
+                    3'b111: di[15:8] <= i_data;
+
+                endcase
+            end
+
+
+        endcase
+
+        // J<ccc>
+        8'b0111_xxxx: begin
+
+            case (opcode[3:0])
+
+                /* JO  */ 4'b0000: if (fl[ `OVERFLOW ] == 1'b1)
+                    ip <= ip_rel8; else ip <= ip + 1'b1;
+
+                /* JNO */ 4'b0001: if (fl[ `OVERFLOW ] == 1'b0)
+                    ip <= ip_rel8; else ip <= ip + 1'b1;
+
+                /* JB  */ 4'b0010: if (fl[ `CARRY ] == 1'b1)
+                    ip <= ip_rel8; else ip <= ip + 1'b1;
+
+                /* JNB */ 4'b0011: if (fl[ `CARRY ] == 1'b0)
+                    ip <= ip_rel8; else ip <= ip + 1'b1;
+
+                /* JZ  */ 4'b0100: if (fl[ `ZERO ] == 1'b1)
+                    ip <= ip_rel8; else ip <= ip + 1'b1;
+
+                /* JNZ */ 4'b0101: if (fl[ `ZERO ] == 1'b0)
+                    ip <= ip_rel8; else ip <= ip + 1'b1;
+
+                /* JBE */ 4'b0110: if (fl[ `CARRY ] == 1'b1 || fl[ `ZERO ] == 1'b1)
+                    ip <= ip_rel8; else ip <= ip + 1'b1;
+
+                /* JA  */ 4'b0111: if (fl[ `CARRY ] == 1'b0 && fl[ `ZERO ] == 1'b0)
+                    ip <= ip_rel8; else ip <= ip + 1'b1;
+
+                /* JS  */ 4'b1000: if (fl[ `SIGN ] == 1'b1)
+                    ip <= ip_rel8; else ip <= ip + 1'b1;
+
+                /* JNS */ 4'b1001: if (fl[ `SIGN ] == 1'b0)
+                    ip <= ip_rel8; else ip <= ip + 1'b1;
+
+                /* JP  */ 4'b1010: if (fl[ `PARITY ] == 1'b1)
+                    ip <= ip_rel8; else ip <= ip + 1'b1;
+
+                /* JNP */ 4'b1011: if (fl[ `PARITY ] == 1'b1)
+                    ip <= ip_rel8; else ip <= ip + 1'b1;
+
+                /* JL  */ 4'b1100: if (fl[ `SIGN ] != fl[ `OVERFLOW ])
+                    ip <= ip_rel8; else ip <= ip + 1'b1;
+
+                /* JNL */ 4'b1101: if (fl[ `SIGN ] == fl[ `OVERFLOW ])
+                    ip <= ip_rel8; else ip <= ip + 1'b1;
+
+                /* JLE */ 4'b1110: if (fl[ `ZERO ] == 1'b1 || fl[ `SIGN ] != fl[ `OVERFLOW ])
+                    ip <= ip_rel8; else ip <= ip + 1'b1;
+
+                /* JG  */ 4'b1111: if (fl[ `ZERO ] == 1'b0 && fl[ `SIGN ] == fl[ `OVERFLOW ])
+                    ip <= ip_rel8; else ip <= ip + 1'b1;
+
+            endcase
+
+            m <= `OPCODE_DECODER;
+
+        end
+
+        // MOV al/ax, [m16]
+        // MOV [m16], al/ax
+        8'b1010_00xx: case (mcode)
+
+            4'h0: begin
+
+                if (prefix)
+                case (prefix_id)
+                    2'b00: ms <= es;
+                    2'b01: ms <= cs;
+                    2'b10: ms <= ss;
+                    2'b11: ms <= ds;
+                endcase
+                else ms <= ds;
+
+                ma[7:0] <= i_data;
+                ip      <= ip + 1'b1;
+                mcode   <= 1'b1;
+
+            end
+
+            4'h1: begin
+
+                mcode    <= 2'h2;
+                ip       <= ip + 1'b1;
+                ma[15:8] <= i_data;
+                o_data   <= ax[7:0];
+                memory   <= 1'b1;
+                o_write  <= opcode[1];
+
+            end
+
+            // Запись или чтение из памяти LO
+            4'h2: begin
+
+                ma      <= ma + 1'b1;
+                o_data  <= ax[15:8];
+                mcode   <= 4'h3;
+
+                // Завершить запись HI если BYTE
+                if (opcode[0] == 1'b0) begin
+
+                    m       <= `OPCODE_DECODER;
+                    memory  <= 1'b0;
+                    o_write <= 1'b0;
+
+                end
+
+                // Запись из памяти в AX
+                if (opcode[1]) ax[7:0] <= i_data;
+
+            end
+
+            // Запись или чтение из памяти HI
+            4'h3: begin
+
+                m       <= `OPCODE_DECODER;
+                memory  <= 1'b0;
+                o_write <= 1'b0;
+
+                if (opcode[1]) ax[15:8] <= i_data;
+
+            end
+
+        endcase
+
+        // TEST rm, r8/16
+        8'b1000_010x: begin
+
+            memory  <= 1'b0;
+            fl      <= rflags;
+            m       <= `OPCODE_DECODER;
+
+        end
+
+        // TEST al/ax, i8/16
+        8'b1010_100x: case (mcode)
+
+            4'h0: begin
+
+                ip      <= ip + 1'b1;
+                op2     <= i_data;
+                mcode   <= 4'h1;
+
+            end
+
+            // 8 bit
+            4'h1: begin
+
+                if (opcode[0] == 1'b0) begin
+
+                    fl  <= rflags;
+                    m   <= `OPCODE_DECODER;
+
+                end else begin
+
+                    ip      <= ip + 1'b1;
+                    op2[15:8] <= i_data;
+                    mcode   <= 4'h2;
+
+                end
+
+            end
+
+            // 16 bit
+            4'h2: begin
+
+                fl  <= rflags;
+                m   <= `OPCODE_DECODER;
+
+            end
+
+        endcase
+
+        // MOV ModRM
+        8'b1000_10xx: case (mcode)
+
+            4'h0: begin
+
+                // reg, r/m; r/m = reg --> сохранить в регистр
+                if (direct | (!direct & modrm[7:6] == 2'b11)) begin
+
+                    case (direct ? modrm[5:3] : modrm[2:0])
+
+                        3'b000: if (wide) ax <= op2[15:0]; else ax[ 7:0] <= op2[7:0];
+                        3'b001: if (wide) cx <= op2[15:0]; else cx[ 7:0] <= op2[7:0];
+                        3'b010: if (wide) dx <= op2[15:0]; else dx[ 7:0] <= op2[7:0];
+                        3'b011: if (wide) bx <= op2[15:0]; else bx[ 7:0] <= op2[7:0];
+                        3'b100: if (wide) sp <= op2[15:0]; else ax[15:8] <= op2[7:0];
+                        3'b101: if (wide) bp <= op2[15:0]; else cx[15:8] <= op2[7:0];
+                        3'b110: if (wide) si <= op2[15:0]; else dx[15:8] <= op2[7:0];
+                        3'b111: if (wide) di <= op2[15:0]; else bx[15:8] <= op2[7:0];
+
+                    endcase
+
+                    memory <= 1'b0;
+                    m <= `OPCODE_DECODER;
+
+                end
+
+                // Сохранить в память
+                else begin
+
+                    o_data  <= op2[ 7:0];
+                    hibyte  <= op2[15:8];
+                    mcode   <= wide ? 3'h1 : 3'h2;
+                    o_write <= 1'b1;
+
+                end
+
+            end
+
+            // Запись результатов
+            3'h1: begin mcode <= 3'h2; o_data <= hibyte; ma <= ma + 1'b1; end
+            3'h2: begin o_write <= 1'b0; memory <= 1'b0; m <= `OPCODE_DECODER; end
+
+        endcase
+
+        // LEA r16, rm
+        8'b1000_1101: begin
+
+            case (modrm[5:3])
+
+                3'b000: ax <= ma;
+                3'b001: cx <= ma;
+                3'b010: dx <= ma;
+                3'b011: bx <= ma;
+                3'b100: sp <= ma;
+                3'b101: bp <= ma;
+                3'b110: si <= ma;
+                3'b111: di <= ma;
+
+            endcase
+
+            memory  <= 1'b0;
+            m       <= `OPCODE_DECODER;
+
+        end
+
+        // MOV r/m, i8/16
+        8'b1100_011x: case (mcode)
+
+            4'h0: begin memory <= 1'b0; mcode <= 4'h1; end
+
+            // Imm8
+            4'h1: begin
+
+                wb_data <= i_data;
+                ip      <= ip + 1'b1;
+
+                if (wide == 1'b0)
+                    m <= `WRITE_BACK_MODRM;
+                else
+                    mcode <= 4'h2;
+
+            end
+
+            // Imm16
+            4'h2: begin
+
+                ip      <= ip + 1'b1;
+                wb_data[15:8] <= i_data;
+                m       <= `WRITE_BACK_MODRM;
+
+            end
+
+        endcase
+
+        // JMP rel8
+        8'b1110_1011: begin
+
+            ip <= ip_rel8;
+            m  <= `OPCODE_DECODER;
+
+        end
+
+        // JMP|CALL rel16
+        8'b1110_1001, 8'b1110_1000: case (mcode)
+
+            2'h0: begin hibyte <= i_data; mcode <= 2'h1; ip <= ip + 1'b1; end
+            2'h1: begin
+
+                mcode <= 2'h2;
+
+                if (opcode[0]) m <= `OPCODE_DECODER; else begin
+
+                    memory <= 1'b1;
+                    ma <= sp - 2'h2;
+                    ms <= ss;
+                    sp <= sp - 2'h2;
+                    o_write <= 1'b1;
+                    o_data <= ip_next[7:0];
+                    hibyte <= ip_next[15:8];
+
+                end
+
+                ip <= ip + 1'b1 + {i_data, hibyte};
+
+            end
+
+            2'h2: begin ma <= ma + 1'b1; o_data <= hibyte; mcode <= 2'h3; end
+            2'h3: begin o_write <= 1'b0; memory <= 1'b0; m <= `OPCODE_DECODER; end
+
+        endcase
+
+        // JMP/CALL far
+        8'b1110_1010, 
+        8'b1001_1010: case (mcode)
+
+            2'h0: begin wb_data[7:0] <= i_data; mcode <= 2'h1; ip <= ip + 1'b1; end
+            2'h1: begin wb_data[15:8] <= i_data; mcode <= 2'h2; ip <= ip + 1'b1; end
+            2'h2: begin hibyte <= i_data; mcode <= 2'h3; ip <= ip + 1'b1; end
+            2'h3: begin 
+                            
+                if /* CALLF */ (opcode[4]) begin
+    
+                    op1     <= cs;
+                    memory  <= 1'b1;
+                    ma      <= sp - 3'h4;
+                    ms      <= ss;
+                    sp      <= sp - 3'h4;
+                    o_write <= 1'b1;
+                    o_data  <= ip_next[7:0];
+                    hibyte  <= ip_next[15:8];
+                    mcode   <= 3'h4;
+                
+                end else m <= `OPCODE_DECODER; 
+
+                cs <= {i_data, hibyte}; 
+                ip <= wb_data;                 
+                
+            end
+            
+            3'h4: begin ma <= ma + 1'b1; mcode <= 3'h5; o_data <= hibyte; end
+            3'h5: begin ma <= ma + 1'b1; mcode <= 3'h6; o_data <= op1[7:0]; end
+            3'h6: begin ma <= ma + 1'b1; mcode <= 3'h7; o_data <= op1[15:8];end
+            3'h7: begin o_write <= 1'b0; memory <= 1'b0; m <= `OPCODE_DECODER; end
+
+        endcase
+
+        // RET/RETF
+        8'b1100_x011: case (mcode)
+        
+            4'h0: begin ip[7:0] <= i_data; mcode <= 4'h1; ma <= ma + 1'b1; end
+            4'h1: begin 
+            
+                ip[15:8] <= i_data;
+                mcode <= 4'h2;
+                ma <= ma + 1'b1; 
+                
+                // просто RET
+                if (opcode[3] == 1'b0) begin
+                
+                    memory  <= 1'b0;
+                    m       <= `OPCODE_DECODER;
+                    
+                end
+                
+            end
+            
+            4'h2: begin cs[7:0]  <= i_data; mcode <= 4'h3; ma <= ma + 1'b1; end
+            4'h3: begin cs[15:8] <= i_data; memory <= 1'b0; m <= `OPCODE_DECODER; end
+                
+        endcase
+
+    endcase
+
+    // Запись в регистр или в память (modrm и др.)
+    else if (m == `WRITE_BACK_MODRM) casex (wbmcode)
+
+        2'h0: begin
+
+            // reg, r/m; r/m = reg --> сохранить в регистр
+            if (direct | (!direct & modrm[7:6] == 2'b11)) begin
+
+                case (direct ? modrm[5:3] : modrm[2:0])
+
+                    3'b000: if (wide) ax <= wb_data[15:0]; else ax[ 7:0] <= wb_data[7:0];
+                    3'b001: if (wide) cx <= wb_data[15:0]; else cx[ 7:0] <= wb_data[7:0];
+                    3'b010: if (wide) dx <= wb_data[15:0]; else dx[ 7:0] <= wb_data[7:0];
+                    3'b011: if (wide) bx <= wb_data[15:0]; else bx[ 7:0] <= wb_data[7:0];
+                    3'b100: if (wide) sp <= wb_data[15:0]; else ax[15:8] <= wb_data[7:0];
+                    3'b101: if (wide) bp <= wb_data[15:0]; else cx[15:8] <= wb_data[7:0];
+                    3'b110: if (wide) si <= wb_data[15:0]; else dx[15:8] <= wb_data[7:0];
+                    3'b111: if (wide) di <= wb_data[15:0]; else bx[15:8] <= wb_data[7:0];
+
+                endcase
+
+                memory  <= 1'b0;
+                m       <= `OPCODE_DECODER;
+
+            end
+
+            // Или сохранить в память
+            else begin
+
+                o_data  <= wb_data[ 7:0];
+                hibyte  <= wb_data[15:8];
+                wbmcode <= wide ? 3'h1 : 3'h2;
+                memory  <= 1'b1;
+                o_write <= 1'b1;
+
+            end
+
+        end
+
+        // Запись результатов
+        3'h1: begin wbmcode <= 3'h2; o_data <= hibyte; ma <= ma + 1'b1; end
+        3'h2: begin o_write <= 1'b0; memory <= 1'b0; m <= `OPCODE_DECODER; end
+
+    endcase
 
 end
 
-// ---------------------------------------------------------------------
 // Арифметическо-логическое устройство
 // ---------------------------------------------------------------------
 
