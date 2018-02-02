@@ -70,6 +70,7 @@ reg [ 7:0]  hibyte = 1'b0;
 
 reg [1:0]   wbmcode = 1'b0;
 reg [15:0]  wb_data = 1'b0;
+reg [15:0]  tmpdata = 1'b0;
 
 // режим АЛУ
 reg [2:0]   alu = 1'b0;
@@ -346,14 +347,16 @@ always @(posedge clk) begin
             8'b1110_10xx, 8'b1001_1010: m <= `OPCODE_EXEC;
 
             // RET/RETF
-            8'b1100_x011: begin
-            
-                ms <= ss;
-                ma <= sp;
-                memory <= 1'b1;
-                sp <= sp + i_data[3] ? 4'h4 : 2'h2;
-                m <= `OPCODE_EXEC;
-            
+            // RET i16 / RETF i16
+            8'b1100_x011,
+            8'b1100_x010: begin
+
+                ms      <= ss;
+                ma      <= sp;
+                memory  <= 1'b1;
+                sp      <= sp + i_data[3] ? 4'h4 : 2'h2;
+                m       <= `OPCODE_EXEC;
+
             end
 
         endcase
@@ -1189,16 +1192,16 @@ always @(posedge clk) begin
         endcase
 
         // JMP/CALL far
-        8'b1110_1010, 
+        8'b1110_1010,
         8'b1001_1010: case (mcode)
 
             2'h0: begin wb_data[7:0] <= i_data; mcode <= 2'h1; ip <= ip + 1'b1; end
             2'h1: begin wb_data[15:8] <= i_data; mcode <= 2'h2; ip <= ip + 1'b1; end
             2'h2: begin hibyte <= i_data; mcode <= 2'h3; ip <= ip + 1'b1; end
-            2'h3: begin 
-                            
+            2'h3: begin
+
                 if /* CALLF */ (opcode[4]) begin
-    
+
                     op1     <= cs;
                     memory  <= 1'b1;
                     ma      <= sp - 3'h4;
@@ -1208,14 +1211,14 @@ always @(posedge clk) begin
                     o_data  <= ip_next[7:0];
                     hibyte  <= ip_next[15:8];
                     mcode   <= 3'h4;
-                
-                end else m <= `OPCODE_DECODER; 
 
-                cs <= {i_data, hibyte}; 
-                ip <= wb_data;                 
-                
+                end else m <= `OPCODE_DECODER;
+
+                cs <= {i_data, hibyte};
+                ip <= wb_data;
+
             end
-            
+
             3'h4: begin ma <= ma + 1'b1; mcode <= 3'h5; o_data <= hibyte; end
             3'h5: begin ma <= ma + 1'b1; mcode <= 3'h6; o_data <= op1[7:0]; end
             3'h6: begin ma <= ma + 1'b1; mcode <= 3'h7; o_data <= op1[15:8];end
@@ -1223,29 +1226,77 @@ always @(posedge clk) begin
 
         endcase
 
-        // RET/RETF
-        8'b1100_x011: case (mcode)
-        
-            4'h0: begin ip[7:0] <= i_data; mcode <= 4'h1; ma <= ma + 1'b1; end
-            4'h1: begin 
+        // RET/RETF [i16]
+        8'b1100_x011,
+        8'b1100_x010: case (mcode)
+
+            4'h0: begin 
             
-                ip[15:8] <= i_data;
-                mcode <= 4'h2;
-                ma <= ma + 1'b1; 
-                
-                // просто RET
-                if (opcode[3] == 1'b0) begin
-                
-                    memory  <= 1'b0;
-                    m       <= `OPCODE_DECODER;
-                    
-                end
+                ip[7:0] <= i_data;
+                mcode   <= 4'h1; 
+                ma      <= ma + 1'b1; 
+                wb_data <= ip;
+                tmpdata <= cs;
                 
             end
             
-            4'h2: begin cs[7:0]  <= i_data; mcode <= 4'h3; ma <= ma + 1'b1; end
-            4'h3: begin cs[15:8] <= i_data; memory <= 1'b0; m <= `OPCODE_DECODER; end
+            4'h1: begin
+
+                ip[15:8] <= i_data;
                 
+                ma       <= ma + 1'b1;
+
+                // просто RET
+                if (opcode[3] == 1'b0) begin
+
+                    // Обычный RET
+                    if (opcode[0]) begin 
+                    
+                        memory  <= 1'b0; 
+                        m       <= `OPCODE_DECODER; 
+                        
+                    // С Imm16
+                    end else begin 
+                    
+                        ma <= wb_data;
+                        ms <= tmpdata;
+                        mcode <= 4'h4;
+                    
+                    end
+
+                end else mcode <= 4'h2;
+
+            end
+
+            4'h2: begin cs[7:0]  <= i_data; mcode <= 4'h3; ma <= ma + 1'b1; end
+            4'h3: begin cs[15:8] <= i_data; 
+            
+                mcode <= 4'h4;
+                                
+                // Обычный RET/RETF
+                if (opcode[0]) begin 
+                
+                    memory  <= 1'b0; 
+                    m       <= `OPCODE_DECODER; 
+                    
+                end else begin 
+                
+                    ma <= wb_data;
+                    ms <= tmpdata;
+                
+                end
+                            
+            end
+            
+            4'h4: begin mcode <= 4'h5; hibyte <= i_data; ma <= ma + 1'b1; end
+            4'h5: begin 
+            
+                sp <= sp + {i_data, hibyte}; 
+                memory  <= 1'b0; 
+                m <= `OPCODE_DECODER; 
+                
+            end
+
         endcase
 
     endcase
