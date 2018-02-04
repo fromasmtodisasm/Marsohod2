@@ -38,12 +38,12 @@ reg [15:0] ip; reg [11:0] fl;
 // Инициализируем
 initial begin
 
-    ax = 16'h1041; bx = 16'h0001; cx = 16'h0000; dx = 16'h0000;
+    ax = 16'h1041; bx = 16'h0001; cx = 16'h0004; dx = 16'h0000;
     sp = 16'h0004; bp = 16'h5000; si = 16'h0010; di = 16'h0020;
     es = 16'h2377; cs = 16'hFC00; ss = 16'h0040; ds = 16'h0000;
     ip = 16'h0000;
     //       ODITSZ-A-P-C
-    fl = 12'b000000000000;
+    fl = 12'b000001000000;
 
     o_write = 1'b0;
     o_data  = 8'h00;
@@ -344,7 +344,8 @@ always @(posedge clk) begin
             end
 
             // JMP rel8/rel16/far; CALL; CALL far
-            8'b1110_10xx, 8'b1001_1010: m <= `OPCODE_EXEC;
+            8'b1110_10xx, 
+            8'b1001_1010: m <= `OPCODE_EXEC;
 
             // RET/RETF
             // RET i16 / RETF i16
@@ -357,6 +358,16 @@ always @(posedge clk) begin
                 sp      <= sp + i_data[3] ? 4'h4 : 2'h2;
                 m       <= `OPCODE_EXEC;
 
+            end
+
+            // LOOPNZ/LOOPZ/LOOP/JCXZ
+            8'b1110_00xx: begin
+            
+                if (i_data[1:0] != 2'b11)
+                    cx <= cx - 1'b1;
+
+                m <= `OPCODE_EXEC;
+            
             end
 
         endcase
@@ -1230,38 +1241,38 @@ always @(posedge clk) begin
         8'b1100_x011,
         8'b1100_x010: case (mcode)
 
-            4'h0: begin 
-            
+            4'h0: begin
+
                 ip[7:0] <= i_data;
-                mcode   <= 4'h1; 
-                ma      <= ma + 1'b1; 
+                mcode   <= 4'h1;
+                ma      <= ma + 1'b1;
                 wb_data <= ip;
                 tmpdata <= cs;
-                
+
             end
-            
+
             4'h1: begin
 
                 ip[15:8] <= i_data;
-                
+
                 ma       <= ma + 1'b1;
 
                 // просто RET
                 if (opcode[3] == 1'b0) begin
 
                     // Обычный RET
-                    if (opcode[0]) begin 
-                    
-                        memory  <= 1'b0; 
-                        m       <= `OPCODE_DECODER; 
-                        
+                    if (opcode[0]) begin
+
+                        memory  <= 1'b0;
+                        m       <= `OPCODE_DECODER;
+
                     // С Imm16
-                    end else begin 
-                    
+                    end else begin
+
                         ma <= wb_data;
                         ms <= tmpdata;
                         mcode <= 4'h4;
-                    
+
                     end
 
                 end else mcode <= 4'h2;
@@ -1269,35 +1280,53 @@ always @(posedge clk) begin
             end
 
             4'h2: begin cs[7:0]  <= i_data; mcode <= 4'h3; ma <= ma + 1'b1; end
-            4'h3: begin cs[15:8] <= i_data; 
-            
+            4'h3: begin cs[15:8] <= i_data;
+
                 mcode <= 4'h4;
-                                
+
                 // Обычный RET/RETF
-                if (opcode[0]) begin 
-                
-                    memory  <= 1'b0; 
-                    m       <= `OPCODE_DECODER; 
-                    
-                end else begin 
-                
+                if (opcode[0]) begin
+
+                    memory  <= 1'b0;
+                    m       <= `OPCODE_DECODER;
+
+                end else begin
+
                     ma <= wb_data;
                     ms <= tmpdata;
-                
+
                 end
-                            
+
             end
-            
+
             4'h4: begin mcode <= 4'h5; hibyte <= i_data; ma <= ma + 1'b1; end
-            4'h5: begin 
-            
-                sp <= sp + {i_data, hibyte}; 
-                memory  <= 1'b0; 
-                m <= `OPCODE_DECODER; 
-                
+            4'h5: begin
+
+                sp <= sp + {i_data, hibyte};
+                memory  <= 1'b0;
+                m <= `OPCODE_DECODER;
+
             end
 
         endcase
+
+        // LOOPNZ, LOOPE, LOOP, JCXZ
+        8'b1110_00xx: begin
+            
+            if (opcode[1:0] == 2'b11) begin
+                            
+                m  <= `OPCODE_DECODER;
+                ip <= (cx == 16'h0000) ? ip + 1'b1 : ip_rel8;
+
+            end
+            else begin
+            
+                // Либо CX = 0, либо ZF = opcode[0] - перейти к следующему
+                ip <= (cx == 16'h0000 || (opcode[1] == 1'b0 && fl[`ZERO ] != opcode[0])) ? ip + 1'b1 : ip_rel8;
+
+            end
+
+        end        
 
     endcase
 
