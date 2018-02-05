@@ -344,7 +344,7 @@ always @(posedge clk) begin
             end
 
             // JMP rel8/rel16/far; CALL; CALL far
-            8'b1110_10xx, 
+            8'b1110_10xx,
             8'b1001_1010: m <= `OPCODE_EXEC;
 
             // RET/RETF
@@ -362,11 +362,20 @@ always @(posedge clk) begin
 
             // LOOPNZ/LOOPZ/LOOP/JCXZ
             8'b1110_00xx: begin
-            
+
                 if (i_data[1:0] != 2'b11)
                     cx <= cx - 1'b1;
 
                 m <= `OPCODE_EXEC;
+
+            end
+
+            // POP r/m16
+            8'b1000_1111: begin
+
+                m       <= `MODRM_DECODE;
+                wide    <= 1'b1;
+                direct  <= 1'b0;
             
             end
 
@@ -1312,21 +1321,56 @@ always @(posedge clk) begin
 
         // LOOPNZ, LOOPE, LOOP, JCXZ
         8'b1110_00xx: begin
-            
+
             if (opcode[1:0] == 2'b11) begin
-                            
+
                 m  <= `OPCODE_DECODER;
                 ip <= (cx == 16'h0000) ? ip + 1'b1 : ip_rel8;
 
             end
             else begin
-            
+
                 // Либо CX = 0, либо ZF = opcode[0] - перейти к следующему
                 ip <= (cx == 16'h0000 || (opcode[1] == 1'b0 && fl[`ZERO ] != opcode[0])) ? ip + 1'b1 : ip_rel8;
 
             end
 
-        end        
+        end
+
+        // POP r/m
+        8'b1000_1111: case (mcode)
+        
+            4'h0: begin
+                            
+                // Сохранить предыдущие ms: ma
+                op1     <= ms;
+                op2     <= ma;
+                
+                // Взять из стека значение
+                ms      <= ss;
+                ma      <= sp;
+                sp      <= sp + 2'h2;
+                memory  <= 1'b1;
+                mcode   <= 1'b1;                
+            
+            end
+            
+            // Low
+            4'h1: begin wb_data[7:0] <= i_data; mcode <= 4'h2; ma <= ma + 1'b1; end
+            
+            // High, Сохранить результат
+            4'h2: begin 
+            
+                wb_data[15:8] <= i_data;
+                
+                ms <= op1;
+                ma <= op2;
+                m <= `WRITE_BACK_MODRM;
+
+            end
+            
+        
+        endcase
 
     endcase
 
