@@ -378,6 +378,15 @@ always @(posedge clk) begin
                 direct  <= 1'b0;
             
             end
+            
+            // XCHG r8/16, rm
+            8'b1000_011x: begin
+
+                m       <= `MODRM_DECODE;
+                wide    <= i_data[0];
+                direct  <= 1'b0;
+            
+            end
 
         endcase
 
@@ -1365,13 +1374,37 @@ always @(posedge clk) begin
                 
                 ms <= op1;
                 ma <= op2;
-                m <= `WRITE_BACK_MODRM;
+                m  <= `WRITE_BACK_MODRM;
 
             end
             
         
         endcase
 
+        // XCHG r8/16, rm
+        8'b1000_011x: begin
+            
+            // op1, op2 - пришедние данные
+            // запись одного из них в регистр
+            case (modrm[5:3])
+
+                3'b000: if (wide) ax <= op1[15:0]; else ax[ 7:0] <= op1[7:0];
+                3'b001: if (wide) cx <= op1[15:0]; else cx[ 7:0] <= op1[7:0];
+                3'b010: if (wide) dx <= op1[15:0]; else dx[ 7:0] <= op1[7:0];
+                3'b011: if (wide) bx <= op1[15:0]; else bx[ 7:0] <= op1[7:0];
+                3'b100: if (wide) sp <= op1[15:0]; else ax[15:8] <= op1[7:0];
+                3'b101: if (wide) bp <= op1[15:0]; else cx[15:8] <= op1[7:0];
+                3'b110: if (wide) si <= op1[15:0]; else dx[15:8] <= op1[7:0];
+                3'b111: if (wide) di <= op1[15:0]; else bx[15:8] <= op1[7:0];
+
+            endcase
+            
+            // другого в память или регистр
+            wb_data <= op2;
+            m <= `WRITE_BACK_MODRM;
+        
+        end
+        
     endcase
 
     // Запись в регистр или в память (modrm и др.)
