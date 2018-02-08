@@ -376,15 +376,24 @@ always @(posedge clk) begin
                 m       <= `MODRM_DECODE;
                 wide    <= 1'b1;
                 direct  <= 1'b0;
-            
+
             end
-            
+
             // XCHG r8/16, rm
             8'b1000_011x: begin
 
                 m       <= `MODRM_DECODE;
                 wide    <= i_data[0];
                 direct  <= 1'b0;
+
+            end
+
+            // LES r16, rm
+            8'b1100_010x: begin
+            
+                m       <= `MODRM_DECODE;
+                wide    <= 1'b1;
+                direct  <= 1'b1;
             
             end
 
@@ -1348,42 +1357,42 @@ always @(posedge clk) begin
 
         // POP r/m
         8'b1000_1111: case (mcode)
-        
+
             4'h0: begin
-                            
+
                 // Сохранить предыдущие ms: ma
                 op1     <= ms;
                 op2     <= ma;
-                
+
                 // Взять из стека значение
                 ms      <= ss;
                 ma      <= sp;
                 sp      <= sp + 2'h2;
                 memory  <= 1'b1;
-                mcode   <= 1'b1;                
-            
+                mcode   <= 1'b1;
+
             end
-            
+
             // Low
             4'h1: begin wb_data[7:0] <= i_data; mcode <= 4'h2; ma <= ma + 1'b1; end
-            
+
             // High, Сохранить результат
-            4'h2: begin 
-            
+            4'h2: begin
+
                 wb_data[15:8] <= i_data;
-                
+
                 ms <= op1;
                 ma <= op2;
                 m  <= `WRITE_BACK_MODRM;
 
             end
-            
-        
+
+
         endcase
 
         // XCHG r8/16, rm
         8'b1000_011x: begin
-            
+
             // op1, op2 - пришедние данные
             // запись одного из них в регистр
             case (modrm[5:3])
@@ -1398,13 +1407,36 @@ always @(posedge clk) begin
                 3'b111: if (wide) di <= op1[15:0]; else bx[15:8] <= op1[7:0];
 
             endcase
-            
+
             // другого в память или регистр
             wb_data <= op2;
             m <= `WRITE_BACK_MODRM;
-        
+
         end
+
+        // L(ES/DS) r16, [rm]
+        8'b1100_010x: case (mcode)
+                    
+            // Чтение следующего байта для загрузки в сегмент
+            4'h0: begin mcode <= 4'h1; ma <= ma + 2'h2; end
+            
+            4'h1: begin mcode <= 4'h2; hibyte <= i_data; ma <= ma + 1'b1; end
+            
+            // Загрузка в сегмент и регистр полученного значения
+            4'h2: begin 
+            
+                if (opcode[0]) 
+                     ds <= {i_data, hibyte}; 
+                else es <= {i_data, hibyte}; 
+
+                // Пишем результат в регистр
+                wb_data <= op2;
+                m       <= `WRITE_BACK_MODRM;
+
+            end
         
+        endcase
+
     endcase
 
     // Запись в регистр или в память (modrm и др.)
