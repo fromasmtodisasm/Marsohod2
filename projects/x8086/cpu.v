@@ -38,9 +38,9 @@ reg [15:0] ip; reg [11:0] fl;
 // Инициализируем
 initial begin
 
-    ax = 16'h1041; bx = 16'h0001; cx = 16'h0004; dx = 16'h0000;
-    sp = 16'h0004; bp = 16'h5000; si = 16'h0010; di = 16'h0020;
-    es = 16'h2377; cs = 16'hFC00; ss = 16'h0040; ds = 16'h0000;
+    ax = 16'h1041; bx = 16'h0001; cx = 16'h0006; dx = 16'h0000;
+    sp = 16'h0012; bp = 16'h5000; si = 16'h0010; di = 16'h0020;
+    es = 16'h2377; cs = 16'hFC00; ss = 16'h0000; ds = 16'h0000;
     ip = 16'h0000;
     //       ODITSZ-A-P-C
     fl = 12'b000001000000;
@@ -53,7 +53,7 @@ end
 
 // Машинное состояния. Это не микрокод.
 reg [2:0]   m = 3'b0;
-reg [2:0]   mcode = 1'b0;
+reg [3:0]   mcode = 1'b0;
 reg [2:0]   modm_stage = 1'b0;
 reg [7:0]   modrm = 8'h00;
 reg [7:0]   opcode = 8'h00;
@@ -237,15 +237,16 @@ always @(posedge clk) begin
 
             end
 
-            // POP seg | r16 | POPF
+            // POP seg | r16 | POPF | IRET
             8'b000x_x111,
             8'b0101_1xxx,
-            8'b1001_1101: begin
+            8'b1001_1101,
+            8'b1100_1111: begin
 
                 m       <= `OPCODE_EXEC;
                 ms      <= ss;
                 ma      <= sp;
-                sp      <= sp + 2'h2;
+                sp      <= sp + (i_data == 8'hCF ? 3'h6 : 2'h2);
                 memory  <= 1'b1;
 
             end
@@ -390,11 +391,23 @@ always @(posedge clk) begin
 
             // LES r16, rm
             8'b1100_010x: begin
-            
+
                 m       <= `MODRM_DECODE;
                 wide    <= 1'b1;
                 direct  <= 1'b1;
+
+            end
+
+            // INT3
+            8'b1100_1100: begin hibyte <= 3'h3; m <= `OPCODE_EXEC; end
+            // INT i8
+            8'b1100_1101: m <= `OPCODE_EXEC;
+            // INTO Вызывается если Overflow=1
+            8'b1100_1110: if (fl[11]) begin 
             
+                hibyte  <= 3'h4; 
+                m       <= `OPCODE_EXEC;
+
             end
 
         endcase
@@ -1416,25 +1429,82 @@ always @(posedge clk) begin
 
         // L(ES/DS) r16, [rm]
         8'b1100_010x: case (mcode)
-                    
+
             // Чтение следующего байта для загрузки в сегмент
             4'h0: begin mcode <= 4'h1; ma <= ma + 2'h2; end
-            
+
             4'h1: begin mcode <= 4'h2; hibyte <= i_data; ma <= ma + 1'b1; end
-            
+
             // Загрузка в сегмент и регистр полученного значения
-            4'h2: begin 
-            
-                if (opcode[0]) 
-                     ds <= {i_data, hibyte}; 
-                else es <= {i_data, hibyte}; 
+            4'h2: begin
+
+                if (opcode[0])
+                     ds <= {i_data, hibyte};
+                else es <= {i_data, hibyte};
 
                 // Пишем результат в регистр
                 wb_data <= op2;
                 m       <= `WRITE_BACK_MODRM;
 
             end
+
+        endcase
+
+        // IRET
+        8'b1100_1111: case (mcode)
+
+            4'h0: begin mcode <= 4'h1; ip[7:0]  <= i_data; ma <= ma + 1'b1; end
+            4'h1: begin mcode <= 4'h2; ip[15:8] <= i_data; ma <= ma + 1'b1; end
+            4'h2: begin mcode <= 4'h3; cs[7:0]  <= i_data; ma <= ma + 1'b1; end
+            4'h3: begin mcode <= 4'h4; cs[15:8] <= i_data; ma <= ma + 1'b1; end
+            4'h4: begin mcode <= 4'h5; fl[7:0]  <= i_data; ma <= ma + 1'b1; end
+            4'h5: begin fl[11:8] <= i_data[3:0]; m <= `OPCODE_DECODER; memory <= 1'b0; end
+
+        endcase
+
+        // INT 3/i8/INTO
+        8'b1100_1100,
+        8'b1100_1101,
+        8'b1100_1110: case (mcode)
         
+            // Запись в стек
+            4'h0: begin 
+            
+                mcode   <= 4'h1;
+                
+                // Номер прерывания для INT i8
+                if (opcode == 8'b1100_1101)
+                    hibyte  <= i_data;
+                    
+                sp      <= sp - 4'h6;
+                ms      <= ss;
+                ma      <= sp - 4'h6;
+                memory  <= 1'b1;            
+                o_data  <= ip_next[7:0];
+                o_write <= 1'b1;
+                ip      <= ip + 1'b1;
+                
+            end
+            
+            4'h1: begin mcode <= 4'h2; o_data <= ip[15:8]; ma <= ma + 1'b1; end
+            4'h2: begin mcode <= 4'h3; o_data <= cs[7:0]; ma <= ma + 1'b1; end
+            4'h3: begin mcode <= 4'h4; o_data <= cs[15:8]; ma <= ma + 1'b1; end
+            4'h4: begin mcode <= 4'h5; o_data <= fl[7:0]; ma <= ma + 1'b1; end
+            
+            // Извлечение адреса перехода
+            4'h5: begin 
+            
+                mcode   <= 4'h6; 
+                o_data  <= {4'b0000, fl[11:8]};
+
+            end
+            
+            4'h6: begin mcode <= 4'h7; o_write <= 1'b0; ms <= 1'b0; ma <= {hibyte, 3'b000}; end            
+            4'h7: begin mcode <= 4'h8; ip[7:0] <= i_data; ma <= ma + 1'b1; end
+            4'h8: begin mcode <= 4'h9; ip[15:8] <= i_data; ma <= ma + 1'b1; end
+            4'h9: begin mcode <= 4'hA; cs[7:0] <= i_data; ma <= ma + 1'b1; end
+            4'hA: begin cs[15:8] <= i_data; memory <= 1'b0; m <= `OPCODE_DECODER; end
+
         endcase
 
     endcase
