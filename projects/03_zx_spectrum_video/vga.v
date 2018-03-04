@@ -8,10 +8,13 @@ module vga(
     output  reg  [5:0]  green,      // 6 бит на зеленый (5,4,3,2,1,0)
     output  reg  [4:0]  blue,       // 5 бит на синий (4,3,2,1,0)
     output  wire        hs,         // синхросигнал горизонтальной развертки
-    output  wire        vs          // синхросигнал вертикальной развертки
+    output  wire        vs,          // синхросигнал вертикальной развертки
 
+    // Данные для вывода
+    output  reg  [12:0] video_addr,
+    input   wire [ 7:0] video_data
+    
 );
-
 
 // Тайминги для горизонтальной развертки (640)
 parameter horiz_visible = 640;
@@ -36,11 +39,21 @@ assign vs = y >= (vert_visible  + vert_front)  && y < (vert_visible  + vert_fron
 reg [9:0] x = 1'b0; // 2^10 = 1024 точек возможно
 reg [9:0] y = 1'b0;
 
+reg [7:0] current_char;
+reg [7:0] current_attr;
+
 // 2х битный счетчик
 reg [1:0] clock_divider;
 
 // Делитель частоты. На входе частота - 100 мгц, а на выходе будет 25 Мгц
 always @(posedge clk) clock_divider <= clock_divider + 1'b1;
+
+// Чтобы правильно начинались данные, нужно их выровнять
+wire [7:0] X = x[9:1] - 32;
+wire [7:0] Y = y[9:1] - 24;
+
+// Получаем текущий бит
+wire current_bit = current_char[ 7 ^ X[2:0] ];
 
 // Когда бит 1 переходит из состояния 0 в состояние 1, это значит, что
 // будет осциллироваться на частоте 25 мгц (в 4 раза медленее, чем 100 мгц)
@@ -58,24 +71,41 @@ always @(posedge clock_divider[1]) begin
 
     end
     
+    // Обязательно надо тут использовать попиксельный выход, а то пиксели
+    // наполовину съезжают
+    
+    case (x[3:0])
+    
+        // Видеоадрес в ZX Spectrum непросто вычислить
+        //         FEDC BA98 7654 3210    
+        // Адрес =    Y Yzzz yyyx xxxx
+                
+                               // БанкY  СмещениеY ПолубанкY СмещениеX
+        4'b0000: video_addr <= { Y[7:6], Y[2:0],   Y[5:3],   X[7:3] };
+        
+        // Подготовка к выводу символа
+        4'b1111: current_char <= video_data;
+
+    endcase
+    
     // Мы находимся в видимой области рисования
     if (x < horiz_visible && y < vert_visible) begin
     
-        // типичная XOR текстура, сейчас заценим...
-        red   <= x[4:0] ^ y[4:0]; // 5'h1F;
-        green <= x[5:0] ^ y[5:0]; // 6'h3F;
-        blue  <= x[4:0] ^ y[4:0]; // 5'h1F;    
+        if (x >= 64 && x < (64 + 512) && y >= 48 && y < (48 + 384)) begin
+        
+            {red, green, blue} <= current_bit ? {5'h1F, 6'h3F, 5'h1F} : {5'h03, 6'h03, 5'h03};
+        
+        end else begin
+        
+            // Тут будет бордюр
+            {red, green, blue} <= {5'h03, 6'h03, 5'h03}; 
+        
+        end
     
     // В невидимой области мы ДОЛЖНЫ очищать в черный цвет
     // иначе видеоадаптер работать будет неправильно
-    end else begin
+    end else {red, green, blue} <= 16'h0000;
     
-        red   <= 1'b0;
-        green <= 1'b0;
-        blue  <= 1'b0;
-    
-    end
-
 end
 
 endmodule
