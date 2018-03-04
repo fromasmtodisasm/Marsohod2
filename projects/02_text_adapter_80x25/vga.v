@@ -193,7 +193,7 @@ always @(posedge clock_divider[1]) begin
             {red, green, blue} <= current_bit ? (current_attr[7] & flash ? bg_color : fr_color) : bg_color;
         else
             /* Сверху и снизу подсвечивается легким синим */
-            {red, green, blue} <= { 5'h00, 6'h00, 5'h03 };
+            {red, green, blue} <= x[2] ^ y[2] ? { 5'h02, 6'h01, 5'h02 } : { 5'h04, 6'h08, 5'h04 };
 
     end
     // В невидимой области мы ДОЛЖНЫ очищать в черный цвет
