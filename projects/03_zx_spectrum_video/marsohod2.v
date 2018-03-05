@@ -74,7 +74,8 @@ vga VGA_ADAPTER(
     
     // Данные для вывода
     .video_addr (video_addr),
-    .video_data (video_data)
+    .video_data (video_data),
+    .border     (3'h7)           /* Белый бордюр */
 
 );
 

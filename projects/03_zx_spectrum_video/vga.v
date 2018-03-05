@@ -12,7 +12,8 @@ module vga(
 
     // Данные для вывода
     output  reg  [12:0] video_addr,
-    input   wire [ 7:0] video_data
+    input   wire [ 7:0] video_data,
+    input   wire [ 2:0] border
     
 );
 
@@ -41,6 +42,7 @@ reg [9:0] y = 1'b0;
 
 reg [7:0] current_char;
 reg [7:0] current_attr;
+reg [7:0] tmp_current_char;
 
 // 2х битный счетчик
 reg [1:0] clock_divider;
@@ -54,6 +56,40 @@ wire [7:0] Y = y[9:1] - 24;
 
 // Получаем текущий бит
 wire current_bit = current_char[ 7 ^ X[2:0] ];
+
+// Если бит атрибута 7 = 1, то бит flash будет менять current_bit каждые 0.5 секунд
+wire flashed_bit = (current_attr[7] & flash) ^ current_bit;
+
+// Текущий цвет точки
+// Если сейчас рисуется бит - то нарисовать цвет из атрибута (FrColor), иначе - BgColor
+wire [2:0] src_color = flashed_bit ? current_attr[2:0] : current_attr[5:3];
+
+// Вычисляем цвет. Если бит 3=1, то цвет яркий, иначе обычного оттенка (половинной яркости)
+wire [15:0] color = {
+
+    // Если current_attr[6] = 1, то переходим в повышенную яркость (в 2 раза)
+    /* Красный цвет - это бит 1 */ src_color[1] ? (current_attr[6] ? 5'h1F : 5'h0F) : 5'h03,
+    /* Зеленый цвет - это бит 2 */ src_color[2] ? (current_attr[6] ? 6'h3F : 6'h1F) : 6'h03,
+    /* Синий цвет   - это бит 0 */ src_color[0] ? (current_attr[6] ? 5'h1F : 5'h0F) : 5'h03};
+
+// Регистр border(3 бита) будет задаваться извне, например записью в порты какие-нибудь
+wire [15:0] bgcolor = {border[1] ? 5'h0F : 5'h03,
+                       border[2] ? 6'h1F : 6'h03,
+                       border[0] ? 5'h0F : 5'h03};
+
+reg        flash;
+reg [23:0] timer;
+
+always @(posedge clock_divider[1]) begin
+
+    if (timer == 24'd12500000) begin /* полсекунды */
+        timer <= 1'b0; 
+        flash <= flash ^ 1'b1; // мигать каждые 0.5 секунд
+    end else begin
+        timer <= timer + 1'b1;
+    end
+    
+end
 
 // Когда бит 1 переходит из состояния 0 в состояние 1, это значит, что
 // будет осциллироваться на частоте 25 мгц (в 4 раза медленее, чем 100 мгц)
@@ -83,8 +119,32 @@ always @(posedge clock_divider[1]) begin
                                // БанкY  СмещениеY ПолубанкY СмещениеX
         4'b0000: video_addr <= { Y[7:6], Y[2:0],   Y[5:3],   X[7:3] };
         
+        // Запись временного значения, чтобы на 16-м такте его обновить
+        4'b0001: tmp_current_char <= video_data;
+        
+        // Запрос атрибута по x=0..31, y=0..23
+        // [110] [yyyyy] [xxxxx]
+        4'b0010: video_addr <= { 3'b110, Y[7:3], X[7:3] };
+        
         // Подготовка к выводу символа
-        4'b1111: current_char <= video_data;
+        4'b1111: begin
+        
+            // Записать в текущий регистр выбранную "маску" битов
+            current_char <= tmp_current_char;
+            
+            // И атрибутов
+            // Атрибут в спектруме представляет собой битовую маску
+            //  7     6      5 4 3    2 1 0
+            // [Flash Bright BgColor  FrColor]
+            
+            // Flash   - мерцание
+            // Bright  - яркость
+            // BgColor - цвет фона
+            // FrColor - цвет пикселей
+            
+            current_attr <= video_data;
+        
+        end
 
     endcase
     
@@ -93,12 +153,15 @@ always @(posedge clock_divider[1]) begin
     
         if (x >= 64 && x < (64 + 512) && y >= 48 && y < (48 + 384)) begin
         
-            {red, green, blue} <= current_bit ? {5'h1F, 6'h3F, 5'h1F} : {5'h03, 6'h03, 5'h03};
+            // Цвет вычисляется выше и зависит от
+            // 1. Атрибута 
+            // 2. Это пиксель или нет
+            {red, green, blue} <= color;
         
+        // Тут будет бордюр
         end else begin
         
-            // Тут будет бордюр
-            {red, green, blue} <= {5'h03, 6'h03, 5'h03}; 
+            {red, green, blue} <= bgcolor; 
         
         end
     
