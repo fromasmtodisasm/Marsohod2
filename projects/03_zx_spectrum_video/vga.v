@@ -51,7 +51,7 @@ reg [1:0] clock_divider;
 always @(posedge clk) clock_divider <= clock_divider + 1'b1;
 
 // Чтобы правильно начинались данные, нужно их выровнять
-wire [7:0] X = x[9:1] - 32;
+wire [7:0] X = x[9:1] - 24;
 wire [7:0] Y = y[9:1] - 24;
 
 // Получаем текущий бит
