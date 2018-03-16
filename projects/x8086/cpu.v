@@ -403,9 +403,9 @@ always @(posedge clk) begin
             // INT i8
             8'b1100_1101: m <= `OPCODE_EXEC;
             // INTO Вызывается если Overflow=1
-            8'b1100_1110: if (fl[11]) begin 
-            
-                hibyte  <= 3'h4; 
+            8'b1100_1110: if (fl[11]) begin
+
+                hibyte  <= 3'h4;
                 m       <= `OPCODE_EXEC;
 
             end
@@ -1466,40 +1466,40 @@ always @(posedge clk) begin
         8'b1100_1100,
         8'b1100_1101,
         8'b1100_1110: case (mcode)
-        
+
             // Запись в стек
-            4'h0: begin 
-            
+            4'h0: begin
+
                 mcode   <= 4'h1;
-                
+
                 // Номер прерывания для INT i8
                 if (opcode == 8'b1100_1101)
                     hibyte  <= i_data;
-                    
+
                 sp      <= sp - 4'h6;
                 ms      <= ss;
                 ma      <= sp - 4'h6;
-                memory  <= 1'b1;            
+                memory  <= 1'b1;
                 o_data  <= ip_next[7:0];
                 o_write <= 1'b1;
                 ip      <= ip + 1'b1;
-                
+
             end
-            
+
             4'h1: begin mcode <= 4'h2; o_data <= ip[15:8]; ma <= ma + 1'b1; end
             4'h2: begin mcode <= 4'h3; o_data <= cs[7:0]; ma <= ma + 1'b1; end
             4'h3: begin mcode <= 4'h4; o_data <= cs[15:8]; ma <= ma + 1'b1; end
             4'h4: begin mcode <= 4'h5; o_data <= fl[7:0]; ma <= ma + 1'b1; end
-            
+
             // Извлечение адреса перехода
-            4'h5: begin 
-            
-                mcode   <= 4'h6; 
+            4'h5: begin
+
+                mcode   <= 4'h6;
                 o_data  <= {4'b0000, fl[11:8]};
 
             end
-            
-            4'h6: begin mcode <= 4'h7; o_write <= 1'b0; ms <= 1'b0; ma <= {hibyte, 3'b000}; end            
+
+            4'h6: begin mcode <= 4'h7; o_write <= 1'b0; ms <= 1'b0; ma <= {hibyte, 3'b000}; end
             4'h7: begin mcode <= 4'h8; ip[7:0] <= i_data; ma <= ma + 1'b1; end
             4'h8: begin mcode <= 4'h9; ip[15:8] <= i_data; ma <= ma + 1'b1; end
             4'h9: begin mcode <= 4'hA; cs[7:0] <= i_data; ma <= ma + 1'b1; end
