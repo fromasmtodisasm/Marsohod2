@@ -56,6 +56,13 @@ module nes(
 );
 // --------------------------------------------------------------------------
 
-
+vga VGA(
+    .clk    (clk),
+    .red    (vga_red),
+    .green  (vga_green),
+    .blue   (vga_blue),
+    .hs     (vga_hs),
+    .vs     (vga_vs)
+);
 
 endmodule
