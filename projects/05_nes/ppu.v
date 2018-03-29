@@ -1,4 +1,4 @@
-module vga(
+module ppu(
 
     // Кварцевый осциллятор 100 Mhz
     input   wire        osc_clock,
@@ -22,6 +22,8 @@ module vga(
 );
 
 // ---------------------------------------------------------------------
+
+initial begin cpu_clock = 1'b0; ppu_clock = 1'b0; end
 
 // Тайминги для горизонтальной развертки (640)
 parameter horiz_visible = 640;
@@ -59,8 +61,11 @@ always @(posedge osc_clock) clock_divider <= clock_divider + 1'b1;
 // будет осциллироваться на частоте 25 мгц (в 4 раза медленее, чем 100 мгц)
 always @(posedge vga_clock) begin
 
-    x <= x == 639 ?             1'b0 : (x + 1'b1);
-    y <= x == 639 ? (y == 524 ? 1'b0 : (y + 1'b1)) : y;
+    x <= x == 799 ?             1'b0 : (x + 1'b1);
+    y <= x == 799 ? (y == 524 ? 1'b0 : (y + 1'b1)) : y;
+    
+    // В строку (800 тактов) помещается только 341 тактов PPU
+    ppu_clock <= (x >= 64 && x < (64 + 341*2)) ? (ppu_clock ? 1'b0 : ~y[0]) : 1'b0;
     
     // Мы находимся в видимой области рисования
     if (x < 640 && y < 480) begin
@@ -70,9 +75,6 @@ always @(posedge vga_clock) begin
         
             {red, green, blue} <= {5'h0F, 6'h1F, 5'h0F};
             
-            // В строку помещается только 341 тактов PPU
-            ppu_clock <= ppu_clock ? 1'b0 : (y[0] && (x < 10'd746));    
-
         // Бордюр
         end else begin
 
@@ -89,7 +91,7 @@ end
 // Тактовая частота процессора в 3 раза ниже, чем PPU
 always @(posedge ppu_clock) begin
 
-    if (y[0])
+    if (~y[0])
     
         case (cpu_div)
         
@@ -98,6 +100,8 @@ always @(posedge ppu_clock) begin
             2'b10: begin cpu_div <= 2'b00; end
         
         endcase
+    
+    else cpu_clock <= 1'b0;
 
 end
 

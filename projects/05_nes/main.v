@@ -13,8 +13,22 @@ initial begin $dumpfile("nes.vcd"); $dumpvars(0, main); end
 wire vga_clock;
 wire ppu_clock;
 wire cpu_clock;
+wire [4:0]  red;
+wire [5:0]  green;
+wire [4:0]  blue;
+wire hs;
+wire vs;
 
 // ---------------------------------------------------------------------
-clock CLOCK(clk, vga_clock, ppu_clock, cpu_clock);
 
+ppu PPU(
+
+    clk,
+    vga_clock,
+    ppu_clock,
+    cpu_clock,
+    red, green, blue, hs, vs
+
+);
+    
 endmodule
