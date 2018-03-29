@@ -10,10 +10,11 @@ always #0.5 clk = ~clk;
 initial begin clk = 1; #4000 $finish; end
 initial begin $dumpfile("nes.vcd"); $dumpvars(0, main); end
 
-wire o_25_mhz;
-wire o_ppu;
+wire vga_clock;
+wire ppu_clock;
+wire cpu_clock;
 
 // ---------------------------------------------------------------------
-clock CLOCK(clk, o_25_mhz, o_ppu);
+clock CLOCK(clk, vga_clock, ppu_clock, cpu_clock);
 
 endmodule
