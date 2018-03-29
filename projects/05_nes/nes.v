@@ -57,7 +57,7 @@ module nes(
 // --------------------------------------------------------------------------
 
 vga VGA(
-    .clk    (clk),
+    .osc_clock (clk),
     .red    (vga_red),
     .green  (vga_green),
     .blue   (vga_blue),

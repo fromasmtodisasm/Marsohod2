@@ -1,7 +1,16 @@
 module vga(
 
-    // 100 мегагерц
-    input   wire        clk,
+    // Кварцевый осциллятор 100 Mhz
+    input   wire        osc_clock,
+
+    // VGA 25,2 Мгц
+    output  wire        vga_clock,
+
+    // PPU 5.1 Мгц
+    output  reg         ppu_clock,
+
+    // CPU 1.71 Мгц
+    output  reg         cpu_clock,
 
     // Выходные данные
     output  reg  [4:0]  red,        // 5 бит на красный (4,3,2,1,0)
@@ -33,40 +42,37 @@ parameter vert_whole   = 525;   // 449  525
 assign hs = x >= (horiz_visible + horiz_front) && x < (horiz_visible + horiz_front + horiz_sync);
 assign vs = y >= (vert_visible  + vert_front)  && y < (vert_visible  + vert_front  + vert_sync);
 
+// Частота 25 Мгц
+assign vga_clock = clock_divider[1];
+
 // В этих регистрах мы будем хранить текущее положение луча на экране
-reg [9:0] x = 1'b0;         // 2^10 = 1024 точек возможно
+reg [9:0] x = 1'b0;                 // 2^10 = 1024 точек возможно
 reg [9:0] y = 1'b0;
-reg [1:0] clock_divider;    // 2х битный счетчик
+reg [1:0] clock_divider = 1'b0;     // 2х битный счетчик
+reg [1:0] cpu_div       = 1'b0;
 
 // Делитель частоты. На входе частота - 100 мгц, а на выходе будет 25 Мгц
-always @(posedge clk) clock_divider <= clock_divider + 1'b1;
+always @(posedge osc_clock) clock_divider <= clock_divider + 1'b1;
 // ---------------------------------------------------------------------
-
 
 // Когда бит 1 переходит из состояния 0 в состояние 1, это значит, что
 // будет осциллироваться на частоте 25 мгц (в 4 раза медленее, чем 100 мгц)
-always @(posedge clock_divider[1]) begin
+always @(posedge vga_clock) begin
 
-    // аналогично этой конструции на C
-    // if (x == 799) x = 0; else x += 1;
-    x <= x == (horiz_whole - 1) ? 1'b0 : (x + 1'b1);
-    
-    // Когда достигаем конца горизонтальной линии, переходим к Y+1
-    if (x == (horiz_whole - 1)) begin
-    
-        // if (x == 524) y = 0; else y += 1;
-        y <= y == (vert_whole - 1) ? 1'b0 : (y + 1'b1);
-
-    end   
+    x <= x == 639 ?             1'b0 : (x + 1'b1);
+    y <= x == 639 ? (y == 524 ? 1'b0 : (y + 1'b1)) : y;
     
     // Мы находимся в видимой области рисования
-    if (x < horiz_visible && y < vert_visible) begin
+    if (x < 640 && y < 480) begin
     
-		// Основной экран
+		// Экран 512x480 находится по центру
         if (x >= 64 && x < 576 && y < 480) begin
         
-            {red, green, blue} <= { 5'h0F, 6'h1F, 5'h0F };
-        
+            {red, green, blue} <= {5'h0F, 6'h1F, 5'h0F};
+            
+            // В строку помещается только 341 тактов PPU
+            ppu_clock <= ppu_clock ? 1'b0 : (y[0] && (x < 10'd746));    
+
         // Бордюр
         end else begin
 
@@ -78,6 +84,21 @@ always @(posedge clock_divider[1]) begin
     // иначе видеоадаптер работать будет неправильно
     end else {red, green, blue} <= 16'h0000;
     
+end
+
+// Тактовая частота процессора в 3 раза ниже, чем PPU
+always @(posedge ppu_clock) begin
+
+    if (y[0])
+    
+        case (cpu_div)
+        
+            2'b00: begin cpu_div <= 2'b01; cpu_clock <= 1'b1; end
+            2'b01: begin cpu_div <= 2'b10; cpu_clock <= 1'b0; end
+            2'b10: begin cpu_div <= 2'b00; end
+        
+        endcase
+
 end
 
 endmodule
