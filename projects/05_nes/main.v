@@ -18,6 +18,10 @@ wire [5:0]  green;
 wire [4:0]  blue;
 wire        hs;
 wire        vs;
+wire [15:0] address;
+wire [7:0]  i_data;
+wire [7:0]  o_data;
+wire        wreq;
 
 // ---------------------------------------------------------------------
 
@@ -28,6 +32,16 @@ ppu PPU(
     ppu_clock,
     cpu_clock,
     red, green, blue, hs, vs
+
+);
+
+cpu CPU(
+
+    cpu_clock,
+    address,
+    i_data,
+    o_data,
+    wreq
 
 );
     
