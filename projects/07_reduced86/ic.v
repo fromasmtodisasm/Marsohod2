@@ -12,46 +12,32 @@ initial begin $dumpfile("result.vcd"); $dumpvars(0, main); end
 
 // ---------------------------------------------------------------------
 
-wire [7:0]  i; wire [7:0] o; wire [19:0] a;
-wire        w;
-wire [7:0]  d; 
+reg [7:0]   i; wire [7:0] o; wire [19:0] a;
+wire        w; wire       W;  
+reg  [1:0]  flw = 2'b00; 
 
 // ------------------------------------- Регистровый файл --------------
 
-wire [2:0]  Dr;  wire [2:0] Sr; wire [1:0]  b;
-reg  [15:0] ia; reg  [15:0] ib;
-wire        wr; wire [15:0] dw;
-
 // Список регистров
-reg [31:0] registers[8];
+reg [ 7:0] memory[1048575];
 
-initial begin
-
-    registers[0] = 16'h0000; // AX
-    registers[1] = 16'h0000; // CX
-    registers[2] = 16'h0000; // DX
-    registers[3] = 16'h0000; // BX
-    registers[4] = 16'h0000; // SP
-    registers[5] = 16'h0000; // BP
-    registers[6] = 16'h0000; // SI 
-    registers[7] = 16'h0000; // DI
-    
-    ia = 16'h0000;
-    ib = 16'h0000;
-    
-end
+initial begin $readmemh("bios.hex", memory, 20'hFE000); end
+initial begin $readmemh("ram.hex", memory, 20'h00000); end
 
 always @(posedge clk) begin
 
-    ia <= registers[ Dr ];
-    ib <= registers[ Sr ];
+    // Чтение данных из памяти
+    i <= memory[ a ];
     
-    if (wr) registers[ Dr ] <= dw;
+    // Запись данных в память
+    if (w) memory[ a ] <= o;
+    
+    // Для записи - задержка данных может быть
+    flw <= {flw[0], clk25};
 
 end
 
 // ------------------------------------- Центральный процессор ---------
-cpu CPU(/* Главное */   clk, i, o, a, w, d, 
-        /* Регистры */  Dr, Sr, b, ia, ib, wr, dw);
+cpu CPU(/* Главное */   clk, clk25, i, o, a, w);
     
 endmodule

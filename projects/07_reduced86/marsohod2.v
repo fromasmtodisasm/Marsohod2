@@ -56,4 +56,33 @@ module marsohod2(
 );
 // --------------------------------------------------------------------------
 
+assign sdram_addr = a[11:0]; // !!test!!
+
+// Объявление регистров
+wire        clk25;
+wire [7:0]  i;
+wire [7:0]  o;
+wire [19:0] a;
+wire        w;
+wire [2:0]  Dr;
+wire [2:0]  Sr;
+wire [1:0]  b;
+wire [15:0] id;
+wire [15:0] is;
+wire        W;
+wire [15:0] d;
+
+// ------------------------------------- Центральный процессор ---------
+cpu CPU(
+
+    /* Главное */       
+    clk, 
+    clk25, 
+    i, /* In Data */
+    o, /* Out Data */
+    a, /* Address */
+    w  /* Write */    
+);
+    
+    
 endmodule
