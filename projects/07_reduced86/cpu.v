@@ -10,29 +10,6 @@ module cpu(
 
 );
 
-// Адрес, куда смотрит сейчас код или данные
-assign a = {cs, 4'h0} + ip;
-
-// Реализация делителя частоты 1/4, т.е. выдача 25 Мгц
-reg [1:0] Dx = 2'b00; assign clk25 = Dx[1]; always @(posedge clk) Dx <= Dx + 1;
-
-reg [2:0]  Dr = 3'h0;
-reg [2:0]  Sr = 3'h0;
-reg [15:0] D;
-reg [15:0] S;
-reg        b;
-reg        W;
-reg [15:0] d = 16'h0000;
-
-// Указатель инструкции
-reg [15:0] cs = 16'hF000; reg [15:0] ip = 16'hE000;
-
-// Указатель временных данных
-reg [15:0] se = 16'h0000; reg [15:0] ea = 16'h0000;
-
-// Регистровый файл
-regfile RegFile(clk, Dr, Sr, b, W, d, D, S);
-
 initial begin
 
     o  = 8'h00;

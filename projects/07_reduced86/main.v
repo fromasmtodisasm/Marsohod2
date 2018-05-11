@@ -8,7 +8,7 @@ reg         clk;
 always #0.5 clk         = ~clk;
 
 initial begin clk = 1; #2000 $finish; end
-initial begin $dumpfile("result.vcd"); $dumpvars(0, main); end
+initial begin $dumpfile("main.vcd"); $dumpvars(0, main); end
 
 // ---------------------------------------------------------------------
 
@@ -21,8 +21,8 @@ reg  [1:0]  flw = 2'b00;
 // Список регистров
 reg [ 7:0] memory[1048575];
 
-initial begin $readmemh("bios.hex", memory, 20'hFE000); end
-initial begin $readmemh("ram.hex", memory, 20'h00000); end
+initial begin $readmemh("init/bios.hex", memory, 20'hFE000); end
+initial begin $readmemh("init/ram.hex", memory, 20'h00000); end
 
 always @(posedge clk) begin
 

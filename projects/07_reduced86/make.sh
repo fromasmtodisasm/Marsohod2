@@ -1,8 +1,9 @@
 #!/bin/sh
 
-iverilog -g2005-sv -DICARUS=1 -o icarus.qqq ic.v cpu.v regfile.v
-vvp icarus.qqq >> /dev/null
+iverilog -g2005-sv -DICARUS=1 -o main.qqq main.v cpu.v
+vvp main.qqq >> /dev/null
+rm main.qqq
 
-# gtkwave result.vcd
+# gtkwave main.vcd
 
 echo 'OK'
