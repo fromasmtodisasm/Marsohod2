@@ -4,25 +4,35 @@ module main;
 
 // ---------------------------------------------------------------------
 
-reg         clk;
+reg clk = 1'b0;
+reg clk25 = 1'b0;
+
 always #0.5 clk         = ~clk;
+always #2 clk25       = ~clk25;
 
 initial begin clk = 1; #2000 $finish; end
 initial begin $dumpfile("main.vcd"); $dumpvars(0, main); end
 
 // ---------------------------------------------------------------------
 
-reg [7:0]   i; wire [7:0] o; wire [19:0] a;
-wire        w; wire       W;  
+reg  [7:0]  i; /* Вход CPU */
+wire [7:0]  o; /* Выход из CPU */
+wire [15:0] a;
+wire        w; 
 reg  [1:0]  flw = 2'b00; 
 
 // ------------------------------------- Регистровый файл --------------
+reg [ 7:0] memory[65536];
 
-// Список регистров
-reg [ 7:0] memory[1048575];
+/*
+    0000-7FFF  Общая память (32кб)
+    B800-BFFF  Видеопамять текстовая (2k)
+    C000-FFFF  BIOS (8кб)
+*/
 
-initial begin $readmemh("init/bios.hex", memory, 20'hFE000); end
-initial begin $readmemh("init/ram.hex", memory, 20'h00000); end
+// Ревизия 1
+initial begin $readmemh("init/ram.hex",  memory, 16'h0000); end
+initial begin $readmemh("init/bios.hex", memory, 16'hE000); end 
 
 always @(posedge clk) begin
 
@@ -32,12 +42,9 @@ always @(posedge clk) begin
     // Запись данных в память
     if (w) memory[ a ] <= o;
     
-    // Для записи - задержка данных может быть
-    flw <= {flw[0], clk25};
-
 end
 
 // ------------------------------------- Центральный процессор ---------
-cpu CPU(/* Главное */   clk, clk25, i, o, a, w);
+cpu CPU(clk, clk25, i, o, a, w);
     
 endmodule
