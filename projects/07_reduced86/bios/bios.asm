@@ -18,7 +18,7 @@ bios_entry:
         db      (0xFFF0 - $) dup 0x00       ; Unused
 ; ----------------------------------------------------------------------
 
-        db      0x00, 0x80, 0xfe, 0xff
+        db      0x05, 0xff, 0xff, 0xe0
 
         jmp     bios_entry
         db      (0x10000 - $) dup 0x00
