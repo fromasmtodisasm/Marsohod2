@@ -6,12 +6,12 @@
         
 bios_entry:
         
-        mov     di, 0xb800
+        mov     di, 0xb000
         mov     ax, 0x0741
 @@:     mov     [di], ax    
         add     di, 2           ; lea?
-        cmp     di, 0xc000
-        jne     @b        
+        cmp     di, 0xb400
+        jne     @b
         jmp     $
 
 ; ----------------------------------------------------------------------       
