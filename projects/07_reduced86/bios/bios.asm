@@ -10,7 +10,7 @@ bios_entry:
         mov     ax, 0x0741
 @@:     mov     [di], ax    
         add     di, 2           ; lea?
-        cmp     di, 0xb400
+        cmp     di, 0xbc00
         jne     @b
         jmp     $
 
@@ -20,8 +20,7 @@ bios_entry:
 
 F000_entry:
 
-        db      0x83, 0x06, 0x03, 0xe0, 0xee, 0xaa
-
-        jmp     bios_entry
+        db      0x83, 0x06, 0x03, 0xe0, 0xee, 0xaa        
+        ;jmp     bios_entry
         db      (0x10000 - $) dup 0x00
         

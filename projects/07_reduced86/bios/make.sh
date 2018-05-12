@@ -6,6 +6,7 @@ then
     cd ..
     sh make.sh
     cd bios/bochs
-    bochs -f c.bxrc -q
+    
+    # bochs -f c.bxrc -q
 
 fi
