@@ -138,4 +138,5 @@ set_location_assignment PIN_119 -to ps2_mouse[0]
 set_location_assignment PIN_24 -to ftdi_rx
 set_location_assignment PIN_28 -to ftdi_tx
 set_global_assignment -name VECTOR_WAVEFORM_FILE marsohod2.vwf
+set_global_assignment -name MIF_FILE biosrom.mif
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
