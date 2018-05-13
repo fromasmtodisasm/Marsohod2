@@ -166,6 +166,8 @@ always @* begin
 
 end
 
+// https://wiki.osdev.org/VGA_Fonts -- Vga I/O
+
 cpu CPU( /* Процессор */
 
     clk,    // 100 мегагерц
