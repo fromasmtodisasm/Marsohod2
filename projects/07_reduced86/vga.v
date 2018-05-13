@@ -37,8 +37,8 @@ parameter vert_whole   = 525;   // 449  525
 
 // 640 (видимая область) + 48 (задний порожек) + 96 (синхронизация) + 16 (передний порожек)
 // 640 + 48 = [688, 688 + 96 = 784]
-assign hs = x >= (horiz_front + horiz_visible + horiz_back);
-assign vs = y >= (vert_visible  + vert_back)  && y < (vert_visible  + vert_back  + vert_sync);
+assign hs = x >= (horiz_visible + horiz_front) && x < (horiz_visible + horiz_front + horiz_sync);
+assign vs = y >= (vert_visible  + vert_front)  && y < (vert_visible  + vert_front  + vert_sync);
 
 // В этих регистрах мы будем хранить текущее положение луча на экране
 reg [9:0] x = 1'b0; // 2^10 = 1024 точек возможно
@@ -49,10 +49,10 @@ reg [9:0] y = 1'b0;
 // +8 смещение, т.к. такты слишком сильно рано начинаются, и поэтому на
 // начале необходимо ждать 8 тактов, чтобы символ появился
 
-wire [9:0] x_real = x - horiz_back + 8;
+wire [9:0] x_real = x > 791 ? x - 792 : x + 8;
 
 // Сместить на 40 символов, чтобы с 40-й строки начинался y_real=0
-wire [9:0] y_real = y - 40;
+wire [9:0] y_real = x > 791 ? y - 39 : y - 40;
 
 // Объявим регистры со временными данными
 reg [7:0] current_char;
@@ -179,7 +179,7 @@ always @(posedge clock_divider[1]) begin
     // Здесь не сразу выдаются данные, сначала они необходимым образом
     // загружаются в области заднего порожека, и потом уже мы можем показать
 
-    if (x >= horiz_back && x < (horiz_back + horiz_visible) && y < vert_visible) begin
+    if (x < horiz_visible && y < vert_visible) begin
 
         // Если текущий рисуемый бит =1, то рисовать цветом, который указан
         // в цветовом атрибуте и специально подобран
