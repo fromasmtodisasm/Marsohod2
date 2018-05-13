@@ -111,7 +111,7 @@ wire SUB_Overflow16 = (op1[15] ^ op2[15]       ) & (op2[15] ^ Ar[15]);
 always @* begin
 
     case (CAlu)
-    
+
         /* ADD */  3'h0: Ar = op1 + op2;
         /* OR  */  3'h1: Ar = op1 | op2;
         /* ADC */  3'h2: Ar = op1 + op2 + flags[0];
@@ -120,17 +120,17 @@ always @* begin
         /* SUB */  3'h5: Ar = op1 - op2;
         /* XOR */  3'h6: Ar = op1 ^ op2;
         /* CMP */  3'h7: Ar = op1 - op2;
-        
+
     endcase
-    
+
     case (CAlu)
-    
+
         /* ADD, ADC */
-        3'h0, 3'h2: 
+        3'h0, 3'h2:
             Af = {
                 /* 11 OF */ CBit ? ADD_Overflow16 : ADD_Overflow8,
                 /* 10 DF */ flags[10],
-                /*  9 IF */ flags[9], 
+                /*  9 IF */ flags[9],
                 /*  8 TF */ flags[8],
                 /*  7 SF */ CBit ? Sign16 : Sign8,
                 /*  6 ZF */ CBit ? Zero16 : Zero8,
@@ -141,13 +141,13 @@ always @* begin
                 /*  1  - */ 1'b1,
                 /*  0 CF */ CBit ? Ar[16] : Ar[8]
             };
-            
+
         /* SBB, SUB, CMP */
         3'h3, 3'h5, 3'h7:
             Af = {
                 /* 11 OF */ CBit ? SUB_Overflow16 : SUB_Overflow8,
                 /* 10 DF */ flags[10],
-                /*  9 IF */ flags[9], 
+                /*  9 IF */ flags[9],
                 /*  8 TF */ flags[8],
                 /*  7 SF */ CBit ? Sign16 : Sign8,
                 /*  6 ZF */ CBit ? Zero16 : Zero8,
@@ -158,13 +158,13 @@ always @* begin
                 /*  1  - */ 1'b1,
                 /*  0 CF */ CBit ? Ar[16] : Ar[8]
             };
-        
+
         /* OR, XOR, AND */
-        default: 
+        default:
             Af = {
                 /* 11 OF */ 1'b0,
                 /* 10 DF */ flags[10],
-                /*  9 IF */ flags[9], 
+                /*  9 IF */ flags[9],
                 /*  8 TF */ flags[8],
                 /*  7 SF */ CBit ? Sign16 : Sign8,
                 /*  6 ZF */ CBit ? Zero16 : Zero8,
@@ -175,7 +175,7 @@ always @* begin
                 /*  1  - */ 1'b1,
                 /*  0 CF */ 1'b0
             };
-    
+
     endcase
 
 end
@@ -191,328 +191,365 @@ always @(posedge clk25) begin
 
         /* Запись WReg (битность CBit) в память [ea]. После записи CBit=0 */
         `SUB_WRITE_MEM:  begin o <= WReg[7:0]; w <= 1'b1; routine <= `SUB_WRITE_MEM2; end
-        `SUB_WRITE_MEM2: begin 
-        
-            routine <= CBit? `SUB_WRITE_MEM2 : `SUB_NORMAL; 
-            o    <= WReg[15:8]; 
+        `SUB_WRITE_MEM2: begin
+
+            routine <= CBit? `SUB_WRITE_MEM2 : `SUB_NORMAL;
+            o    <= WReg[15:8];
             ea   <= ea + 1'b1;
             w    <= CBit; /* Включить запись, если 16 бит, либо выключить */
             sw   <= CBit; /* Отключить указатель на EA если достигли 8 бит записи */
             CBit <= 1'b0;
 
         end
-    
+
         /* Нормальное исполнение кода */
-        default: begin
+        default: case (m)
 
-            case (m)
+            /* Декодер, распределение */
+            `SM_INITIAL: begin
 
-                /* Декодер, распределение */
-                `SM_INITIAL: begin
+                opcode      <= i;    /* Запись опкода для использования */
+                micro       <= 1'b0; /* Сброс микрокода */
+                modrm_stage <= 1'b0; /* Сброс стадии обработки modrm */
+                WR          <= 1'b0; /* Сброс записи в регистр на обратном фронте */
 
-                    opcode      <= i;    /* Запись опкода для использования */
-                    micro       <= 1'b0; /* Сброс микрокода */
-                    modrm_stage <= 1'b0; /* Сброс стадии обработки modrm */
-                    WR          <= 1'b0; /* Сброс записи в регистр на обратном фронте */
+                casex (i)
 
-                    casex (i)
+                    /* Выбор режима АЛУ, сканирование байта ModRM */
+                    8'b00_xxx_0xx: begin
 
-                        /* Выбор режима АЛУ, сканирование байта ModRM */
-                        8'b00_xxx_0xx: begin
+                        CAlu <= i[5:3];
+                        {DBit, CBit} <= i[1:0];
+                        m    <= `SM_MODRM;
 
-                            CAlu <= i[5:3];
-                            {DBit, CBit} <= i[1:0];
-                            m    <= `SM_MODRM;
+                    end
 
-                        end
-                        
-                        /* АЛУ Acc + Imm8,16 */
-                        8'b00_xxx_10x: begin
-                        
-                            CReg <= 3'h0;   /* AL или AX */
-                            CAlu <= i[5:3]; /* Режим АЛУ */
-                            {DBit, CBit} <= i[1:0];
-                            m    <= `SM_EXEC;
-                        
-                        end
-                        
-                        /* Групповые инструкции АЛУ
-                           Эти инструкции используют REG-часть ModRM как выбор АЛУ */
-                           
-                        8'b10_000_0xx: begin
-                        
-                            /* Направление всегда rm,reg */
-                            {DBit, CBit} <= {1'b0, i[0]};
-                            m <= `SM_MODRM; 
+                    /* АЛУ Acc + Imm8,16 */
+                    8'b00_xxx_10x: begin
 
-                        end
+                        CReg <= 3'h0;   /* AL или AX */
+                        CAlu <= i[5:3]; /* Режим АЛУ */
+                        {DBit, CBit} <= i[1:0];
+                        m    <= `SM_EXEC;
 
-                        /* Групповые АЛУ инструкции (и другие) */
-                        8'b10_00x_xxx,
-                        
-                        /* Сдвиговые инструкции */
-                        8'b11_010_0xx,
-                        
-                        /* LES, MOV */
-                        8'b11_001_1xx: m <= `SM_MODRM;
+                    end
 
-                        /* Все другие опкоды - на исполнение */
-                        default: m <= `SM_EXEC;
+                    /* Групповые инструкции АЛУ
+                       Эти инструкции используют REG-часть ModRM как выбор АЛУ */
 
+                    8'b100000_xx: begin
+
+                        /* Направление всегда rm,reg */
+                        {DBit, CBit} <= {1'b0, i[0]};
+                        m <= `SM_MODRM;
+
+                    end
+
+                    /* MOV ModRM */
+                    8'b100010_xx: begin
+
+                        {DBit, CBit} <= i[1:0];
+                        m <= `SM_MODRM;
+
+                    end
+
+                    /* MOV reg, i8/16 */
+                    8'b1011_xxxx: begin
+
+                        /* Битность в 4-м бите, 2:0 - номер регистра */
+                        {CBit, CReg} <= i[3:0];
+                        m <= `SM_EXEC;
+
+                    end
+
+                    /* Установка флагов */
+                    8'b1111_0101: flags[0] <= ~flags[0]; /* CMC */
+                    8'b1111_100x: flags[0] <= i[0];      /* CLC/STC */
+                    8'b1111_101x: flags[9] <= i[0];      /* CLI/STI */
+                    8'b1111_110x: flags[10] <= i[0];     /* CLD/STD */
+
+                    /* Все другие опкоды - на исполнение */
+                    default: m <= `SM_EXEC;
+
+                endcase
+
+                /* К следующей инструкции */
+                ip <= ip + 1'b1;
+
+            end
+
+            /* Разбор байта ModRM */
+            `SM_MODRM: case (modrm_stage)
+
+                /* Стадия 1: Считывание байта */
+                3'h0: begin
+
+                    /* Пишем на будущее */
+                    modrm <= i;
+
+                    /* Разбор указателя на память (16 бит) */
+                    case (i[2:0])
+                        3'h0: ea <= bx + si;
+                        3'h1: ea <= bx + di;
+                        3'h2: ea <= bp + si;
+                        3'h3: ea <= bp + di;
+                        3'h4: ea <= si;
+                        3'h5: ea <= di;
+                        3'h6: ea <= (i[7:6] == 2'b00) ? 16'h0000 : bp;
+                        3'h7: ea <= bx;
                     endcase
 
-                    /* К следующей инструкции */
+                    /* (@todo) Здесь должен быть сегмент, но его нет пока */
+
+                    /* Начинаем считывать регистр из reg-секции modrm */
+                    CReg <= i[5:3];
+
+                    /* Переключимся сразу на память, если mod = 00 и rm != 6 */
+                    sw <= (i[7:6] == 2'b00) && (i[2:0] != 3'h6);
+
+                    /* Перейти к следующему байту */
                     ip <= ip + 1'b1;
+
+                    /* К следующему шагу */
+                    modrm_stage <= 3'h1;
 
                 end
 
-                /* Разбор байта ModRM */
-                `SM_MODRM: case (modrm_stage)
+                /* Считывание регистра, либо, возможно, данных из памяти */
+                3'h1: begin
 
-                    /* Стадия 1: Считывание байта */
+                    /* В зависимости от выбранного D (направления), пишется операнд из регистра (8/16 bit) */
+                    op1 <= DBit ? DReg : i;
+                    op2 <= DBit ? i : DReg;
+
+                    /* В случае, если регистр выбран как операнд, а не память */
+                    CReg <= modrm[2:0];
+
+                    /* Решение, что делать дальше */
+                    case (modrm[7:6])
+
+                        /* Либо завершить чтение из памяти, либо переход к disp16 */
+                        2'b00: begin
+
+                            /* Либо прочитать 16-битный disp16 */
+                            if (modrm[2:0] == 3'h6) begin ip <= ip + 1'b1; ea[7:0] <= i; modrm_stage <= 3'h3; end
+
+                            /* 16-битный операнд: читать старшие 8 бит */
+                            else if (CBit) begin ea <= ea + 1'b1; modrm_stage <= 3'h5; end
+
+                            /* Либо перейти к исполнению */
+                            else begin m <= `SM_EXEC; end
+
+                        end
+
+                        /* Disp8: Знаковое расширение 8 до 16 бит. Переход к считыванию данных в операнд */
+                        2'b01: begin modrm_stage <= 3'h4; ip <= ip + 1'b1; ea <= ea + {{8{i[7]}}, i[7:0]}; sw <= 1'b1; end
+
+                        /* Disp16: Прибавить нижние 8 бит, и переход к чтению 16 битной части */
+                        2'b10: begin modrm_stage <= 3'h3; ip <= ip + 1'b1; ea <= ea + {8'h00, i[7:0]}; end
+
+                        /* Прочитать регистр вместо памяти, и выйти к исполнению */
+                        2'b11: begin modrm_stage <= 3'h2; end
+
+                    endcase
+
+                end
+
+                /* Считывание второго регистра из modrm и переход к исполнению */
+                3'h2: begin
+
+                    op1 <= DBit ? op1 : DReg;
+                    op2 <= DBit ? DReg : op2;
+                    m <= `SM_EXEC;
+
+                end
+
+                /* Прочитать +disp16 */
+                3'h3: begin
+
+                   ea[15:8] <= ea[15:8] + i;
+                   ip <= ip + 1'b1;
+                   sw <= 1'b1;
+                   modrm_stage <= 3'h4;
+
+                end
+
+                /* Считывание 8 или 16 бит из [ea] */
+                3'h4: begin
+
+                    /* Нижние 8 бит читать всегда */
+                    op1 <= DBit ? op1 : i;
+                    op2 <= DBit ? i : op2;
+
+                    /* Есть 16 бит? Прочесть их */
+                    if (CBit) begin modrm_stage <= 3'h5; ea <= ea + 1'b1; end
+
+                    /* Либо перейти к исполнению */
+                    else m <= `SM_EXEC;
+
+                end
+
+                /* Читать старшие 8 бит */
+                3'h5: begin
+
+                    op1[15:8] <= DBit ? op1[15:8] : i;
+                    op2[15:8] <= DBit ? i : op2[15:8];
+
+                    /* Вернуть ea, чтобы знать, куда их писать обратно */
+                    ea <= ea - 1'b1;
+                    m <= `SM_EXEC;
+
+                end
+
+            endcase
+
+            /* Исполнение инструкции */
+            `SM_EXEC: casex (opcode)
+
+                /* Инструкции АЛУ ModRM */
+                8'b00_xxx_0xx: begin
+
+                    /* Не должно быть CMP */
+                    if (CAlu < 3'h7) begin
+
+                        /* Данные для записи */
+                        WReg <= Ar;
+
+                        /* (1) Пишем в регистр,
+                           (2) Уже был выбран регистр */
+
+                        if (modrm[7:6] == 2'b11 || DBit) begin
+
+                            CReg <= DBit ? modrm[5:3] : modrm[2:0];
+                            WR   <= 1'b1;
+
+                        end
+
+                        /* Иначе запись в память [ea] */
+                        else routine <= `SUB_WRITE_MEM;
+
+                    end
+
+                    flags <= Af;
+                    m     <= `SM_INITIAL; /* Возврат обратно */
+
+                end
+
+                /* <ALU> al/ax, i8/i16 */
+                8'b00_xxx_10x: case (micro)
+
+                    /* Загрузка операнда в АЛУ */
                     3'h0: begin
 
-                        /* Пишем на будущее */
-                        modrm <= i;
-
-                        /* Разбор указателя на память (16 бит) */
-                        case (i[2:0])
-                            3'h0: ea <= bx + si;
-                            3'h1: ea <= bx + di;
-                            3'h2: ea <= bp + si;
-                            3'h3: ea <= bp + di;
-                            3'h4: ea <= si;
-                            3'h5: ea <= di;
-                            3'h6: ea <= (i[7:6] == 2'b00) ? 16'h0000 : bp;
-                            3'h7: ea <= bx;
-                        endcase
-
-                        /* (@todo) Здесь должен быть сегмент, но его нет пока */
-
-                        /* Начинаем считывать регистр из reg-секции modrm */
-                        CReg <= i[5:3];
-
-                        /* Переключимся сразу на память, если mod = 00 и rm != 6 */
-                        sw <= (i[7:6] == 2'b00) && (i[2:0] != 3'h6);
-
-                        /* Перейти к следующему байту */
-                        ip <= ip + 1'b1;
-
-                        /* К следующему шагу */
-                        modrm_stage <= 3'h1;
+                        micro <= 3'h1;
+                        op1   <= DReg;      /* Загрузить AL/AX */
+                        op2   <= i;         /* Загрузить нижние 8 бит */
+                        ip    <= ip + 1'b1;
 
                     end
 
-                    /* Считывание регистра, либо, возможно, данных из памяти */
+                    /* Расчет 8 бит */
                     3'h1: begin
 
-                        /* В зависимости от выбранного D (направления), пишется операнд из регистра (8/16 bit) */
-                        op1 <= DBit ? DReg : i;
-                        op2 <= DBit ? i : DReg;
+                        micro <= 3'h2;
+                        WR    <= 1'b1;              /* Запись в регистр результата */
+                        WReg  <= Ar;                /* На запись 8/16 бит */
+                        ip    <= ip + opcode[0];    /* IP+0, если записывали БАЙТ */
+                        flags <= Af;
 
-                        /* В случае, если регистр выбран как операнд, а не память */
-                        CReg <= modrm[2:0];
-
-                        /* Решение, что делать дальше */
-                        case (modrm[7:6])
-
-                            /* Либо завершить чтение из памяти, либо переход к disp16 */
-                            2'b00: begin
-
-                                /* Либо прочитать 16-битный disp16 */
-                                if (modrm[2:0] == 3'h6) begin ip <= ip + 1'b1; ea[7:0] <= i; modrm_stage <= 3'h3; end
-
-                                /* 16-битный операнд: читать старшие 8 бит */
-                                else if (CBit) begin ea <= ea + 1'b1; modrm_stage <= 3'h5; end
-
-                                /* Либо перейти к исполнению */
-                                else begin m <= `SM_EXEC; end
-
-                            end
-
-                            /* Disp8: Знаковое расширение 8 до 16 бит. Переход к считыванию данных в операнд */
-                            2'b01: begin modrm_stage <= 3'h4; ip <= ip + 1'b1; ea <= ea + {{8{i[7]}}, i[7:0]}; sw <= 1'b1; end
-
-                            /* Disp16: Прибавить нижние 8 бит, и переход к чтению 16 битной части */
-                            2'b10: begin modrm_stage <= 3'h3; ip <= ip + 1'b1; ea <= ea + {8'h00, i[7:0]}; end
-
-                            /* Прочитать регистр вместо памяти, и выйти к исполнению */
-                            2'b11: begin modrm_stage <= 3'h2; end
-
-                        endcase
+                        if (~CBit) m <= `SM_INITIAL; /* Если 8 бит, перейти к сканированию снова */
+                        op2[15:8] <= i;              /* Подготовка 16-битного операнда */
 
                     end
 
-                    /* Считывание второго регистра из modrm и переход к исполнению */
+                    /* Расчет 16 бит */
                     3'h2: begin
 
-                        op1 <= DBit ? op1 : DReg;
-                        op2 <= DBit ? DReg : op2;
-                        m <= `SM_EXEC;
-
-                    end
-
-                    /* Прочитать +disp16 */
-                    3'h3: begin
-
-                       ea[15:8] <= ea[15:8] + i;
-                       ip <= ip + 1'b1;
-                       sw <= 1'b1;
-                       modrm_stage <= 3'h4;
-
-                    end
-
-                    /* Считывание 8 или 16 бит из [ea] */
-                    3'h4: begin
-
-                        /* Нижние 8 бит читать всегда */
-                        op1 <= DBit ? op1 : i;
-                        op2 <= DBit ? i : op2;
-
-                        /* Есть 16 бит? Прочесть их */
-                        if (CBit) begin modrm_stage <= 3'h5; ea <= ea + 1'b1; end
-
-                        /* Либо перейти к исполнению */
-                        else m <= `SM_EXEC;
-
-                    end
-
-                    /* Читать старшие 8 бит */
-                    3'h5: begin
-
-                        op1[15:8] <= DBit ? op1[15:8] : i;
-                        op2[15:8] <= DBit ? i : op2[15:8];
-
-                        /* Вернуть ea, чтобы знать, куда их писать обратно */
-                        ea <= ea - 1'b1;
-                        m <= `SM_EXEC;
+                        WReg  <= Ar;
+                        flags <= Af;
+                        m     <= `SM_INITIAL;
 
                     end
 
                 endcase
 
-                /* Исполнение инструкции */
-                `SM_EXEC: casex (opcode)
+                /* GRP <ALU>, imm */
+                8'b10_000_0xx: case (micro)
 
-                    /* Инструкции АЛУ ModRM */
-                    8'b00_xxx_0xx: begin
+                    /* Выборка АЛУ. Переключиться на память кода */
+                    3'h0: begin sw <= 1'b0; micro <= 3'h1; CAlu <= modrm[5:3]; end
 
-                        /* Не должно быть CMP */
-                        if (CAlu < 3'h7) begin
+                    /* Чтение 8 бит Immediate */
+                    3'h1: begin op2 <= i; micro <= 3'h2; ip <= ip + 1'b1; end
 
-                            /* Данные для записи */
-                            WReg <= Ar;
+                    /* Либо запись в регистр, либо в память, либо далее */
+                    3'h2: begin
 
-                            /* (1) Пишем в регистр, 
-                               (2) Уже был выбран регистр */
+                        /* 16-битное, дополнительно читать */
+                        if (CBit) begin
 
-                            if (modrm[7:6] == 2'b11 || DBit) begin
+                            /* В случае если это SignExtend опкод */
+                            op2[15:8] <= opcode[1] ? {8{op2[7]}} : i;
 
-                                CReg <= DBit ? modrm[5:3] : modrm[2:0];
-                                WR   <= 1'b1;
+                            /* Не добавлять +1 если это opcode[1:0] = 2'b11 */
+                            ip        <= ip + (opcode[1] ^ 1'b1);
 
-                            end
+                            /* Выйти к обработке */
+                            CBit      <= 1'b0;
 
-                            /* Иначе запись в память [ea] */
-                            else routine <= `SUB_WRITE_MEM;                        
-                            
                         end
-                        
-                        flags <= Af;
-                        m     <= `SM_INITIAL; /* Возврат обратно */
-                    
-                    end
 
-                    /* <ALU> al/ax, i8/i16 */
-                    8'b00_xxx_10x: case (micro)
+                        /* Обработка результата */
+                        else begin
 
-                        /* Загрузка операнда в АЛУ */
-                        3'h0: begin 
-                        
-                            micro <= 3'h1; 
-                            op1   <= DReg;      /* Загрузить AL/AX */
-                            op2   <= i;         /* Загрузить нижние 8 бит */
-                            ip    <= ip + 1'b1; 
-                            
-                        end
-                        
-                        /* Расчет 8 бит */
-                        3'h1: begin 
-                        
-                            micro <= 3'h2;                                
-                            WR    <= 1'b1;              /* Запись в регистр результата */
-                            WReg  <= Ar;                /* На запись 8/16 бит */
-                            ip    <= ip + opcode[0];    /* IP+0, если записывали БАЙТ */                                
-                            flags <= Af;                                
-                                                            
-                            if (~CBit) m <= `SM_INITIAL; /* Если 8 бит, перейти к сканированию снова */                                
-                            op2[15:8] <= i;              /* Подготовка 16-битного операнда */
-                            
-                        end
-                        
-                        /* Расчет 16 бит */
-                        3'h2: begin
-                        
+                            CBit  <= opcode[0];
                             WReg  <= Ar;
-                            flags <= Af;   
+                            flags <= Af;
                             m     <= `SM_INITIAL;
 
-                        end
-                        
-                    endcase
+                            /* 8/16 бит, пишем результат в регистр */
+                            if (modrm[7:6] == 2'b11) begin WR <= 1'b1; end
 
-                    /* GRP <ALU>, imm */
-                    8'b10_000_0xx: case (micro)
-                    
-                        /* Выборка АЛУ. Переключиться на память кода */
-                        3'h0: begin sw <= 1'b0; micro <= 3'h1; CAlu <= modrm[5:3]; end
-                    
-                        /* Чтение 8 бит Immediate */
-                        3'h1: begin op2 <= i; micro <= 3'h2; ip <= ip + 1'b1; end
-                        
-                        /* Либо запись в регистр, либо в память, либо далее */
-                        3'h2: begin
-                        
-                            /* 16-битное, дополнительно читать */
-                            if (CBit) begin
-                            
-                                /* В случае если это SignExtend опкод */
-                                op2[15:8] <= opcode[1] ? {8{op2[7]}} : i;
-                                
-                                /* Не добавлять +1 если это opcode[1:0] = 2'b11 */
-                                ip        <= ip + (opcode[1] ^ 1'b1); 
-                                
-                                /* Выйти к обработке */
-                                CBit      <= 1'b0;
-
-                            end 
-                            
-                            /* Обработка результата */
-                            else begin
-                            
-                                CBit  <= opcode[0]; 
-                                WReg  <= Ar; 
-                                flags <= Af;
-                                m     <= `SM_INITIAL; 
-                                 
-                                /* 8/16 бит, пишем результат в регистр */
-                                if (modrm[7:6] == 2'b11) begin WR <= 1'b1; end
-                                
-                                /* Либо 8/16 бит в память */ 
-                                else begin sw <= 1'b1; routine <= `SUB_WRITE_MEM; end
-                            
-                            end
+                            /* Либо 8/16 бит в память */
+                            else begin sw <= 1'b1; routine <= `SUB_WRITE_MEM; end
 
                         end
-                    
-                    endcase
+
+                    end
+
+                endcase
+
+                /* MOV ModRM */
+                8'b10_001_0xx: begin
+
+                    WReg <= op2;
+                    m    <= `SM_INITIAL;
+
+                    if (modrm[7:6] == 2'b11 || DBit) begin
+
+                        CReg <= DBit ? modrm[5:3] : modrm[2:0];
+                        WR   <= 1'b1;
+
+                    end
+                    else routine <= `SUB_WRITE_MEM;
+
+                end
+
+                /* MOV reg, i8/16 */
+                8'b1011_xxxx: case (micro)
+
+                    /* 8-битный регистр */
+                    3'h0: begin WReg <= i; WR <= 1'b1; micro <= 3'h1; ip <= ip + 1'b1; if (~CBit) m <= `SM_INITIAL; end
+
+                    /* 16-битный регистр */
+                    3'h1: begin WReg[15:8] <= i; m <= `SM_INITIAL; ip <= ip + 1'b1; end
 
                 endcase
 
             endcase
 
-        end
-    
+        endcase
+
     endcase
 
 end

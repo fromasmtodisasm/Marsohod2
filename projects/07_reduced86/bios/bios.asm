@@ -3,12 +3,17 @@
 ; такой жесткий примитив, о котором вслух не говорят
 
         org     0xe000
+        macro   brk { xchg bx, bx }
         
 bios_entry:
         
+        brk
+        mov     sp, 7800h
         mov     di, 0xb000
         mov     ax, 0x0741
 @@:     mov     [di], ax    
+        add     al, 1
+        inc     al
         add     di, 2           ; lea?
         cmp     di, 0xbc00
         jne     @b
@@ -20,7 +25,7 @@ bios_entry:
 
 F000_entry:
 
-        db      0x83, 0x06, 0x03, 0xe0, 0xee, 0xaa        
+        db      0xFB, 0xFA, 0xFD, 0xFC, 0xee, 0xaa        
         ;jmp     bios_entry
         db      (0x10000 - $) dup 0x00
         
