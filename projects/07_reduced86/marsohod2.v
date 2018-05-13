@@ -72,7 +72,7 @@ wire [7:0]  q_video;
 reg         wren_vram;
 
 biosrom BIOSROM(
-    
+
     .clock   (clk),
     .addr_rd (a[12:0]),
     .q       (q_rom)
@@ -91,17 +91,17 @@ wire [ 7:0] font_char_data;
 
 vga VGA_ADAPTER(
 
-	.clk	(clk),	
+	.clk	(clk),
 	.red 	(vga_red),
 	.green	(vga_green),
 	.blue	(vga_blue),
 	.hs		(vga_hs),
 	.vs		(vga_vs),
-    
+
     // Источник знакогенератора
     .adapter_font (adapter_font),
     .adapter_data (adapter_data),
-    
+
     // Сканирование символов
     .font_char_addr (font_char_addr),
     .font_char_data (font_char_data)
@@ -122,8 +122,8 @@ fontram VGA_VIDEORAM(
 
     .clock      (clk),            // Тактовая частота - 100 Мгц для памяти
     .addr_rd    (font_char_addr), // В памяти сначала хранится символ, потом его цвет
-    .q          (font_char_data), // Тут будет результат 
-    
+    .q          (font_char_data), // Тут будет результат
+
     /* Взаимодействие с процессором */
     .addr_wr    (a[11:0]),
     .data_wr    (o),
@@ -139,16 +139,16 @@ always @(posedge clk) wm <= w;
 always @* begin
 
     casex (a)
-    
+
         // Область BIOS памяти (E000-FFFF) 8Kb
-        16'b111x_xxxx_xxxx_xxxx: begin i = q_rom;   wren_vram = 1'b0; end 
-        
+        16'b111x_xxxx_xxxx_xxxx: begin i = q_rom;   wren_vram = 1'b0; end
+
         // Видеопамять текстовая (B000-BFFF)
         16'b1011_xxxx_xxxx_xxxx: begin i = q_video; wren_vram = wm; end
 
         // Любая другая область
-        default: begin wren_vram = 1'b0; i = 8'h00; end     
-    
+        default: begin wren_vram = 1'b0; i = 8'h00; end
+
     endcase
 
 end
