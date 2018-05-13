@@ -1,8 +1,0 @@
-00 00       add [bx + si], al
-01 01       add [bx + di], ax
-02 07       add al, [bx]
-03 04       add ax, [si]
-00 40 05    add [bx + si + 5], al
-00 46 fe    add [bp - 2], al
-01 47 fe    add [bx - 2], ax
-02 06 01 f0 add al, [f010]
