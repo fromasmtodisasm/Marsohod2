@@ -67,15 +67,25 @@ wire [7:0]  o;
 wire w; reg  wm;
 
 wire [7:0]  q_rom;
-wire [7:0]  q_charfont;
-wire [7:0]  q_video;
+wire [7:0]  q_ram;
+wire [7:0]  q_vid;
 reg         wren_vram;
+reg         wren_cram;
 
-biosrom BIOSROM(
+biosrom BIOSROM( /* 8Kb */
 
     .clock   (clk),
     .addr_rd (a[12:0]),
     .q       (q_rom)
+);
+
+comram COMMONRAM( /* 16Kb */
+
+    .clock   (clk),
+    .addr_wr (a[13:0]),
+    .data_wr (o),
+    .wren    (wren_cram),
+    .q       (q_ram)
 );
 
 // ---------------------------------------------------------------------
@@ -128,11 +138,11 @@ fontram VGA_VIDEORAM(
     .addr_wr    (a[11:0]),
     .data_wr    (o),
     .wren       (wren_vram),
-    .qw         (q_video),
+    .qw         (q_vid),
 );
 // ---------------------------------------------------------------------
 
-/* Отложенная на 1 такт запись */
+/* Отложенная на 1 такт запись в память */
 always @(posedge clk) wm <= w;
 
 /* Маппинг памяти */
@@ -141,20 +151,22 @@ always @* begin
     casex (a)
 
         // Область BIOS памяти (E000-FFFF) 8Kb
-        16'b111x_xxxx_xxxx_xxxx: begin i = q_rom;   wren_vram = 1'b0; end
+        16'b111x_xxxx_xxxx_xxxx: begin i = q_rom; {wren_vram, wren_cram} = 2'b00; end
 
-        // Видеопамять текстовая (B000-BFFF)
-        16'b1011_xxxx_xxxx_xxxx: begin i = q_video; wren_vram = wm; end
+        // Общая быстрая память (0000-3FFF) 16 Kb
+        16'b00xx_xxxx_xxxx_xxxx: begin i = q_ram; {wren_vram, wren_cram} = {1'b0, wm}; end
 
+        // Видеопамять текстовая (B000-BFFF) 2 Kb
+        16'b1011_xxxx_xxxx_xxxx: begin i = q_vid; {wren_vram, wren_cram} = {wm, 1'b0}; end
+ 
         // Любая другая область
-        default: begin wren_vram = 1'b0; i = 8'h00; end
+        default: begin i = 8'h00; {wren_vram, wren_cram} = 2'b00; end
 
     endcase
 
 end
 
-/* Процессор */
-cpu CPU(
+cpu CPU( /* Процессор */
 
     clk,    // 100 мегагерц
     clk25,  // 25 мегагерц
