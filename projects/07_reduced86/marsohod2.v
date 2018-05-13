@@ -56,4 +56,49 @@ module marsohod2(
 );
 // --------------------------------------------------------------------------
 
+assign sdram_addr = a[11:0];
+
+/* Делитель частоты до 25 Мгц */
+reg [1:0] div; always @(posedge clk) div <= div + 1'b1; wire clk25 = div[1];
+
+wire [15:0] a;
+reg  [7:0]  i;
+wire [7:0]  o;
+wire w;
+
+wire [7:0] q_rom;
+
+biosrom BIOSROM(
+    
+    .clock   (clk),
+    .addr_rd (a[12:0]),
+    .q       (q_rom)
+);
+
+/* Маппинг памяти */
+always @* begin
+
+    casex (a)
+    
+        // Область BIOS памяти (E000-FFFF) 8Kb
+        16'b111x_xxxx_xxxx_xxxx: i = q_rom;
+        
+        // Любая другая область
+        default: i = 8'h00;        
+    
+    endcase
+
+end
+
+/* Процессор */
+cpu CPU(
+
+    clk,    // 100 мегагерц
+    clk25,  // 25 мегагерц
+    i,      // Data In
+    o,      // Data Out
+    a,      // Aдрес
+    w       // Запись [o] на HIGH уровне
+
+);
 endmodule
