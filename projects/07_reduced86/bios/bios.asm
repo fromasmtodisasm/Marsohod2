@@ -7,8 +7,8 @@
         
 bios_entry:
         
-        brk
-        mov     sp, 7800h
+        brk                    
+        mov     sp, 0C000h      ; 48 байт сверху для стека
         mov     di, 0xb000
         mov     ax, 0x0741
 @@:     mov     [di], ax    
@@ -17,7 +17,9 @@ bios_entry:
         add     di, 2           ; lea?
         cmp     di, 0xbc00
         jne     @b
-        jmp     $
+bk:        
+        jmp     $+2
+        ret
 
 ; ----------------------------------------------------------------------       
         db      (0xFFF0 - $) dup 0x00       ; Unused
@@ -25,7 +27,9 @@ bios_entry:
 
 F000_entry:
 
-        db      0xC3, 0x14, 0xFD, 0xFC, 0xee, 0xaa        
+        call    bk
+
+        db      0x99, 0x14, 0xFD, 0xFC, 0xee, 0xaa        
         ;jmp     bios_entry
         db      (0x10000 - $) dup 0x00
         

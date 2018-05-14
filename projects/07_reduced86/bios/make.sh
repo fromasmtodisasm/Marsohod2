@@ -7,6 +7,7 @@ then
     sh make.sh
     cd bios/bochs
     
-    # bochs -f c.bxrc -q
+    # Для отладки включить
+    #bochs -f c.bxrc -q
 
 fi

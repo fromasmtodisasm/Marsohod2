@@ -50,7 +50,7 @@ reg [15:0] op1 = 1'b0;      /* Операнд 1: Destination */
 reg [15:0] op2 = 1'b0;      /* Операнд 2: Source */
 
 /* Регистры процессора */
-reg [15:0] ax    = 16'h0605;
+reg [15:0] ax    = 16'h8185;
 reg [15:0] cx    = 16'h1245;
 reg [15:0] dx    = 16'h64EA;
 reg [15:0] bx    = 16'hE004;
@@ -211,7 +211,8 @@ always @(posedge clk25) begin
                 opcode      <= i;    /* Запись опкода для использования */
                 micro       <= 1'b0; /* Сброс микрокода */
                 modrm_stage <= 1'b0; /* Сброс стадии обработки modrm */
-                WR          <= 1'b0; /* Сброс записи в регистр на обратном фронте */
+                WR          <= 1'b0; /* Сброс записи в регистр на обратном фронте */                
+                ip     <= ip + 1'b1; /* К следующей инструкции */
 
                 casex (i)
 
@@ -264,19 +265,19 @@ always @(posedge clk25) begin
 
                     /* MOV rm, i8/16 */
                     8'b1100_011x: begin
-                    
+
                         {DBit, CBit} <= {1'b0, i[0]};
                         m <= `SM_MODRM;
-                        
+
                     end
 
                     /* RET [i16] */
                     8'b1100_001x: begin
-                    
+
                         ea <= sp;
                         sw <= 1'b1;
                         m  <= `SM_EXEC;
-                        
+
                     end
 
                     /* Установка флагов */
@@ -284,14 +285,22 @@ always @(posedge clk25) begin
                     8'b1111_100x: flags[0] <= i[0];      /* CLC/STC */
                     8'b1111_101x: flags[9] <= i[0];      /* CLI/STI */
                     8'b1111_110x: flags[10] <= i[0];     /* CLD/STD */
+                    
+                    /* CBW, CWD */
+                    8'b1001_100x: begin 
+                    
+                        WReg <= i[0] ? {16{ax[15]}} : {{8{ax[7]}}, ax[7:0]}; 
+                        CBit <= 1'b1; 
+                        CReg <= i[0] ? 3'h2 : 3'h0; 
+                        m <= `SM_EXEC;
+
+                    end                    
 
                     /* Все другие опкоды - на исполнение */
                     default: m <= `SM_EXEC;
 
                 endcase
 
-                /* К следующей инструкции */
-                ip <= ip + 1'b1;
 
             end
 
@@ -565,60 +574,120 @@ always @(posedge clk25) begin
 
                 /* MOV rm, i8/16 */
                 8'b1100_011x: case (micro)
-                
+
                     /* Инициализация */
                     3'h0: begin sw <= 1'b0; CReg <= modrm[2:0]; micro <= 3'h1; end
-                
+
                     /* Сканирование i8/16 */
-                    3'h1: begin 
-                    
+                    3'h1: begin
+
                         /* (1) Пришел сразу 8 бит, использовать сразу (2) Повторно, 16 бит */
                         if (~CBit) begin
 
                             CBit <= opcode[0]; /* Установить реальную битность */
                             WReg <= opcode[0] ? {i, WReg[7:0]} : i;  /* В зависимости от 8/16 */
-                            
+
                             if (modrm[7:6] == 2'b11) /* Пишем в регистр или память */
                                  begin WR <= 1'b1; end
-                            else begin sw <= 1'b1; routine <= `SUB_WRITE_MEM; end 
-                            
+                            else begin sw <= 1'b1; routine <= `SUB_WRITE_MEM; end
+
                             m <= `SM_INITIAL; /* К следующему опкоду */
-                            
+
                         /* Сброс бита, для перехода к записи */
                         end else begin WReg <= i; CBit <= 1'b0; end
-                        
+
                         ip <= ip + 1'b1;
 
-                    end                    
-                
+                    end
+
                 endcase
-                  
+
                 /* RET */
                 8'b1100_001x: case (micro)
-                
+
                     /* Записываем младший байт */
-                    3'h0: begin micro <= 3'h1; op1[ 7:0] <= i; ea <= ea + 1'b1; CReg <= 3'h4; /* SP */ end
+                    3'h0: begin 
                     
-                    /* Записываем старший байт */
-                    3'h1: begin 
-                    
-                        micro    <= 3'h2; 
-                        WReg     <= sp + 2'h2; 
-                        WR       <= opcode[0];  /* SP = SP + 2 */
-                        sw       <= 1'b0; 
-                        CBit     <= 1'b1;
-                        op1[15:8] <= i;
+                        micro    <= 3'h1; 
                         
+                        CBit     <= 1'b1;
+                        ea       <= ea + 1'b1;
+                        WReg     <= sp + 2'h2;
+
+                        /* SP = SP + 2 */
+                        {CBit, CReg, WR} <= {1'b1, 3'h4, 1'b1};
+
+                        op1[ 7:0] <= i; 
+                        
+                    end
+
+                    /* Записываем старший байт */
+                    3'h1: begin
+
+                        micro     <= 3'h2;
+                        WR        <= 1'b0;
+                        sw        <= 1'b0;
+                        op1[15:8] <= i;
+
                         if (opcode[0]) begin m <= `SM_INITIAL; ip <= {i, op1[7:0]}; end
-                         
+
                      end
+
+                    /* SP = SP + Imm16 */
+                    3'h2: begin WReg <= sp + i; ip <= ip + 1'b1; micro <= 3'h3; WR <= 1'b1; end
+                    3'h3: begin WReg[15:8] <= WReg[15:8] + i; m <= `SM_INITIAL; ip <= op1; end
+
+                endcase
+
+                /* CBW, CWD */
+                8'b1001_100x: begin WR <= 1'b1; m <= `SM_INITIAL; end
+                
+                /* JMP r16/r8 */
+                8'b1110_10x1: case (micro)
+
+                    3'h0: begin
+                    
+                        if (~opcode[1]) /* rel16 */ begin op1 <= ip + i; ip <= ip + 1'b1; end
+                        else begin ip <= ip + {{8{i[7]}}, i[7:0]} + 1'b1; m <= `SM_INITIAL; end
+                        micro <= 3'h1;                        
+                
+                    end
+                    
+                    /* 16-битное относительное смещение */
+                    3'h1: begin ip <= {op1[15:8] + i, op1[7:0]} + 2'h2; m <= `SM_INITIAL; end
+
+                endcase
+
+                /* CALL r16 */
+                8'b1110_1000: case (micro) 
+                
+                    /* Подготовка записи в стек */
+                    3'h0: begin 
+                    
+                        micro   <= 3'h1; 
+                        op1     <= ip + i; 
+                        ip      <= ip + 1'b1; 
+                        WReg    <= sp - 2'h2;
+                        ea      <= sp - 2'h2;  
+
+                        {CBit, CReg, WR} <= { 1'b1, 3'h4, 1'b1 }; /* SP */
+                        
+                    end
+                    
+                    /* Записать в стек ip и перейти */
+                    3'h1: begin 
                      
-                     /* SP = SP + Imm16 */
-                     3'h2: begin WR <= 1'b0; WReg <= sp + i; ip <= ip + 1'b1; micro <= 3'h3; end
-                     3'h3: begin WR <= 1'b1; WReg[15:8] <= WReg[15:8] + i; m <= `SM_INITIAL; ip <= op1; end                     
+                        WR   <= 1'b0;
+                        WReg <= ip + 1'b1; 
+                        ip   <= {op1[15:8] + i, op1[7:0]} + 2'h2; 
+                        sw   <= 1'b1; 
+                        routine <= `SUB_WRITE_MEM;
+                        m    <= `SM_INITIAL;
+                        
+                    end
                 
                 endcase
-                
+            
             endcase
 
         endcase
