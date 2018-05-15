@@ -38,6 +38,8 @@ module cpu(
 // Указатель на код или данные
 assign a = sw ? ea : ip;
 
+wire __sig = m == 1'b0 && routine == 1'b0;
+
 initial begin o = 8'h00; w = 1'b0; port_addr = 1'b0; port_out = 1'b0; port_bit = 1'b0; port_clk = 1'b0; end
 
 // Состояние процессора
@@ -307,18 +309,17 @@ always @(posedge clk25) begin
 
                     end
 
-                    /* Групповые инструкции АЛУ
-                       Эти инструкции используют REG-часть ModRM как выбор АЛУ */
-                    8'b100000_xx: begin
+                    /* Групповые инструкции АЛУ; TEST rm, r; XCHG rm, r */
+                    8'b1000_0xxx: begin
 
                         /* Направление всегда rm,reg */
                         {DBit, CBit} <= {1'b0, i[0]};
                         m <= `MODRM;
 
-                    end
-
+                    end                    
+                
                     /* MOV ModRM */
-                    8'b100010_xx: begin
+                    8'b1000_10xx: begin
 
                         {DBit, CBit} <= i[1:0];
                         m <= `MODRM;
@@ -430,13 +431,13 @@ always @(posedge clk25) begin
                     end
                     
                     /* Операции сдвига */
-                    8'b1101_00xx: begin
+                    8'b1101_00xx: begin                                    
                     
                         {DBit, CBit} <= {1'b0, i[0]};
                         m <= `MODRM;
                     
                     end
-                
+
                     /* Все другие опкоды - на исполнение */
                     default: m <= `EXEC;
 
@@ -973,6 +974,40 @@ always @(posedge clk25) begin
                 
                 endcase
 
+                /* XCHG rm, r8 */
+                8'b1000_011x: case (micro)
+                
+                    /* Запись операнда 1 */
+                    3'h0: begin
+                    
+                        WReg  <= op2;
+                        op2   <= op1;
+                        micro <= 3'h1;
+                        
+                        /* Если пишется в регистр, то писать должен op2 в этот регистр */
+                        if (modrm[7:6] == 2'b11) begin
+                        
+                            CReg <= modrm[2:0];
+                            WR   <= 1'b1;
+                        
+                        end
+                        else routine <= `SUB_WRITE_MEM;
+
+                    end
+                    
+                    /* В любом случае в регистр */
+                    3'h1: begin
+                    
+                        CBit <= opcode[0];
+                        CReg <= modrm[5:3];
+                        WReg <= op2;
+                        WR   <= 1'b1;
+                        m    <= `INIT;
+                    
+                    end
+                    
+                endcase
+                
             endcase
 
         endcase
