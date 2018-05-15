@@ -6,7 +6,14 @@ module cpu(
     input   wire [7:0]  i,          // Data In (16 бит)
     output  reg  [7:0]  o,          // Data Out,
     output  wire [15:0] a,          // Address 32 bit
-    output  reg         w           // Запись [o] на HIGH уровне wm
+    output  reg         w,          // Запись [o] на HIGH уровне wm
+    
+    /* Работа с портами ввода-вывода */
+    output  reg  [15:0] port_addr,
+    input   wire [15:0] port_in,
+    output  reg  [15:0] port_out, 
+    output  reg         port_bit,  /* Битность */
+    output  reg         port_clk   /* Запись в порт */
 
 );
 
@@ -24,14 +31,14 @@ module cpu(
 `define SUB_PUSH2       4
 `define SUB_PUSH3       5
 // Чтение из стека
-`define SUB_POP        6
-`define SUB_POP2       7
-`define SUB_POP3       8
+`define SUB_POP         6
+`define SUB_POP2        7
+`define SUB_POP3        8
 
 // Указатель на код или данные
 assign a = sw ? ea : ip;
 
-initial begin o = 8'h00; w = 1'b0; end
+initial begin o = 8'h00; w = 1'b0; port_addr = 1'b0; port_out = 1'b0; port_bit = 1'b0; port_clk = 1'b0; end
 
 // Состояние процессора
 // ---------------------------------------------------------------------
@@ -50,6 +57,7 @@ reg [2:0]  CReg = 3'b000;   /* Выбор регистра */
 reg [2:0]  CAlu = 3'b000;   /* Номер режима АЛУ */
 reg        CBit = 1'b0;     /* Выбор битности (0=8, 1=16) */
 reg        DBit = 1'b0;     /* Выбор направления (0=rm,reg; 1=reg,rm) */
+reg [2:0]  CSel = 1'b0;     /* Выбор условия (основного) */
 reg [15:0] DReg;            /* Результат выборки */
 reg [15:0] WReg = 1'b0;     /* Для записи в регистр */
 reg        WR   = 1'b0;     /* Разрешение записи в регистр */
@@ -189,6 +197,17 @@ always @* begin
 
 end
 
+// Решение о переходе по выбранному условию
+wire condition = 
+    CSel == 3'b000 ? flags[11] :                          // OF=1
+    CSel == 3'b001 ? flags[0] :                           // CF=1
+    CSel == 3'b010 ? flags[6] :                           // ZF=1
+    CSel == 3'b011 ? (flags[0] | flags[6]) :              // CF=1 OR ZF=1
+    CSel == 3'b100 ? flags[7] :                           // SF=1
+    CSel == 3'b101 ? flags[2] :                           // PF=1
+    CSel == 3'b110 ? (flags[7] ^ flags[11]) :             // SF != OF
+                     (flags[7] ^ flags[11]) | (flags[6]); // (ZF=1) OR (SF != OF)
+
 // ---------------------------------------------------------------------
 // Главные такты
 // ---------------------------------------------------------------------
@@ -298,6 +317,14 @@ always @(posedge clk25) begin
 
                     end
 
+                    /* J<ccc> rel8 */
+                    8'b0111_xxxx: begin
+                    
+                        CSel <= i[4:1];
+                        m <= `EXEC;
+                    
+                    end
+
                     /* Установка флагов */
                     8'b1111_0101: flags[0] <= ~flags[0]; /* CMC */
                     8'b1111_100x: flags[0] <= i[0];      /* CLC/STC */
@@ -342,6 +369,32 @@ always @(posedge clk25) begin
 
                     end
 
+                    /* PUSHF */
+                    8'b1001_1100: begin 
+                    
+                        WReg <= flags;
+                        routine <= `SUB_PUSH;
+                
+                    end
+                
+                    /* POPF */
+                    8'b1001_1101: begin
+                    
+                        routine <= `SUB_POP;
+                        m <= `EXEC;
+                    
+                    end
+                
+                    /* IN/OUT */
+                    8'b1110_x1xx: begin
+                    
+                        CBit      <= i[0]; 
+                        port_bit  <= i[0];
+                        port_addr <= dx;  
+                        m <= `EXEC;                      
+                    
+                    end                    
+                
                     /* Все другие опкоды - на исполнение */
                     default: m <= `EXEC;
 
@@ -783,7 +836,7 @@ always @(posedge clk25) begin
                 8'b0101_1xxx: case (micro)
 
                     3'h0: begin routine <= `SUB_POP; micro <= 1'b1; end
-                    3'h1: begin CReg <= i[2:0]; WR <= 1'b1; m <= `INITIAL; end
+                    3'h1: begin WR <= 1'b1; CReg <= opcode[2:0];  m <= `INITIAL; end
 
                 endcase
 
@@ -795,6 +848,45 @@ always @(posedge clk25) begin
 
                 endcase
 
+                /* J<ccc> rel8 */
+                8'b0111_xxxx: begin
+                
+                    /* Переход в зависимости от условия */
+                    ip <= ip + ((condition ^ opcode[0]) ? {{8{i[7]}}, i[7:0]} + 2'h1 : 1'h1);
+                    m  <= `INITIAL;
+                
+                end
+                
+                /* POPF */
+                8'b1001_1101: begin
+                
+                    flags <= WReg;
+                    m <= `INITIAL;
+                    
+                end
+                
+                /* IN/OUT */
+                8'b1110_x1xx: case (micro)
+                                    
+                    3'h0: begin 
+                    
+                        /* Возможно, чтение i8 */
+                        if (~opcode[3]) begin port_addr <= i; ip <= ip + 1'b1; end
+                
+                        /* В случае записи в порт */
+                        port_out <= ax;
+                        micro    <= 1'b1;
+                        
+                    end
+                    
+                    /* Если OUT - запись в порт */
+                    3'h1: begin port_clk <= opcode[1]; micro <= 2'h2; end
+                    
+                    /* Если IN - чтение из порта */
+                    3'h2: begin port_clk <= 1'b0; CReg <= 4'h0; WReg <= port_in; WR <= ~opcode[1]; m <= `INITIAL; end
+                
+                endcase
+                
             endcase
 
         endcase

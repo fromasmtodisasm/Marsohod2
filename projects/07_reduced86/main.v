@@ -44,7 +44,14 @@ always @(posedge clk) begin
     
 end
 
+wire  [15:0] port_addr;
+wire  [15:0] port_in;
+wire  [15:0] port_out;
+wire         port_bit;
+wire         port_clk;
+
 // ------------------------------------- Центральный процессор ---------
-cpu CPU(clk, clk25, i, o, a, w);
+cpu CPU(clk, clk25, i, o, a, w, 
+        port_addr, port_in, port_out, port_bit, port_clk);
     
 endmodule
