@@ -743,7 +743,7 @@ always @(posedge clk25) begin
 
                     end else begin
 
-                        WReg <= cx - 1;
+                        WReg <= cx - 1'b1;
 
                         /* CX-- */
                         {CReg, CBit, WR} <= {3'h1, 1'b1, 1'b1};
