@@ -50,14 +50,15 @@ reg [15:0] op1 = 1'b0;      /* Операнд 1: Destination */
 reg [15:0] op2 = 1'b0;      /* Операнд 2: Source */
 
 /* Регистры процессора */
-reg [15:0] ax    = 16'h8185;
-reg [15:0] cx    = 16'h1245;
+reg [15:0] ax    = 16'hFFFF;
+reg [15:0] cx    = 16'h0000;
 reg [15:0] dx    = 16'h64EA;
 reg [15:0] bx    = 16'hE004;
 reg [15:0] sp    = 16'h0000;
 reg [15:0] bp    = 16'h0000;
 reg [15:0] si    = 16'h1234;
 reg [15:0] di    = 16'h0000;
+                //     ODIT SZ A  P C
 reg [11:0] flags = 12'b0000_0000_0000;
 reg [15:0] ip    = 16'hFFF0;
 
@@ -135,7 +136,7 @@ always @* begin
                 /*  7 SF */ CBit ? Sign16 : Sign8,
                 /*  6 ZF */ CBit ? Zero16 : Zero8,
                 /*  5  - */ 1'b0,
-                /*  4 AF */ op1[3:0] + op2[3:0] + (CAlu == 3'h2 /* ADC */ ? flags[0] : 1'b0) > 4'hF,
+                /*  4 AF */ op1[3:0] + op2[3:0] + (CAlu == 3'h2 /* ADC */ ? flags[0] : 1'b0) >= 5'h10,
                 /*  3  - */ 1'b0,
                 /*  2 PF */ Parity,
                 /*  1  - */ 1'b1,
@@ -285,6 +286,7 @@ always @(posedge clk25) begin
                     8'b1111_100x: flags[0] <= i[0];      /* CLC/STC */
                     8'b1111_101x: flags[9] <= i[0];      /* CLI/STI */
                     8'b1111_110x: flags[10] <= i[0];     /* CLD/STD */
+                    8'b1001_0000: begin /* NOP */ end
                     
                     /* CBW, CWD */
                     8'b1001_100x: begin 
@@ -295,12 +297,30 @@ always @(posedge clk25) begin
                         m <= `SM_EXEC;
 
                     end                    
-
+                    
+                    /* INC/DEC r16 */
+                    8'b0100_xxxx: begin
+                    
+                        {CReg, CBit} <= {i[2:0], 1'b1};
+                        op2   <= 1'b1;
+                        CAlu  <= i[3] ? /*SUB*/ 3'h5 : /*ADD*/ 3'h0;
+                        m     <= `SM_EXEC;
+                    
+                    end
+                    
+                    /* XCHG r16 */                    
+                    8'b1001_0xxx: begin
+                    
+                        {CBit, CReg} <= {1'b1, i[2:0]}; /* Извлечем регистр для записи в AX */
+                        op1 <= ax; /* Сохранение старого значения AX */
+                        m   <= `SM_EXEC;
+                    
+                    end
+                    
                     /* Все другие опкоды - на исполнение */
                     default: m <= `SM_EXEC;
 
                 endcase
-
 
             end
 
@@ -688,6 +708,51 @@ always @(posedge clk25) begin
                 
                 endcase
             
+                /* LOOP* инструкции */
+                8'b1110_00xx: begin
+                
+                    /* JCXZ */
+                    if (opcode[1:0] == 2'b11) begin
+                        
+                        ip <= cx ? ip + 1'b1 : ({{8{i[7]}}, i[7:0]} + ip + 1'b1);
+                        
+                    end else begin
+                    
+                        WReg <= cx - 1;
+                        
+                        /* CX-- */
+                        {CReg, CBit, WR} <= {3'h1, 1'b1, 1'b1};
+                        
+                        /* Если CX=0, или если LOOPZ/NZ - то переход к следующей инструкции */
+                        if (cx == 1'b1 || (!opcode[1] && (opcode[0] ^ flags[6]))) begin
+                            ip <= ip + 1'b1;
+                        end
+                        else begin
+                            ip <= ip + {{8{i[7]}}, i[7:0]} + 1'b1;                             
+                        end
+                        
+                    end
+                    
+                    m <= `SM_INITIAL;           
+                
+                end
+
+                /* INC/DEC */
+                8'b0100_xxxx: case (micro) 
+                
+                    3'h0: begin op1 <= DReg; micro <= 3'h1; end /* Прочесть op1 */
+                    3'h1: begin WR <= 1'b1; WReg <= Ar; flags <= Af; m <= `SM_INITIAL; end /* Записать в регистр */
+
+                endcase
+
+                /* XCHG r16 */
+                8'b1001_0xxx: case (micro) 
+                
+                    3'h0: begin CReg <= 1'b0; WR <= 1'b1; WReg <= DReg; micro <= 1'b1; end /* Пишем R16 в AX */
+                    3'h1: begin CReg <= opcode[2:0]; WReg <= op1; m <= `SM_INITIAL; end   /* Пишем AX в регистр */                                    
+                
+                endcase
+                
             endcase
 
         endcase
