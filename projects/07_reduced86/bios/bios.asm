@@ -27,7 +27,9 @@ bk:
 
 F000_entry:
 
-        xchg    ax, di
+        push    si
+        pop     bp
+        
         db      0x40, 0x41, 0x48, 0x49, 0xee, 0xaa        
         ;jmp     bios_entry
         db      (0x10000 - $) dup 0x00
