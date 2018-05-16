@@ -56,10 +56,28 @@ module marsohod2(
 );
 // --------------------------------------------------------------------------
 
-assign sdram_addr = a[11:0];
+assign sdram_dq = a[15:0];
+assign sdram_addr = q_rom[7:0];
+assign sdram_clock = clk25;
+assign sound_left = wren_vram && awm == 2'b01;
 
 /* Делитель частоты до 25 Мгц */
-reg [1:0] div; always @(posedge clk) div <= div + 1'b1; wire clk25 = div[1];
+reg [1:0] div = 2'b00; 
+reg cpu_latency = 1'b0;
+reg clk25 = 1'b0;
+
+always @(posedge clk) begin
+
+    div <= div + 1'b1;
+	
+    if (cpu_latency) begin
+	    clk25 <= div[1];
+
+		// Для того, чтобы успел первый опкод скачаться успешно
+	end else if (div == 2'b11) 
+	    cpu_latency <= 1'b1;
+
+end
 
 wire [15:0] a;
 reg  [7:0]  i;
@@ -137,8 +155,8 @@ fontram VGA_VIDEORAM(
 
     /* Взаимодействие с процессором */
     .addr_wr    (a[11:0]),
-    .data_wr    (16'h2F),//(o),
-    .wren       (/*wren_vram && */awm == 2'b01),
+    .data_wr    (o),
+    .wren       (wren_vram && awm == 2'b01),
     .qw         (q_vid),
 );
 // ---------------------------------------------------------------------
@@ -172,7 +190,7 @@ end
 cpu CPU( /* Процессор */
 
     clk,    // 100 мегагерц
-    clk25,  // 25 мегагерц
+    (clk25 && cpu_latency),  // 25 мегагерц
     i,      // Data In
     o,      // Data Out
     a,      // Aдрес

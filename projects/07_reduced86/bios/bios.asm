@@ -10,13 +10,13 @@ bios_entry:
         brk
         
         ; ax = 80*y + x
+        mov     sp, $c000
         mov     bx, 80*0 + 0
         call    cursor_set        
-        
+
         ; 96 байт доступно для стека
-        mov     sp, $c000
         mov     di, $b000
-        mov     ax, $1700
+        mov     ax, $072E
         mov     cx, 2000
 @@:     mov     [di], ax    
         add     di, 2
@@ -50,9 +50,6 @@ cursor_set:
 
 F000_entry:
 
-		mov		[$b000], word $0741
-		jmp		$
-    
-        ;jmp     bios_entry        
+        jmp     bios_entry        
         db      (0x10000 - $) dup 0x00
         

@@ -70,11 +70,11 @@ reg [15:0] op1 = 1'b0;      /* Операнд 1: Destination */
 reg [15:0] op2 = 1'b0;      /* Операнд 2: Source */
 
 /* Регистры процессора */
-reg [15:0] ax    = 16'hFFFF;
+reg [15:0] ax    = 16'h2F3F;
 reg [15:0] cx    = 16'h0002;
 reg [15:0] dx    = 16'h64EA;
-reg [15:0] bx    = 16'hE301;
-reg [15:0] sp    = 16'h0000;
+reg [15:0] bx    = 16'hB002;
+reg [15:0] sp    = 16'hC000;
 reg [15:0] bp    = 16'h0000;
 reg [15:0] si    = 16'h1234;
 reg [15:0] di    = 16'h0000;
@@ -686,7 +686,7 @@ always @(posedge clk25) begin
 
                 endcase
 
-                /* MOV ModRM */
+                /* 88-8B MOV <ModRM> */
                 8'b10_001_0xx: begin
 
                     WReg <= op2;
@@ -702,7 +702,7 @@ always @(posedge clk25) begin
 
                 end
 
-                /* MOV reg, i8/16 */
+                /* B0-BF MOV reg, i8/16 */
                 8'b1011_xxxx: case (micro)
 
                     /* 8-битный регистр */
