@@ -64,7 +64,8 @@ reg [1:0] div; always @(posedge clk) div <= div + 1'b1; wire clk25 = div[1];
 wire [15:0] a;
 reg  [7:0]  i;
 wire [7:0]  o;
-wire w; reg  wm;
+wire w;
+reg  [1:0]  awm = 1'b0;
 
 wire [7:0]  q_rom;
 wire [7:0]  q_ram;
@@ -136,14 +137,14 @@ fontram VGA_VIDEORAM(
 
     /* Взаимодействие с процессором */
     .addr_wr    (a[11:0]),
-    .data_wr    (o),
-    .wren       (1'b0 & wren_vram), /* --- временно отключено --- */
+    .data_wr    (16'h2F),//(o),
+    .wren       (/*wren_vram && */awm == 2'b01),
     .qw         (q_vid),
 );
 // ---------------------------------------------------------------------
 
 /* Отложенная на 1 такт запись в память */
-always @(posedge clk) wm <= w;
+always @(posedge clk) begin awm[1:0] <= {awm[0], clk25}; end
 
 /* Маппинг памяти */
 always @* begin
@@ -154,10 +155,10 @@ always @* begin
         16'b111x_xxxx_xxxx_xxxx: begin i = q_rom; {wren_vram, wren_cram} = 2'b00; end
 
         // Общая быстрая память (0000-3FFF) 16 Kb
-        16'b00xx_xxxx_xxxx_xxxx: begin i = q_ram; {wren_vram, wren_cram} = {1'b0, wm}; end
+        16'b00xx_xxxx_xxxx_xxxx: begin i = q_ram; {wren_vram, wren_cram} = {1'b0, w}; end
 
         // Видеопамять текстовая (B000-BFFF) 2 Kb
-        16'b1011_xxxx_xxxx_xxxx: begin i = q_vid; {wren_vram, wren_cram} = {wm, 1'b0}; end
+        16'b1011_xxxx_xxxx_xxxx: begin i = q_vid; {wren_vram, wren_cram} = {w, 1'b0}; end
  
         // Любая другая область
         default: begin i = 8'h00; {wren_vram, wren_cram} = 2'b00; end

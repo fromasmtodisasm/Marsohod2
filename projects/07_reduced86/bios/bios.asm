@@ -20,8 +20,7 @@ bios_entry:
         mov     cx, 2000
 @@:     mov     [di], ax    
         add     di, 2
-        loop    @b
-        
+        loop    @b        
         jmp     $
 
 ; --------------------
@@ -50,7 +49,10 @@ cursor_set:
 ; ----------------------------------------------------------------------
 
 F000_entry:
+
+		mov		[$b000], word $0741
+		jmp		$
     
-        jmp     bios_entry        
+        ;jmp     bios_entry        
         db      (0x10000 - $) dup 0x00
         
