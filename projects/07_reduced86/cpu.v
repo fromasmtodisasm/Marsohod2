@@ -12,8 +12,9 @@ module cpu(
     output  reg  [15:0] port_addr,
     input   wire [15:0] port_in,
     output  reg  [15:0] port_out,
-    output  reg         port_bit,  /* Битность */
-    output  reg         port_clk   /* Запись в порт */
+    output  reg         port_bit,   /* Битность */
+    output  reg         port_clk,   /* Запись в порт */
+    output  reg         port_read   /* Чтение из порта */
 
 );
 
@@ -40,7 +41,7 @@ assign a = sw ? ea : ip;
 
 wire __sig = m == 1'b0 && routine == 1'b0;
 
-initial begin o = 8'h00; w = 1'b0; port_addr = 1'b0; port_out = 1'b0; port_bit = 1'b0; port_clk = 1'b0; end
+initial begin o = 8'h00; w = 1'b0; port_addr = 1'b0; port_out = 1'b0; port_bit = 1'b0; port_clk = 1'b0; port_read = 1'b0; end
 
 // Состояние процессора
 // ---------------------------------------------------------------------
@@ -214,30 +215,30 @@ wire condition =
 
 
 reg [15:0] Sr;
-reg        Sc; // Carry 
+reg        Sc; // Carry
 
 /* Инструкции сдвига (Данные на вход: op1, CBit) */
 always @* begin
 
     case (SMod)
-        
+
         /* ROL */ 3'h0: Sr = CBit ? {op1[14:0], op1[15]}   : {op1[6:0], op1[7]};
         /* ROR */ 3'h1: Sr = CBit ? {op1[0],    op1[15:1]} : {op1[0],   op1[7:1]};
         /* RCL */ 3'h2: Sr = CBit ? {op1[14:0], flags[0]}  : {op1[6:0], flags[0]};
         /* RCR */ 3'h3: Sr = CBit ? {flags[0],  op1[15:1]} : {flags[0], op1[7:1]};
-        /* SHL */ 3'h4, 3'h6: 
+        /* SHL */ 3'h4, 3'h6:
                         Sr = CBit ? {op1[14:0], 1'b0}      : {op1[6:0], 1'b0};
         /* SHR */ 3'h5: Sr = CBit ? {1'b0,      op1[15:1]} : {1'b0,     op1[7:1]};
         /* SAR */ 3'h7: Sr = CBit ? {op1[15],   op1[15:1]} : {op1[7],   op1[7:1]};
-        
+
     endcase
-    
+
     case (SMod)
 
-        /* ROL, RCL, SHL, SAL */ 
+        /* ROL, RCL, SHL, SAL */
         3'h0, 3'h2, 3'h4, 3'h6: Sc = CBit ? op1[15] : op1[7];
-        
-        /* ROR */ 
+
+        /* ROR */
         3'h1, 3'h3, 3'h5, 3'h7: Sc = op1[0];
 
     endcase
@@ -316,8 +317,8 @@ always @(posedge clk25) begin
                         {DBit, CBit} <= {1'b0, i[0]};
                         m <= `MODRM;
 
-                    end                    
-                
+                    end
+
                     /* MOV ModRM */
                     8'b1000_10xx: begin
 
@@ -429,13 +430,13 @@ always @(posedge clk25) begin
                         m <= `EXEC;
 
                     end
-                    
+
                     /* Операции сдвига */
-                    8'b1101_00xx: begin                                    
-                    
+                    8'b1101_00xx: begin
+
                         {DBit, CBit} <= {1'b0, i[0]};
                         m <= `MODRM;
-                    
+
                     end
 
                     /* Все другие опкоды - на исполнение */
@@ -917,25 +918,29 @@ always @(posedge clk25) begin
                         if (~opcode[3]) begin port_addr <= i; ip <= ip + 1'b1; end
 
                         /* В случае записи в порт */
-                        port_out <= ax;
-                        micro    <= 1'b1;
+                        port_out  <= ax;
+                        micro     <= 1'b1;
+                        port_read <= ~opcode[1];
 
                     end
 
                     /* Если OUT - запись в порт */
-                    3'h1: begin port_clk <= opcode[1]; micro <= 2'h2; end
+                    3'h1: begin port_read <= 1'b0; port_clk <= opcode[1]; micro <= opcode[1] ? 2'h2 : 3'h3; end
 
                     /* Если IN - чтение из порта */
                     3'h2: begin port_clk <= 1'b0; CReg <= 4'h0; WReg <= port_in; WR <= ~opcode[1]; m <= `INIT; end
+                    
+                    /* Для того, чтобы успело чтение из порта */
+                    3'h3: micro <= 3'h2;
 
                 endcase
 
                 /* <Shift> rm, 1/cl */
                 8'b1101_00xx: case (micro)
-                
+
                     /* Расчет количества сдвигов */
-                    3'h0: begin 
-                    
+                    3'h0: begin
+
                         micro <= 3'h1;
                         SMod  <= modrm[5:3];
 
@@ -943,71 +948,73 @@ always @(posedge clk25) begin
                             2'b0x: SCnt <= 1'b1;
                             2'b10: begin SCnt <= cx[3:0]; if (cx[3:0] == 1'b0) m <= `INIT; end
                             2'b11: begin SCnt <= cx[4:0]; if (cx[4:0] == 1'b0) m <= `INIT; end
-                        endcase                        
-                    
+                        endcase
+
                     end
-                    
+
                     /* Выполнение инструкции сдвига */
                     3'h1: begin
-                    
+
                         /* Вычисление */
                         if (SCnt) begin
-                        
+
                             op1   <= Sr;
                             WReg  <= Sr;
                             flags <= {flags[11:1], Sc};
                             SCnt  <= SCnt - 1'b1;
-                            
+
                         end
-                        
+
                         /* Запись либо в регистр */
                         else if (modrm[7:6] == 2'b11) begin
-                            
+
                             WR   <= 1'b1;
                             CReg <= modrm[2:0];
                             m    <= `INIT;
-                        
+
+                        end 
+
                         /* Либо в память */
-                        end else routine <= `SUB_WRITE_MEM;
-                    
+                        else routine <= `SUB_WRITE_MEM;
+
                     end
-                
+
                 endcase
 
                 /* XCHG rm, r8 */
                 8'b1000_011x: case (micro)
-                
+
                     /* Запись операнда 1 */
                     3'h0: begin
-                    
+
                         WReg  <= op2;
                         op2   <= op1;
                         micro <= 3'h1;
-                        
+
                         /* Если пишется в регистр, то писать должен op2 в этот регистр */
                         if (modrm[7:6] == 2'b11) begin
-                        
+
                             CReg <= modrm[2:0];
                             WR   <= 1'b1;
-                        
+
                         end
                         else routine <= `SUB_WRITE_MEM;
 
                     end
-                    
+
                     /* В любом случае в регистр */
                     3'h1: begin
-                    
+
                         CBit <= opcode[0];
                         CReg <= modrm[5:3];
                         WReg <= op2;
                         WR   <= 1'b1;
                         m    <= `INIT;
-                    
+
                     end
-                    
+
                 endcase
-                
+
             endcase
 
         endcase

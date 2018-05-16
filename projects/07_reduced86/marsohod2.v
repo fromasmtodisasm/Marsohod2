@@ -150,6 +150,26 @@ PS2_Controller Keyboard(
     
 );
 
+/* Распределитель портов */
+port_controller PortCTRL(
+
+    .clock50    (div[0]),    /* 50 Mhz */
+    .port_addr  (port_addr), /* Адрес */
+    .port_in    (port_in),   /* Вход (для CPU) */
+    .port_out   (port_out),  /* Вход (для контроллера) */
+    .port_bit   (port_bit),  /* Битность данных */
+    .port_clk   (port_clk),  /* Строб записи */
+    .port_read  (port_read), /* Строб чтения */
+    
+    /* PS/2 интерфейс */
+    .ps2_data     (ps2_data),       /* Принятые данные */
+    .ps2_data_clk (ps2_data_clk)    /* Строб принятых данных */
+    
+);
+
+// Keyboard Port Controller (пока что только чтение)
+// http://ru.osdev.wikia.com/wiki/%D0%9A%D0%BE%D0%BD%D1%82%D1%80%D0%BE%D0%BB%D0%BB%D0%B5%D1%80_%D0%B8%D0%BD%D1%82%D0%B5%D1%80%D1%84%D0%B5%D0%B9%D1%81%D0%B0_PS/2
+
 // ---------------------------------------------------------------------
 // Объявляем нужные провода
 wire [11:0] adapter_font;
@@ -237,7 +257,15 @@ cpu CPU( /* Процессор */
     i,      // Data In
     o,      // Data Out
     a,      // Aдрес
-    w       // Запись [o] на HIGH уровне
+    w,      // Запись [o] на HIGH уровне
+    
+    /* Работа с портами */
+    port_addr,
+    port_in,
+    port_out,
+    port_bit,
+    port_clk,
+    port_read
 
 );
 endmodule

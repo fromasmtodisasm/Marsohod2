@@ -50,6 +50,8 @@ cursor_set:
 
 F000_entry:
 
+        ;in      al, 64h
+        ;in      al, 60h
         jmp     bios_entry        
         db      (0x10000 - $) dup 0x00
         
