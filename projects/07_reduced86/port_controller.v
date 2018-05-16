@@ -8,6 +8,7 @@ module port_controller(
     input  wire         port_clk,   /* Запись в порт */
     input  wire         port_read,  /* Чтение из порта */
     
+    /* Данные с PS/2 контроллера */
     input  wire [7:0]   ps2_data,
     input  wire         ps2_data_clk
     
@@ -47,7 +48,7 @@ always @(posedge clock50) begin
     if (ps2_data_clk) begin
     
         keyb_char   <= ps2_data;
-        keyb_ready1 <= ~keyb_ready1;
+        keyb_ready1 <= keyb_ready1 ^ keyb_ready ^ 1'b1; /* Если keyb_ready=0, то перебросить в 1, иначе оставить как 1 */
         
     end
         

@@ -8,7 +8,7 @@
 bios_entry:
         
         brk
-        
+
         ; ax = 80*y + x
         mov     sp, $c000
         mov     bx, 80*0 + 0
@@ -21,7 +21,23 @@ bios_entry:
 @@:     mov     [di], ax    
         add     di, 2
         loop    @b        
-        jmp     $
+        
+        ; Тестовая печать символов
+        mov     di, $b000
+@@:     call    getch
+        mov     [di], ax
+        add     di, 2    
+        jmp     @b
+
+; ----------------------------------------------------------------------
+; Ожидание приема данных с клавиатуры в AL
+; ----------------------------------------------------------------------
+
+getch:  in      al, 64h
+        and     al, 1
+        je      getch
+        in      al, 60h
+        ret
 
 ; --------------------
 ; Установка курсора
@@ -50,8 +66,8 @@ cursor_set:
 
 F000_entry:
 
-        ;in      al, 64h
-        ;in      al, 60h
+;        in      al, 64h
+;        in      al, 60h
         jmp     bios_entry        
         db      (0x10000 - $) dup 0x00
         

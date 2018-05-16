@@ -20,6 +20,12 @@ initial #2 ps2_data = 8'h82;
 initial #2 ps2_data_clk = 1'b1;
 initial #4 ps2_data_clk = 1'b0;
 
+/*
+initial #6 ps2_data = 8'hA2;
+initial #6 ps2_data_clk = 1'b1;
+initial #8 ps2_data_clk = 1'b0;
+*/
+
 initial begin clk = 1; #2000 $finish; end
 initial begin $dumpfile("main.vcd"); $dumpvars(0, main); end
 
