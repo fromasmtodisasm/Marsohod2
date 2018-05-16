@@ -51,8 +51,8 @@ module marsohod2(
     output  wire        sound_right,
 
     // PS/2     keyb / mouse
-    inout   wire [1:0]  ps2_keyb,
-    inout   wire [1:0]  ps2_mouse
+    inout   wire [1:0]  ps2_keyb, // ps2_keyb[0]  Data, ps2_keyb[1]  Clk
+    inout   wire [1:0]  ps2_mouse // ps2_mouse[0] Data, ps2_mouse[1] Clk
 );
 // --------------------------------------------------------------------------
 
@@ -70,12 +70,24 @@ always @(posedge clk) begin
 
     div <= div + 1'b1;
 	
+    /* Нормальное выполнение */
     if (cpu_latency) begin
+    
+        // kbd_reset <= ps2_port_init; /* Случай для экстренной перезагрузки */
 	    clk25 <= div[1];
 
-		// Для того, чтобы успел первый опкод скачаться успешно
-	end else if (div == 2'b11) 
+    /* Для того, чтобы успел первый опкод скачаться успешно */
+	end else if (div == 2'b11) begin
+    
 	    cpu_latency <= 1'b1;
+        kbd_reset   <= 1'b0;
+
+    /* Инициализация PS/2 keyboard */
+    end else begin
+
+        kbd_reset   <= 1'b1;
+                
+    end
 
 end
 
@@ -105,6 +117,37 @@ comram COMMONRAM( /* 16Kb */
     .data_wr (o),
     .wren    (wren_cram),
     .q       (q_ram)
+);
+
+// ---------------------------------------------------------------------
+reg         kbd_reset = 1'b0;
+reg [7:0]   ps2_command = 1'b0;
+reg         ps2_command_send = 1'b0;
+wire        ps2_command_was_sent;
+wire        ps2_error_communication_timed_out;
+wire [7:0]  ps2_data;
+wire        ps2_data_clk;
+
+PS2_Controller Keyboard(
+    
+	/* Вход */
+    .CLOCK_50       (div[0]),
+	.reset          (kbd_reset),
+	.the_command    (ps2_command),
+	.send_command   (ps2_command_send),
+
+	/* Ввод-вывод */
+	.PS2_CLK(ps2_keyb[0]),
+ 	.PS2_DAT(ps2_keyb[1]),
+
+	/* Статус команды */
+	.command_was_sent  (ps2_command_was_sent),
+	.error_communication_timed_out (ps2_error_communication_timed_out),
+
+    /* Выход полученных */
+	.received_data      (ps2_data),
+	.received_data_en   (ps2_data_clk)
+    
 );
 
 // ---------------------------------------------------------------------
