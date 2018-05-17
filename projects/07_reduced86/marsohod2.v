@@ -8,7 +8,7 @@ module marsohod2(
     input   wire        clk,
 
     // LED      4
-    output  wire [3:0]  led,
+    output  reg  [3:0]  led,
 
     // KEYS     2
     input   wire [1:0]  keys,
@@ -56,13 +56,6 @@ module marsohod2(
 );
 // --------------------------------------------------------------------------
 
-assign led = port_in[3:0];
-
-assign sdram_dq = a[15:0];
-assign sdram_addr = q_rom[7:0];
-assign sdram_clock = clk25;
-assign sound_left = wren_vram && awm == 2'b01;
-
 /* Делитель частоты до 25 Мгц */
 reg [1:0] div = 2'b00; 
 reg cpu_latency = 1'b0;
@@ -107,9 +100,16 @@ reg         wren_cram;
 
 biosrom BIOSROM( /* 8Kb */
 
-    .clock   (clk),
+    /* В режиме программирования тактовая частота совпадает с UART */
+    .clock   (prg_enable ? clk12 : clk),
     .addr_rd (a[12:0]),
-    .q       (q_rom)
+    .q       (q_rom),
+    
+    /* Программирование */
+    .addr_wr (prg_addr),
+    .data_wr (prg_idata),
+    .wren    (prg_wren),
+    
 );
 
 comram COMMONRAM( /* 16Kb */
@@ -121,7 +121,10 @@ comram COMMONRAM( /* 16Kb */
     .q       (q_ram)
 );
 
-// ---------------------------------------------------------------------
+/*
+ * Контроллер клавиатуры PS/2
+ */
+ 
 reg         kbd_reset = 1'b0;
 reg [7:0]   ps2_command = 1'b0;
 reg         ps2_command_send = 1'b0;
@@ -261,6 +264,8 @@ end
 
 cpu CPU( /* Процессор */
 
+    /* RESET */
+
     clk,    // 100 мегагерц
     (clk25 && cpu_latency),  // 25 мегагерц
     i,      // Data In
@@ -277,4 +282,75 @@ cpu CPU( /* Процессор */
     port_read
 
 );
+
+/*
+ * Адаптер частот PLL
+ */
+
+wire locked;
+wire clock_25;  // 25.00
+wire clock_12;  // 12.00
+wire clock_6;   //  6.00
+
+pll PLL(
+
+    .clk        (clk),          // Входящие 100 Мгц
+    .locked     (locked),       // 0 - устройство генератора ещё не сконфигурировано, 1 - готово и стабильно
+    .c0         (clock_25),     // 25,0 Mhz
+    .c1         (clock_12),     // 12,0 Mhz
+    .c2         (clock_6)       //  6,0 Mhz
+
+);
+
+/*
+ * Последовательный порт
+ * Скорость 230400 бод или 25600 байт в секунду (25 кбайт/с)
+ */
+
+wire [7:0]  rx_byte;
+wire        rx_ready;
+wire        clk12;
+reg         rom_bank_wr;
+
+serial SERIAL(
+
+	.clk12    (locked & clock_12),  // Частота 12.0 Mhz
+	.rx       (ftdi_rx),            // Входящие данные
+	.rx_byte  (rx_byte),            // Исходящий байт (8 bit)
+	.rx_ready (rx_ready)            // Строб готовности
+
+);
+
+reg [7:0]  prg_idata = 1'b0;  /* Данные для записи */
+reg [12:0] prg_addr = 1'b0;   /* Адрес */
+reg        prg_wren = 1'b0;   /* Производится запись в память */
+reg        prg_enable = 1'b0; /* Программирование включено */
+
+// Включение программатора 32 КБ ROM памяти
+always @(posedge rx_ready) begin
+    
+    prg_idata <= rx_byte;
+
+    if (prg_enable == 1'b0) begin
+
+        prg_enable <= 1'b1;
+        prg_wren   <= 1'b1;
+        prg_addr   <= 16'h0000;
+        led[0]     <= 1'b1;
+
+    end
+    else begin
+
+        if (prg_addr == 16'h1FFE) begin
+            prg_enable <= 1'b0;
+            prg_wren   <= 1'b0;
+            led[0]     <= 1'b0;
+        end
+
+        prg_addr <= prg_addr + 1'b1;
+
+    end
+
+end
+
 endmodule

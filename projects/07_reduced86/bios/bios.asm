@@ -7,7 +7,7 @@
 
 bios_entry:
 
-		brk
+        brk
         mov     sp, $c000
         mov     ax, $7020
         call    clearscreen
