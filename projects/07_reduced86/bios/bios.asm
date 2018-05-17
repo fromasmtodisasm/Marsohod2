@@ -6,43 +6,46 @@
         macro   brk { xchg bx, bx }
 
 bios_entry:
-        
-        brk
 
-        ; ax = 80*y + x
+		brk
         mov     sp, $c000
-        mov     bx, 80*0 + 0
-        call    cursor_set        
+        mov     ax, $7020
+        call    clearscreen
 
-        ; 96 байт доступно для стека
+        ; Таблица символов для сравнения
         mov     di, $b000
-        mov     ax, $072E
-        mov     cx, 2000
-@@:     mov     [di], ax    
-        add     di, 2
-        loop    @b        
+        mov     al, $00
+@@:     mov     [di], ax
+        inc     ax
+        inc     di
+        inc     di
+        and     al, al
+        jne     @b
         
-        ; Тестовая печать символов
-        mov     di, $b000
-@@:     call    getch
-        mov     [di], ax
-        add     di, 2    
-        jmp     @b
-
-; ----------------------------------------------------------------------
-; Ожидание приема данных с клавиатуры в AL
-; ----------------------------------------------------------------------
-
-getch:  in      al, 64h
+; -----------------------------
+        mov     di, $b000 + 160*4
+@@:     in      al, 64h
         and     al, 1
-        je      getch
+        je      @b
         in      al, 60h
+        mov     [di], ax
+        add     di, 2
+        jmp     @b
+; -----------------------------
+
+clearscreen: 
+
+        mov     di, $b000
+        mov     cx, 2000
+@@:     mov     [di], ax
+        add     di, 2
+        loop    @b
         ret
 
-; --------------------
+; ----------------------------------------
 ; Установка курсора
 ; bx = X + Y*80
-; --------------------
+; ----------------------------------------
 
 cursor_set:
 
