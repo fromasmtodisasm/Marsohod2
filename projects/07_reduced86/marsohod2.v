@@ -51,10 +51,12 @@ module marsohod2(
     output  wire        sound_right,
 
     // PS/2     keyb / mouse
-    inout   wire [1:0]  ps2_keyb, // ps2_keyb[0]  Data, ps2_keyb[1]  Clk
-    inout   wire [1:0]  ps2_mouse // ps2_mouse[0] Data, ps2_mouse[1] Clk
+    inout   wire [1:0]  ps2_keyb, // ps2_keyb[0]  data, ps2_keyb[1]  clk
+    inout   wire [1:0]  ps2_mouse // ps2_mouse[0] data, ps2_mouse[1] clk
 );
 // --------------------------------------------------------------------------
+
+// always @(posedge div[0]) if (ps2_data_clk) led[3:0] <= ps2_data[3:0];
 
 assign sdram_dq = a[15:0];
 assign sdram_addr = q_rom[7:0];
@@ -137,8 +139,8 @@ PS2_Controller Keyboard(
 	.send_command   (ps2_command_send),
 
 	/* Ввод-вывод */
-	.PS2_CLK(ps2_keyb[0]),
- 	.PS2_DAT(ps2_keyb[1]),
+	.PS2_CLK(ps2_keyb[1]),
+ 	.PS2_DAT(ps2_keyb[0]),
 
 	/* Статус команды */
 	.command_was_sent  (ps2_command_was_sent),

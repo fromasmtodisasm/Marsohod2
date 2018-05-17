@@ -51,8 +51,8 @@ module marsohod2(
     output  wire        sound_right,
 
     // PS/2     keyb / mouse
-    inout   wire [1:0]  ps2_keyb,
-    inout   wire [1:0]  ps2_mouse
+    inout   wire [1:0]  ps2_keyb,   // ps2_keyb[0] = DAT,   ps2_mouse[0] = DAT
+    inout   wire [1:0]  ps2_mouse   // ps2_keyb[1] = CLK,   ps2_mouse[0] = CLK 
 );
 // --------------------------------------------------------------------------
 
