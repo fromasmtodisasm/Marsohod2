@@ -193,7 +193,8 @@ begin
 	if (reset == 1'b1)
 		received_data_en    <= 1'b0;
         
-	else if ((s_ps2_receiver == PS2_STATE_4_STOP_IN) && (ps2_clk_posedge == 1'b1))    
+	else if ((s_ps2_receiver == PS2_STATE_4_STOP_IN) && (ps2_clk_posedge == 1'b1))   
+    // @todo if  data_shift_reg == 8'hF0 --> 1'b0, set UPPER bit
 		received_data_en	<= 1'b1;
         
 	else

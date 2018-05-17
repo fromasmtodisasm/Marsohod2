@@ -140,7 +140,7 @@ always @(*) begin
         /* 8   */ 8'h75: keyb_xt = 8'h48;
         /* 9   */ 8'h7D: keyb_xt = 8'h49;
         
-        /* E0, E1, ... */        
+        /* E0, E1, ... */
         default: keyb_xt = ps2_data;
         
     endcase
