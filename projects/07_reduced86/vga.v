@@ -85,7 +85,7 @@ wire [15:0] fr_color =
     current_attr[3:0] == 4'd12 ? { 5'h1F, 6'h00, 5'h00 } : // 12 Красный
     current_attr[3:0] == 4'd13 ? { 5'h1F, 6'h00, 5'h1F } : // 13 Фиолетовый
     current_attr[3:0] == 4'd14 ? { 5'h1F, 6'h3F, 5'h00 } : // 14 Желтый
-                                   { 5'h1F, 6'h3F, 5'h1F };  // 15 Белый
+                                 { 5'h1F, 6'h3F, 5'h1F };  // 15 Белый
 
 // Цветовая компонента фона (только 8 цветов)
 wire [15:0] bg_color =
@@ -193,7 +193,7 @@ always @(posedge clock_divider[1]) begin
             {red, green, blue} <= current_bit ? (current_attr[7] & flash ? bg_color : fr_color) : bg_color;
         else
             /* Сверху и снизу подсвечивается легким синим */
-            {red, green, blue} <= {5'h02, 6'h01, 5'h02};
+            {red, green, blue} <= {5'h03, 6'h03, 5'h03};
 
     end
     // В невидимой области мы ДОЛЖНЫ очищать в черный цвет

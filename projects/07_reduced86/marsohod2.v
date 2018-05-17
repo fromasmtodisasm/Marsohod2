@@ -8,7 +8,7 @@ module marsohod2(
     input   wire        clk,
 
     // LED      4
-    output  wire [3:0]  led,
+    output  reg  [3:0]  led,
 
     // KEYS     2
     input   wire [1:0]  keys,
@@ -219,7 +219,7 @@ fontram VGA_VIDEORAM(
     /* Взаимодействие с процессором */
     .addr_wr    (a[11:0]),
     .data_wr    (o),
-    .wren       (wren_vram && awm == 2'b01),
+    .wren       (wren_vram),
     .qw         (q_vid),
 );
 // ---------------------------------------------------------------------
@@ -236,10 +236,10 @@ always @* begin
         16'b111x_xxxx_xxxx_xxxx: begin i = q_rom; {wren_vram, wren_cram} = 2'b00; end
 
         // Общая быстрая память (0000-3FFF) 16 Kb
-        16'b00xx_xxxx_xxxx_xxxx: begin i = q_ram; {wren_vram, wren_cram} = {1'b0, w}; end
+        16'b00xx_xxxx_xxxx_xxxx: begin i = q_ram; {wren_vram, wren_cram} = {1'b0, w && awm == 2'b01}; end
 
         // Видеопамять текстовая (B000-BFFF) 2 Kb
-        16'b1011_xxxx_xxxx_xxxx: begin i = q_vid; {wren_vram, wren_cram} = {w, 1'b0}; end
+        16'b1011_xxxx_xxxx_xxxx: begin i = q_vid; {wren_vram, wren_cram} = {w && awm == 2'b01, 1'b0}; end
  
         // Любая другая область
         default: begin i = 8'h00; {wren_vram, wren_cram} = 2'b00; end
