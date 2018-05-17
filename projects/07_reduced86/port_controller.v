@@ -45,7 +45,6 @@ always @(*) begin
 
     case (ps2_data)
     
-        /* ESC */ 8'h76: keyb_xt = 8'h01;
         /* A   */ 8'h1C: keyb_xt = 8'h1E;
         /* B   */ 8'h32: keyb_xt = 8'h30;
         /* C   */ 8'h21: keyb_xt = 8'h2E;
@@ -81,7 +80,7 @@ always @(*) begin
         /* 6   */ 8'h36: keyb_xt = 8'h07;
         /* 7   */ 8'h3D: keyb_xt = 8'h08;
         /* 8   */ 8'h3E: keyb_xt = 8'h09;
-        /* 9   */ 8'h46: keyb_xt = 8'h0A;
+        /* 9   */ 8'h46: keyb_xt = 8'h0A;        
         /* ~   */ 8'h0E: keyb_xt = 8'h29;
         /* -   */ 8'h4E: keyb_xt = 8'h0C;
         /* =   */ 8'h55: keyb_xt = 8'h0D;
@@ -97,12 +96,54 @@ always @(*) begin
         /* SPC */ 8'h29: keyb_xt = 8'h39;
         /* TAB */ 8'h0D: keyb_xt = 8'h0F;
         
-        /* --- */
+        /* Кнопки модификации */
+        /* CAP */ 8'h58: keyb_xt = 8'h3A; /* CAPS LOCK */
+        /* LSH */ 8'h12: keyb_xt = 8'h2A; /* LEFT SHIFT */
+        /* LCT */ 8'h14: keyb_xt = 8'h1D; /* LEFT CTRL */
+        /* LAT */ 8'h11: keyb_xt = 8'h38; /* LEFT ALT */
+        /* LWI */ 8'h1F: keyb_xt = 8'h5B; /* LEFT WIN */
+        /* RSH */ 8'h59: keyb_xt = 8'h36; /* RIGHT SHIFT */
+        /* RWI */ 8'h27: keyb_xt = 8'h5C; /* RIGHT WIN */
+        /* MNU */ 8'h2F: keyb_xt = 8'h5D; /* MENU */
+        /* ENT */ 8'h5A: keyb_xt = 8'h1C; /* ENTER */
         
+        /* Функциональная панель */        
+        /* ESC */ 8'h76: keyb_xt = 8'h01;        
+        /* F1  */ 8'h05: keyb_xt = 8'h3B;
+        /* F2  */ 8'h06: keyb_xt = 8'h3C;
+        /* F3  */ 8'h04: keyb_xt = 8'h3D;
+        /* F4  */ 8'h0C: keyb_xt = 8'h3E;
+        /* F5  */ 8'h03: keyb_xt = 8'h3F;
+        /* F6  */ 8'h0B: keyb_xt = 8'h40;
+        /* F7  */ 8'h83: keyb_xt = 8'h41;
+        /* F8  */ 8'h0A: keyb_xt = 8'h42;
+        /* F9  */ 8'h01: keyb_xt = 8'h43;
+        /* F10 */ 8'h09: keyb_xt = 8'h44;
+        /* F11 */ 8'h78: keyb_xt = 8'h57;
+        /* F12 */ 8'h07: keyb_xt = 8'h58;
+        /* SCL */ 8'h7E: keyb_xt = 8'h46;
+        
+        /* Цифровая клавиатура */
+        /* NUM */ 8'h77: keyb_xt = 8'h45;
+        /* *   */ 8'h7C: keyb_xt = 8'h37;
+        /* -   */ 8'h7B: keyb_xt = 8'h4A;
+        /* +   */ 8'h79: keyb_xt = 8'h4E;
+        /* .   */ 8'h71: keyb_xt = 8'h53;                
+        /* 0   */ 8'h70: keyb_xt = 8'h52;
+        /* 1   */ 8'h69: keyb_xt = 8'h4F;
+        /* 2   */ 8'h72: keyb_xt = 8'h50;
+        /* 3   */ 8'h7A: keyb_xt = 8'h51;
+        /* 4   */ 8'h6B: keyb_xt = 8'h4B;
+        /* 5   */ 8'h73: keyb_xt = 8'h4C;
+        /* 6   */ 8'h74: keyb_xt = 8'h4D;
+        /* 7   */ 8'h6C: keyb_xt = 8'h47;
+        /* 8   */ 8'h75: keyb_xt = 8'h48;
+        /* 9   */ 8'h7D: keyb_xt = 8'h49;
+        
+        /* E0, E1, ... */        
         default: keyb_xt = ps2_data;
         
     endcase
-    
 
 end
 
