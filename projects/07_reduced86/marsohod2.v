@@ -8,7 +8,7 @@ module marsohod2(
     input   wire        clk,
 
     // LED      4
-    output  reg  [3:0]  led,
+    output  wire [3:0]  led,
 
     // KEYS     2
     input   wire [1:0]  keys,
@@ -56,7 +56,7 @@ module marsohod2(
 );
 // --------------------------------------------------------------------------
 
-// always @(posedge div[0]) if (ps2_data_clk) led[3:0] <= ps2_data[3:0];
+assign led = port_in[3:0];
 
 assign sdram_dq = a[15:0];
 assign sdram_addr = q_rom[7:0];
@@ -151,6 +151,13 @@ PS2_Controller Keyboard(
 	.received_data_en   (ps2_data_clk)
     
 );
+
+wire [15:0] port_addr;
+wire [15:0] port_in;
+wire [15:0] port_out;
+wire        port_bit;
+wire        port_clk;
+wire        port_read;
 
 /* Распределитель портов */
 port_controller PortCTRL(
