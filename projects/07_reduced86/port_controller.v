@@ -31,12 +31,26 @@ end
 // ---------------------------------------------------------------------
 
 /* Обработчик клавиатуры */
-reg [7:0] keyb_char   = 8'h81;  /* Последний принятый байт */
-reg       keyb_ready1 = 1'b0;   /* Асинхронный статус приема */
-reg       keyb_ready2 = 1'b0;   /* Acknowlegde */
-wire      keyb_ready = keyb_ready1 ^ keyb_ready2; /* Бит 0 порта 64h */
-reg [1:0] keyb_jread = 2'b00;   /* Признак только что принятого байта из порта 60h */
-reg [7:0] keyb_data = 8'h0;     /* Выходные данные для порта */
+reg [7:0] keyb_char    = 8'h00;  /* Последний принятый байт */
+reg       keyb_ready1  = 1'b0;   /* Асинхронный статус приема */
+reg       keyb_ready2  = 1'b0;   /* Acknowlegde */
+wire      keyb_ready   = keyb_ready1 ^ keyb_ready2; /* Бит 0 порта 64h */
+reg [1:0] keyb_jread   = 2'b00;     /* Признак только что принятого байта из порта 60h */
+reg [7:0] keyb_data    = 8'h0;     /* Выходные данные для порта */
+reg [7:0] keyb_data_xt = 8'h0;     /* Сконвертированное AT -> XT */
+reg       keyb_unpressed = 1'b0;  /* Признак "отжатой" клаваши */
+
+always @(*) begin
+
+    case (ps2_data)
+    
+        /* ESC */ 8'h76: keyb_data_xt = 8'h01;
+        default: keyb_data_xt = ps2_data;
+        
+    endcase
+    
+
+end
 
 /* Принятие данных из PS/2 */
 always @(posedge clock50) begin
@@ -47,8 +61,27 @@ always @(posedge clock50) begin
     // Новые данные присутствуют. Асинхронный прием.
     if (ps2_data_clk) begin
     
-        keyb_char   <= ps2_data;
-        keyb_ready1 <= keyb_ready1 ^ keyb_ready ^ 1'b1; /* Если keyb_ready=0, то перебросить в 1, иначе оставить как 1 */
+        /* Этот скан-код является кодом AT, который сигнализирует, что
+           клавиша отжимается. Для преобразования в XT-скан код, не нужно
+           показывать, что эта клавиша "отжата" */
+           
+        if (ps2_data == 8'hF0) begin
+        
+            keyb_unpressed <= 1'b1;
+
+        end else begin
+        
+            /* Если keyb_ready=0, то перебросить в 1, иначе оставить как 1 */
+            keyb_ready1 <= keyb_ready1 ^ keyb_ready ^ 1'b1; 
+            
+            /* Запись сконвертированного из AT -> XT */
+            /* Если предыдущий скан-код - это признак "отжатия" клавиши, то записать 1 в 7-й бит */
+            keyb_char   <= keyb_unpressed ? {1'b1, keyb_data_xt[6:0] } : keyb_data_xt;
+
+            /* Вернуть обратно в нормальное положение */
+            keyb_unpressed <= 1'b0;
+
+        end
         
     end
         

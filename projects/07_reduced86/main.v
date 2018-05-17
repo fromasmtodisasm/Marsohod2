@@ -16,12 +16,12 @@ always #1 clk50       = ~clk50;
 always #2 clk25       = ~clk25;
 
 /* Имитация клавиатуры */
-initial #2 ps2_data = 8'h82;
+initial #2 ps2_data = 8'h76;
 initial #2 ps2_data_clk = 1'b1;
 initial #4 ps2_data_clk = 1'b0;
 
 /*
-initial #6 ps2_data = 8'hA2;
+initial #6 ps2_data = 8'h2E;
 initial #6 ps2_data_clk = 1'b1;
 initial #8 ps2_data_clk = 1'b0;
 */
