@@ -77,8 +77,8 @@ init_pm:
         mov     [204Ch], dword 0B8003h
    
         mov     esi, 0x8000
-        mov     edi, 0x8000 + 0xe000
-        mov     cx, 8192 shr 2
+        mov     edi, 0x8000 + 0xc000
+        mov     cx, 16384 shr 2
 @@:     mov     eax, [esi]
         mov     [edi], eax
         add     esi, 4
@@ -94,9 +94,9 @@ init_pm:
         mov     eax, cr0
         or      eax, 80000000h
         mov     cr0, eax
-        
+
         ; Запуск эмуляции
-        jmp     8 : 0xe000      ; Здесь начинается BIOS
+        jmp     8 : 0xfff0      ; Здесь начинается BIOS
                             
         db      (7C00h + 510 - $) dup 0 ; Филлер
         dw      0AA55h

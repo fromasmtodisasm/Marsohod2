@@ -56,4 +56,19 @@ module marsohod2(
 );
 // --------------------------------------------------------------------------
 
+reg [7:0] addr = 1'b0; 
+wire [7:0] out;
+
+always @(posedge clk) addr <= addr + 1'b1;
+assign sdram_dq[7:0] = out; 
+
+
+
+lutest LUTEST(
+    
+    .a(addr),
+    .o(out)
+
+);
+
 endmodule
