@@ -120,11 +120,11 @@ reg [16:0] Ar;   /* Результат исполнения АЛУ */
 reg [11:0] Af;   /* Флаги */
 
 // Некоторые флаги АЛУ
-wire Zero8  = Ar[7:0] == 8'h00;
-wire Zero16 = Ar[15:8] == 8'h00 && Zero8;
-wire Sign8  = Ar[7];
-wire Sign16 = Ar[15];
-wire Parity = Ar[0]^Ar[1]^Ar[2]^Ar[3]^Ar[4]^Ar[5]^Ar[6]^Ar[7]^1'b1;
+wire Zero8  = ~&Ar[7:0];
+wire Zero16 = ~&Ar[15:8] && Zero8;
+wire Sign8  =   Ar[7];
+wire Sign16 =   Ar[15];
+wire Parity = ~^Ar[7:0];
 
 /* Специальный случай: переполнение ADD/SUB */
 wire ADD_Overflow8  = (op1[7]  ^ op2[7]  ^ 1'b1) & (op2[7]  ^ Ar[7]);
