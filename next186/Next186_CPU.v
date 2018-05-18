@@ -213,7 +213,7 @@ wire [1:0]  MOD     = FETCH[1][7:6];
 wire [2:0]  REG     = FETCH[1][5:3];
 wire [2:0]  RM      = FETCH[1][2:0];
 
-/* Присутствует ли использование регистра BP в RM-части */
+/* Присутствует ли использование регистра BP в RM-части; rm={010,011,110} */
 wire        USEBP   = RM[1] && ~&RM;
 wire        POP     = {EAC[3], EAC[1:0]} == 3'b101;
 wire [15:0] ADDR16_SP = POP ? SP : ADDR16;
@@ -485,7 +485,7 @@ always @(FETCH[0], FETCH[1], FETCH[2], FETCH[3], FETCH[4], FETCH[5], MOD, REG, R
     BBSEL   = {1'b0, !FETCH[0][1] | &MOD};
     RBSEL   = FETCH[0][1] ? RM : REG;   
     
-    // Выбор сегмента
+    // Выбор сегмента для считывания данных
     RSSEL   = CPUStatus[2] ? CPUStatus[1:0] : (USEBP && !NOBP ? 2'b10 : 2'b11);
     
     // 5=flags, 3=TMP16, 2=RSSEL, 1=RASEL_HI, 0=RASEL_LO
@@ -507,6 +507,8 @@ always @(FETCH[0], FETCH[1], FETCH[2], FETCH[3], FETCH[4], FETCH[5], MOD, REG, R
     status  = 6'b00x0xx;
 
     DISP16  = MOD == 2'b10 || NOBP;
+    
+    /* Случай, когда нет BP в ModRM */
     NOBP    = {MOD, RM} == 5'b00110;
     HALT    = 1'b0;
     INTA    = 1'b0;

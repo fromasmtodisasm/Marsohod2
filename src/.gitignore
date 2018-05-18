@@ -15,6 +15,6 @@ timing
 *.qqq
 *.jic
 *.map
-qqq
+*.qqq
 undo_redo.txt
 PLLJ_PLLSPE_INFO.txt
