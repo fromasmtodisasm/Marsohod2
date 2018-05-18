@@ -1,5 +1,7 @@
 module cpu(
 
+    input   wire        reset,      // Сброс процессора
+
     /* Стандартные входы-выходы */
     input   wire        clk,        // 100 мегагерц
     input   wire        clk25,      // 25 мегагерц
@@ -251,8 +253,16 @@ end
 
 always @(posedge clk25) begin
 
+    /* Сброс */
+    if (reset) begin
+    
+        ip <= 16'hFFF0;
+        routine <= 1'b0;
+        {sw, m} <= 2'b00;
+
+    end
     /* Микропроцедуры */
-    case (routine)
+    else case (routine)
 
         /* Запись WReg (битность CBit) в память [ea]. После записи CBit=0 */
         `SUB_WRITE_MEM:  begin o <= WReg[7:0]; w <= 1'b1; routine <= `SUB_WRITE_MEM2; end

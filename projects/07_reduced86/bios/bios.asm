@@ -9,7 +9,7 @@ bios_entry:
 
         brk
         mov     sp, $c000
-        mov     ax, $7020
+        mov     ax, $0720
         call    clearscreen
 
         ; Таблица символов для сравнения

@@ -100,15 +100,14 @@ reg         wren_cram;
 
 biosrom BIOSROM( /* 8Kb */
 
-    /* В режиме программирования тактовая частота совпадает с UART */
-    .clock   (prg_enable ? clk12 : clk),
+    .clock   (clk),
     .addr_rd (a[12:0]),
     .q       (q_rom),
     
     /* Программирование */
     .addr_wr (prg_addr),
     .data_wr (prg_idata),
-    .wren    (prg_wren),
+    .wren    (prg_wren && prg_negedge == 2'b10),
     
 );
 
@@ -263,10 +262,9 @@ end
 // https://wiki.osdev.org/VGA_Fonts -- Vga I/O
 
 cpu CPU( /* Процессор */
-
-    /* RESET */
-
-    clk,    // 100 мегагерц
+    
+    prg_enable, // RESET
+    (clk),                   // 100 мегагерц
     (clk25 && cpu_latency),  // 25 мегагерц
     i,      // Data In
     o,      // Data Out
@@ -325,6 +323,10 @@ reg [7:0]  prg_idata = 1'b0;  /* Данные для записи */
 reg [12:0] prg_addr = 1'b0;   /* Адрес */
 reg        prg_wren = 1'b0;   /* Производится запись в память */
 reg        prg_enable = 1'b0; /* Программирование включено */
+reg [1:0]  prg_negedge = 2'b00; 
+
+/* Регистрация negedge rx_ready */
+always @(posedge clk) prg_negedge <= {prg_negedge[0], rx_ready};
 
 // Включение программатора 32 КБ ROM памяти
 always @(posedge rx_ready) begin
@@ -341,7 +343,7 @@ always @(posedge rx_ready) begin
     end
     else begin
 
-        if (prg_addr == 16'h1FFE) begin
+        if (prg_addr == 16'h1FFE) /* -2 от реального */ begin
             prg_enable <= 1'b0;
             prg_wren   <= 1'b0;
             led[0]     <= 1'b0;

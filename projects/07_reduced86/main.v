@@ -84,7 +84,8 @@ port_controller PortCTRL(
 );
 
 // ------------------------------------- Центральный процессор ---------
-cpu CPU(clk, clk25, i, o, a, w, 
+cpu CPU(1'b0, 
+        clk, clk25, i, o, a, w, 
         port_addr, port_in, port_out, port_bit, port_clk, port_read);
     
 endmodule
