@@ -24,15 +24,19 @@ bios_entry:
         
 ; -----------------------------
         mov     di, $b000 + 160*4
-        mov     ah, 17h
-@@:     in      al, 64h
-        and     al, 1
-        je      @b
-        in      al, 60h
+        mov     ah, 0Eh
+@@:     call    getch    
         mov     [di], ax
         add     di, 2
         jmp     @b
 ; -----------------------------
+
+getch:  
+@@:     in      al, 64h
+        and     al, 1
+        je      @b
+        in      al, 60h
+        ret
 
 clearscreen: 
 
