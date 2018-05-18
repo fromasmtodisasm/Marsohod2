@@ -57,23 +57,23 @@ module marsohod2(
 // --------------------------------------------------------------------------
 
 /* Делитель частоты до 25 Мгц */
-reg [1:0] div = 2'b00; 
+reg [1:0] div = 2'b00;
 reg cpu_latency = 1'b0;
 reg clk25 = 1'b0;
 
 always @(posedge clk) begin
 
     div <= div + 1'b1;
-	
+
     /* Нормальное выполнение */
     if (cpu_latency) begin
-    
+
         // kbd_reset <= ps2_port_init; /* Случай для экстренной перезагрузки */
 	    clk25 <= div[1];
 
     /* Для того, чтобы успел первый опкод скачаться успешно */
 	end else if (div == 2'b11) begin
-    
+
 	    cpu_latency <= 1'b1;
         kbd_reset   <= 1'b0;
 
@@ -81,7 +81,7 @@ always @(posedge clk) begin
     end else begin
 
         kbd_reset   <= 1'b1;
-                
+
     end
 
 end
@@ -103,12 +103,12 @@ biosrom BIOSROM( /* 16Kb */
     .clock   (clk),
     .addr_rd (a[13:0]),
     .q       (q_rom),
-    
+
     /* Программирование */
     .addr_wr (prg_addr),
     .data_wr (prg_idata),
     .wren    (prg_wren && prg_negedge == 2'b10),
-    
+
 );
 
 comram COMMONRAM( /* 16Kb */
@@ -123,7 +123,7 @@ comram COMMONRAM( /* 16Kb */
 /*
  * Контроллер клавиатуры PS/2
  */
- 
+
 reg         kbd_reset = 1'b0;
 reg [7:0]   ps2_command = 1'b0;
 reg         ps2_command_send = 1'b0;
@@ -133,7 +133,7 @@ wire [7:0]  ps2_data;
 wire        ps2_data_clk;
 
 PS2_Controller Keyboard(
-    
+
 	/* Вход */
     .CLOCK_50       (div[0]),
 	.reset          (kbd_reset),
@@ -151,7 +151,7 @@ PS2_Controller Keyboard(
     /* Выход полученных */
 	.received_data      (ps2_data),
 	.received_data_en   (ps2_data_clk)
-    
+
 );
 
 wire [15:0] port_addr;
@@ -171,11 +171,11 @@ port_controller PortCTRL(
     .port_bit   (port_bit),  /* Битность данных */
     .port_clk   (port_clk),  /* Строб записи */
     .port_read  (port_read), /* Строб чтения */
-    
+
     /* PS/2 интерфейс */
     .ps2_data     (ps2_data),       /* Принятые данные */
     .ps2_data_clk (ps2_data_clk)    /* Строб принятых данных */
-    
+
 );
 
 // Keyboard Port Controller (пока что только чтение)
@@ -252,9 +252,9 @@ always @* begin
         // Общая быстрая память (0000-3FFF) 16 Kb
         16'b00xx_xxxx_xxxx_xxxx: begin i = q_ram; {wren_vram, wren_cram} = {1'b0, w && awf}; end
 
-        // Видеопамять текстовая (B000-BFFF) 2 Kb
+        // Видеопамять текстовая (B000-BFFF) 4 Kb
         16'b1011_xxxx_xxxx_xxxx: begin i = q_vid; {wren_vram, wren_cram} = {w && awf, 1'b0}; end
- 
+
         // Любая другая область
         default: begin i = 8'h00; {wren_vram, wren_cram} = 2'b00; end
 
@@ -265,7 +265,7 @@ end
 // https://wiki.osdev.org/VGA_Fonts -- Vga I/O
 
 cpu CPU( /* Процессор */
-    
+
     prg_enable, // RESET
     (clk),                   // 100 мегагерц
     (clk25 && cpu_latency),  // 25 мегагерц
@@ -273,7 +273,7 @@ cpu CPU( /* Процессор */
     o,      // Data Out
     a,      // Aдрес
     w,      // Запись [o] на HIGH уровне
-    
+
     /* Работа с портами */
     port_addr,
     port_in,
@@ -326,14 +326,14 @@ reg [7:0]  prg_idata = 1'b0;  /* Данные для записи */
 reg [13:0] prg_addr = 1'b0;   /* Адрес */
 reg        prg_wren = 1'b0;   /* Производится запись в память */
 reg        prg_enable = 1'b0; /* Программирование включено */
-reg [1:0]  prg_negedge = 2'b00; 
+reg [1:0]  prg_negedge = 2'b00;
 
 /* Регистрация negedge rx_ready */
 always @(posedge clk) prg_negedge <= {prg_negedge[0], rx_ready};
 
 // Включение программатора 32 КБ ROM памяти
 always @(posedge rx_ready) begin
-    
+
     prg_idata <= rx_byte;
 
     if (prg_enable == 1'b0) begin
