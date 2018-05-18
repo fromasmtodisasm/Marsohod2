@@ -98,10 +98,10 @@ wire [7:0]  q_vid;
 reg         wren_vram;
 reg         wren_cram;
 
-biosrom BIOSROM( /* 8Kb */
+biosrom BIOSROM( /* 16Kb */
 
     .clock   (clk),
-    .addr_rd (a[12:0]),
+    .addr_rd (a[13:0]),
     .q       (q_rom),
     
     /* Программирование */
@@ -238,19 +238,22 @@ fontram VGA_VIDEORAM(
 /* Отложенная на 1 такт запись в память */
 always @(posedge clk) begin awm[1:0] <= {awm[0], clk25}; end
 
+/* Позитивный фронт на запись в память */
+wire awf = (awm == 2'b01);
+
 /* Маппинг памяти */
 always @* begin
 
     casex (a)
 
-        // Область BIOS памяти (E000-FFFF) 8Kb
-        16'b111x_xxxx_xxxx_xxxx: begin i = q_rom; {wren_vram, wren_cram} = 2'b00; end
+        // Область BIOS памяти (C000-FFFF) 16Kb
+        16'b11xx_xxxx_xxxx_xxxx: begin i = q_rom; {wren_vram, wren_cram} = 2'b00; end
 
         // Общая быстрая память (0000-3FFF) 16 Kb
-        16'b00xx_xxxx_xxxx_xxxx: begin i = q_ram; {wren_vram, wren_cram} = {1'b0, w && awm == 2'b01}; end
+        16'b00xx_xxxx_xxxx_xxxx: begin i = q_ram; {wren_vram, wren_cram} = {1'b0, w && awf}; end
 
         // Видеопамять текстовая (B000-BFFF) 2 Kb
-        16'b1011_xxxx_xxxx_xxxx: begin i = q_vid; {wren_vram, wren_cram} = {w && awm == 2'b01, 1'b0}; end
+        16'b1011_xxxx_xxxx_xxxx: begin i = q_vid; {wren_vram, wren_cram} = {w && awf, 1'b0}; end
  
         // Любая другая область
         default: begin i = 8'h00; {wren_vram, wren_cram} = 2'b00; end
@@ -320,7 +323,7 @@ serial SERIAL(
 );
 
 reg [7:0]  prg_idata = 1'b0;  /* Данные для записи */
-reg [12:0] prg_addr = 1'b0;   /* Адрес */
+reg [13:0] prg_addr = 1'b0;   /* Адрес */
 reg        prg_wren = 1'b0;   /* Производится запись в память */
 reg        prg_enable = 1'b0; /* Программирование включено */
 reg [1:0]  prg_negedge = 2'b00; 
@@ -343,7 +346,7 @@ always @(posedge rx_ready) begin
     end
     else begin
 
-        if (prg_addr == 16'h1FFE) /* -2 от реального */ begin
+        if (prg_addr == 16'h3FFE) /* -2 от реального */ begin
             prg_enable <= 1'b0;
             prg_wren   <= 1'b0;
             led[0]     <= 1'b0;

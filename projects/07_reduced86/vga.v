@@ -29,11 +29,12 @@ parameter horiz_whole   = 800;
 
 // Тайминги для вертикальной развертки (400)
 //                              // 400  480
-parameter vert_visible = 480;   // 400  480
-parameter vert_back    = 33;    // 35   33
+parameter vert_visible = 400;   // 400  480
+parameter vert_back    = 35;    // 35   33
 parameter vert_sync    = 2;     // 2    2
-parameter vert_front   = 10;    // 12   10
-parameter vert_whole   = 525;   // 449  525
+parameter vert_front   = 12;    // 12   10
+parameter vert_whole   = 449;   // 449  525
+parameter vert_yhalf   = 0;     // 0    40
 
 // 640 (видимая область) + 48 (задний порожек) + 96 (синхронизация) + 16 (передний порожек)
 // 640 + 48 = [688, 688 + 96 = 784]
@@ -52,7 +53,7 @@ reg [9:0] y = 1'b0;
 wire [9:0] x_real = x > 791 ? x - 792 : x + 8;
 
 // Сместить на 40 символов, чтобы с 40-й строки начинался y_real=0
-wire [9:0] y_real = x > 791 ? y - 39 : y - 40;
+wire [9:0] y_real = x > 791 ? y - vert_yhalf + 1 : y - vert_yhalf;
 
 // Объявим регистры со временными данными
 reg [7:0] current_char;
@@ -186,7 +187,7 @@ always @(posedge clock_divider[1]) begin
         // Слегка сероватый фон надо сделать, чтобы меня понял монитор
 
         // Сделаем показ области 400 пикселей, но будет посередине
-        if (y >= 40 && y < 440)
+        if (y >= vert_yhalf && y < (480 - vert_yhalf))
             /* Ограничим на 25 символов по высоте (25 x 16 = 400) */
             // Если бит 7 атрибута = 1, то при flash=1 показываем bg_color вместо fr_color
             // Получается эффект мерцания

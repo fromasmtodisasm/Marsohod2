@@ -2,7 +2,7 @@
 ; Особый BIOS, который имитирует крутой BIOS, но на самом деле это
 ; такой жесткий примитив, о котором вслух не говорят
 
-        org     0xe000
+        org     0xc000
         macro   brk { xchg bx, bx }
 
 bios_entry:
@@ -24,6 +24,7 @@ bios_entry:
         
 ; -----------------------------
         mov     di, $b000 + 160*4
+        mov     ah, 17h
 @@:     in      al, 64h
         and     al, 1
         je      @b
@@ -69,7 +70,6 @@ cursor_set:
 
 F000_entry:
 
-        in      al, 60h
         jmp     bios_entry        
         db      (0x10000 - $) dup 0x00
         
