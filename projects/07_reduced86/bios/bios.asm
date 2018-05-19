@@ -12,8 +12,7 @@ bios_entry:
         mov     ax, $0720
         call    CLS
         
-        brk
-        
+        brk        
         call    MEMTST
         
 
@@ -50,21 +49,20 @@ MEMTST: mov     ax, 071Fh
         
         mov     si, $0000
         mov     cx, $00B0
-.mt:    mov     ax, [si]
-        mov     bx, ax
-        xor     bx, $55AA
-        mov     [si], bx
-        mov     dx, [si]
-        mov     [si], ax
-        cmp     ax, dx
-        mov     ax, $07B0
-        je      @f
-        mov     al, $B2
+.mt:    mov     ax, $07B0
+        mov     [si], word $55AA
+        cmp     [si], word $55AA        
+        jne     @f      ; если не равно, то тут 0
+        mov     al, $FE ; иначе память есть
 @@:     mov     [di], ax
         add     si, $100
         inc     di
         inc     di
         loop    .mt  
+        
+        mov     si, sMemoryComplete
+        mov     ah, 07h
+        call    RAWPRN
         ret
 
 ; ----------------------------------------------------------------------
@@ -102,6 +100,7 @@ CURSET: mov     dx, $3d4
 ; Стринги        
 ; ----------------------------------------------------------------------       
 sMemoryTest     db "Memory test...", 0
+sMemoryComplete db " comleted!", 0
 
 ; ----------------------------------------------------------------------       
         db      (0xFFF0 - $) dup 0x00       ; Unused
