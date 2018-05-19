@@ -600,6 +600,7 @@ always @(posedge clk25) begin
 
                             CReg <= DBit ? modrm[5:3] : modrm[2:0];
                             WR   <= 1'b1;
+                            sw   <= 1'b0;
 
                         end
 
@@ -698,7 +699,7 @@ always @(posedge clk25) begin
                 endcase
 
                 /* 88-8B MOV <ModRM> */
-                8'b10_001_0xx: begin
+                8'b1000_10xx: begin
 
                     WReg <= op2;
                     m    <= `INIT;
@@ -707,6 +708,7 @@ always @(posedge clk25) begin
 
                         CReg <= DBit ? modrm[5:3] : modrm[2:0];
                         WR   <= 1'b1;
+                        sw   <= 1'b0;
 
                     end
                     else routine <= `SUB_WRITE_MEM;

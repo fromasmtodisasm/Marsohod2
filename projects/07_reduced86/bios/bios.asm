@@ -43,10 +43,11 @@ CLS:    mov     di, $b000
 ; ----------------------------------------------------------------------
 ; Проверка памяти
 
-MEMTST: mov     ah, 07h
+MEMTST: mov     ax, 071Fh
         mov     si, sMemoryTest
         mov     di, $B000
-        call    RAWPRN        
+        call    RAWPRN
+        
         mov     si, $0000
         mov     cx, $00B0
 .mt:    mov     ax, [si]
@@ -69,7 +70,8 @@ MEMTST: mov     ah, 07h
 ; ----------------------------------------------------------------------
 ; Пропечатать строку из si на экране, ah - цвет, позиция DI
 
-RAWPRN: mov     al, [si]
+RAWPRN: 
+        mov     al, [si]
         inc     si          ; lodsb надо бы сделать позже
         and     al, al
         je      .fin
@@ -107,6 +109,6 @@ sMemoryTest     db "Memory test...", 0
 
 F000_entry:
     
-        jmp     bios_entry        
+        jmp     bios_entry 
         db      (0x10000 - $) dup 0x00
         
