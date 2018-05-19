@@ -276,7 +276,7 @@ end
 
 cpu CPU( /* Процессор */
 
-    prg_enable, // RESET
+    prg_enable | ~keys[0],   // RESET + кнопкой
     (clk),                   // 100 мегагерц
     (clk25 && cpu_latency),  // 25 мегагерц
     i,      // Data In
