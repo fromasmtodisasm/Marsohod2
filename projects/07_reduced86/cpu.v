@@ -983,6 +983,7 @@ always @(posedge clk25) begin
                             WR   <= 1'b1;
                             CReg <= modrm[2:0];
                             m    <= `INIT;
+                            sw   <= 1'b0;
 
                         end 
 

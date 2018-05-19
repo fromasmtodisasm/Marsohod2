@@ -7,17 +7,18 @@
 
 bios_entry:
 
+        brk        
+
         ; Выполнить очистку экрана
         mov     sp, $c000
         mov     ax, $0720
-        call    CLS
-        
-        brk        
-        call    MEMTST
-        
+        call    CLS        
+        call    MEMTST        
+        mov     bx, 240
+        call    CURSET
 
 ; -----------------------------
-        mov     di, $b000 + 160*4
+        mov     di, $b000 + 2*240
         mov     ah, 0Eh
 @@:     in      al, 64h
         and     al, 1
@@ -26,6 +27,12 @@ bios_entry:
         mov     [di], ax
         inc     di
         inc     di
+        
+        mov     bx, di
+        and     bx, $1FFF
+        shr     bx, 1
+        call    CURSET
+        
         jmp     @b
 
 ; ----------------------------------------------------------------------

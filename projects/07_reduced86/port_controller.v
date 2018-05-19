@@ -10,9 +10,16 @@ module port_controller(
     
     /* Данные с PS/2 контроллера */
     input  wire [7:0]   ps2_data,
-    input  wire         ps2_data_clk
+    input  wire         ps2_data_clk,
+    
+    /* Положение курсора */
+    output reg [10:0]   cursor
     
 );
+
+/* Графический индекс */
+reg [3:0]   g_index = 1'b0;
+initial     cursor = 11'h0;
 
 // Роутер
 // ---------------------------------------------------------------------
@@ -204,6 +211,27 @@ always @(posedge clock50) begin
     end
 
 end
+
+/* Запись данных в порт */
+always @(negedge port_clk) begin
+
+    case (port_addr)
+    
+        /* Index */
+        16'h03d4: begin g_index <= port_out[3:0]; end
+        
+        /* Data */
+        16'h03d5: case (g_index)
+            
+            4'h0E: begin cursor[10:8] <= port_out[2:0]; end /* HI cursor pos */
+            4'h0F: begin cursor[7:0]  <= port_out[7:0]; end /* LO cursor pos */
+            
+        endcase
+    
+    endcase
+
+end
+
 // ---------------------------------------------------------------------
 
 endmodule

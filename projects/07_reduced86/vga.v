@@ -16,7 +16,9 @@ module vga(
     input   wire [7:0]  adapter_data,  // полученные данные от знакогенератора
 
     output  reg  [11:0] font_char_addr, // Указатель в видеопамять
-    input   wire [7:0]  font_char_data  // Значение из видеопамяти
+    input   wire [7:0]  font_char_data, // Значение из видеопамяти
+    
+    input   wire [10:0] cursor          // Положение курсора
 
 );
 
@@ -42,30 +44,35 @@ assign hs = x >= (horiz_visible + horiz_front) && x < (horiz_visible + horiz_fro
 assign vs = y >= (vert_visible  + vert_front)  && y < (vert_visible  + vert_front  + vert_sync);
 
 // В этих регистрах мы будем хранить текущее положение луча на экране
-reg [9:0] x = 1'b0; // 2^10 = 1024 точек возможно
-reg [9:0] y = 1'b0;
+reg [9:0]   x = 1'b0; // 2^10 = 1024 точек возможно
+reg [9:0]   y = 1'b0;
 
 // Положение X, когда начинается отрисовка видимой области, должно быть 0,
 // без учета переднего порожека
 // +8 смещение, т.к. такты слишком сильно рано начинаются, и поэтому на
 // начале необходимо ждать 8 тактов, чтобы символ появился
 
-wire [9:0] x_real = x > 791 ? x - 792 : x + 8;
+wire [9:0]  x_real = x > 791 ? x - 792 : x + 8;
 
 // Сместить на 40 символов, чтобы с 40-й строки начинался y_real=0
-wire [9:0] y_real = x > 791 ? y - vert_yhalf + 1 : y - vert_yhalf;
+wire [9:0]  y_real = x > 791 ? y - vert_yhalf + 1 : y - vert_yhalf;
 
 // Объявим регистры со временными данными
-reg [7:0] current_char;
-reg [7:0] temp_current_attr;
-reg [7:0] current_attr;
-reg [7:0] current_data;
-reg       flash;
+reg [7:0]   current_char;
+reg [7:0]   temp_current_attr;
+reg [7:0]   current_attr;
+reg [7:0]   current_data;
+reg         flash;
 
 // Извлекаем текущий бит (от 0 до 7) в зависимости от положения луча x
 // Чтобы развернуть биты, надо сделать, чтобы они читались не от бита 0 к 7,
 // а от 7 к 0, т.е. сделать им XOR 7
-wire current_bit = current_data[ 3'h7 ^ x_real[2:0] ];
+
+// char_position = [0 .. 1999]
+wire [10:0] char_position = x_real[9:3] + y_real[9:4] * 80;
+
+// Если появляется курсор, то он использует нижние 2 строки у линии
+wire        current_bit = (current_data[ 3'h7 ^ x_real[2:0] ]) | (~flash && char_position == (1 + cursor) && y_real[3:0] >= 14);
 
 // Разбираем цветовую компоненту (нижние 4 бита отвечают за цвет символа)
 wire [15:0] fr_color =
@@ -143,7 +150,7 @@ always @(posedge clock_divider[1]) begin
         // В x[9:3] хранится номер 0..79 (текущий символ)
         // В y[9:4] y=0..24
         // Адрес = (y*80 + x) * 2
-        3'b000: font_char_addr <= 2*(x_real[9:3] + y_real[9:4] * 80);
+        3'b000: font_char_addr <= {char_position, 1'b0};
 
         // Здесь мы будем принимать номер символа с "шины"
         3'b001: begin

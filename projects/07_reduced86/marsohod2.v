@@ -178,7 +178,10 @@ port_controller PortCTRL(
 
     /* PS/2 интерфейс */
     .ps2_data     (ps2_data),       /* Принятые данные */
-    .ps2_data_clk (ps2_data_clk)    /* Строб принятых данных */
+    .ps2_data_clk (ps2_data_clk),   /* Строб принятых данных */
+    
+    /* VGA */
+    .cursor      (cursor)       /* Позиция курсора VGA */
 
 );
 
@@ -191,6 +194,7 @@ wire [11:0] adapter_font;
 wire [ 7:0] adapter_data;
 wire [11:0] font_char_addr;
 wire [ 7:0] font_char_data;
+wire [10:0] cursor;
 
 // Назначаем пины для модуля
 // .green - внутренее название пина в самом модуле
@@ -211,7 +215,9 @@ vga VGA_ADAPTER(
 
     // Сканирование символов
     .font_char_addr (font_char_addr),
-    .font_char_data (font_char_data)
+    .font_char_data (font_char_data),
+    
+    .cursor (cursor)
 
 );
 
