@@ -60,7 +60,8 @@ reg [ 2:0] micro = 1'b0;        /* Микрокод */
 // ---------------------------------------------------------------------
 reg [2:0]  CReg = 3'b000;   /* Выбор регистра */
 reg [2:0]  CAlu = 3'b000;   /* Номер режима АЛУ */
-reg        CBit = 1'b0;     /* Выбор битности (0=8, 1=16) */
+reg        CBit  = 1'b0;    /* Выбор битности (0=8, 1=16) */
+reg        CBitT = 1'b0;    /* Временный CBit */
 reg        DBit = 1'b0;     /* Выбор направления (0=rm,reg; 1=reg,rm) */
 reg [2:0]  SMod = 1'b0;     /* Номер инструкции сдвига */
 reg [4:0]  SCnt = 1'b0;     /* Количество сдвигов (от 0 до 31) */
@@ -121,7 +122,7 @@ reg [11:0] Af;   /* Флаги */
 
 // Некоторые флаги АЛУ
 wire Zero8  = ~|Ar[7:0];
-wire Zero16 = ~|Ar[15:8] == 8'h00 && Zero8;
+wire Zero16 = ~|Ar[15:8] && Zero8;
 wire Sign8  =   Ar[7];
 wire Sign16 =   Ar[15];
 wire Parity = ~^Ar[7:0];
@@ -631,13 +632,13 @@ always @(posedge clk25) begin
                     3'h1: begin
 
                         micro <= 3'h2;
-                        WR    <= 1'b1;              /* Запись в регистр результата */
+                        WR    <= CAlu != 3'h7;      /* Запись в регистр результата (кроме 7=CMP) */
                         WReg  <= Ar;                /* На запись 8/16 бит */
                         ip    <= ip + opcode[0];    /* IP+0, если записывали БАЙТ */
                         flags <= Af;
 
-                        if (~CBit) m <= `INIT; /* Если 8 бит, перейти к сканированию снова */
-                        op2[15:8] <= i;              /* Подготовка 16-битного операнда */
+                        if (~CBit) m <= `INIT;      /* Если 8 бит, перейти к сканированию снова */
+                        op2[15:8] <= i;             /* Подготовка 16-битного операнда */
 
                     end
 
@@ -659,35 +660,35 @@ always @(posedge clk25) begin
                     3'h0: begin sw <= 1'b0; micro <= 3'h1; CAlu <= modrm[5:3]; end
 
                     /* Чтение 8 бит Immediate */
-                    3'h1: begin op2 <= i; micro <= 3'h2; ip <= ip + 1'b1; end
+                    3'h1: begin op2 <= i; micro <= 3'h2; ip <= ip + 1'b1; CBitT <= opcode[0]; end
 
                     /* Либо запись в регистр, либо в память, либо далее */
                     3'h2: begin
 
                         /* 16-битное, дополнительно читать */
-                        if (CBit) begin
+                        if (CBitT) begin
 
                             /* В случае если это SignExtend опкод */
                             op2[15:8] <= opcode[1] ? {8{op2[7]}} : i;
 
                             /* Не добавлять +1 если это opcode[1:0] = 2'b11 */
-                            ip        <= ip + (opcode[1] ^ 1'b1);
+                            if (opcode[1] == 1'b0)
+                                ip <= ip + 1'b1;
 
                             /* Выйти к обработке */
-                            CBit      <= 1'b0;
+                            CBitT     <= 1'b0;
 
                         end
 
                         /* Обработка результата */
                         else begin
 
-                            CBit  <= opcode[0];
                             WReg  <= Ar;
                             flags <= Af;
                             m     <= `INIT;
 
-                            /* 8/16 бит, пишем результат в регистр */
-                            if (modrm[7:6] == 2'b11) begin WR <= 1'b1; end
+                            /* 8/16 бит, пишем результат в регистр (кроме CMP) */
+                            if (modrm[7:6] == 2'b11) begin WR <= (CAlu != 3'h7); end
 
                             /* Либо 8/16 бит в память */
                             else begin sw <= 1'b1; routine <= `SUB_WRITE_MEM; end

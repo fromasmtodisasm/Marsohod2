@@ -20,7 +20,7 @@ bios_entry:
         mov     [TELETYPE],   word 0
 
 brk        
-        mov     si, sGreets
+        mov     bp, sGreets
         call    PRINT
     
 ; -----------------------------
@@ -49,8 +49,8 @@ CMD_CLS:
 ; ----------------------------------------------------------------------
 ; Пропечатать строку из si на экране, ah - цвет, позиция DI
 
-PRINT:  mov     al, [si]
-        inc     si
+PRINT:  mov     al, [bp]
+        inc     bp
         and     al, al
         je      short .exit
         call    PRNCHR
@@ -63,7 +63,6 @@ PRINT:  mov     al, [si]
 PRNCHR: push    ax bx cx si di 
 
         ; Получение цвета и позиции курсора
-        mov     ah, [COLOR_PRN]
         mov     di, [TELETYPE]
         
         cmp     al, 10 ; CR Caret Return
@@ -72,6 +71,7 @@ PRNCHR: push    ax bx cx si di
         je      short .lf
         
         ; Напечатать новый символ
+        mov     ah, [COLOR_PRN]
         mov     [$b000 + di], ax            ; stosw
         inc     di
         inc     di
@@ -81,7 +81,6 @@ PRNCHR: push    ax bx cx si di
         cmp     di, 4000
         je      short .roll    
 
-        
 .cset:  mov     bx, di
         shr     bx, 1
         call    CURSET              ; Установка курсора на новое место
@@ -106,10 +105,10 @@ PRNCHR: push    ax bx cx si di
 ; Line Feed
 ; -------------------
 
-.lf:    add     di, 160     ; Сдвинуть стркоку вниз
-        cmp     di, 4000    ; Если она еще в экране
+.lf:    add     di, 160             ; Сдвинуть стркоку вниз
         mov     [TELETYPE], di
-        jb      short .cset       ; То перейти к установке курсора
+        cmp     di, 4000            ; Если она еще в экране
+        jb      short .cset         ; То перейти к установке курсора
 
 ; Скроллинг вверх
 ; -------------------
@@ -163,7 +162,7 @@ sGreets         db "MY-BASIC 1.0",10,13,"(C) Copyrights Samomade 2018",10,13,"16
 ; ----------------------------------------------------------------------
 
 F000_entry:
-    
+
         jmp     bios_entry 
         db      (0x10000 - $) dup 0x00
         
