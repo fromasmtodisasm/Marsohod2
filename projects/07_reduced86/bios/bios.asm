@@ -13,31 +13,32 @@ bios_entry:
         ; Выполнить очистку экрана
         mov     sp, $c000
         mov     ax, $0720
-        call    CLS                
-        call    MEMTST      
+        call    CMD_CLS                
 
-        ; Инициалиазация курсора для пропечатки
+        ; Инициализация курсора для пропечатки
         mov     [COLOR_PRN],  byte $07
-        mov     [TELETYPE],   word $B000 + 3*160 ; x=0, y=0
+        mov     [TELETYPE],   word 0
+
+brk        
+        mov     si, sGreets
+        call    PRINT
     
 ; -----------------------------
-        mov     di, $b000 + 2*240
-        mov     ah, 0Eh
 @@:     in      al, 64h
         and     al, 1
-        je      @b
+        je      short @b
         in      al, 60h
-        mov     [di], ax
-        inc     di
-        inc     di
-
-        call    PRNCHR        
+        
+        call    PRNCHR
         jmp     @b
 
 ; ----------------------------------------------------------------------
-; Очистка экрана в [AX]
+; Очистка экрана
+; Параметры: AX - атрибут + символ 
 
-CLS:    mov     di, $b000
+CMD_CLS:
+
+        mov     di, $b000
         mov     cx, 2000
 @@:     mov     [di], ax
         inc     di
@@ -46,93 +47,94 @@ CLS:    mov     di, $b000
         ret
 
 ; ----------------------------------------------------------------------
-; Проверка памяти
+; Пропечатать строку из si на экране, ah - цвет, позиция DI
 
-MEMTST: ; Печатаем строку
-        mov     ax, 071Fh
-        mov     si, sMemoryTest
-        mov     di, $B000
-        call    RAWPRN
-                
-        ; Проверяем память
-        mov     si, $0000
-        mov     cx, $00B0
-.mt:    mov     ax, $07B0
-        mov     [si], word $55AA
-        cmp     [si], word $55AA        
-        jne     @f      ; если не равно, то тут 0
-        mov     al, $FE ; иначе память есть
-@@:     mov     [di], ax
-        add     si, $100
-        inc     di
-        inc     di
-        loop    .mt          
-        mov     si, sMemoryComplete
-        mov     ah, 07h
-        call    RAWPRN
-        ret
+PRINT:  mov     al, [si]
+        inc     si
+        and     al, al
+        je      short .exit
+        call    PRNCHR
+        jmp     PRINT
+.exit:  ret
 
 ; ----------------------------------------------------------------------
 ; IN:  AL - символ для печати
-; AFFECT: SI, DI, AH, BX, CX
 
-PRNCHR: mov     ah, [COLOR_PRN]
+PRNCHR: push    ax bx cx si di 
+
+        ; Получение цвета и позиции курсора
+        mov     ah, [COLOR_PRN]
         mov     di, [TELETYPE]
-        mov     [di], ax            ; stosw
+        
+        cmp     al, 10 ; CR Caret Return
+        je      short .caret
+        cmp     al, 13 ; LF Line Feed
+        je      short .lf
+        
+        ; Напечатать новый символ
+        mov     [$b000 + di], ax            ; stosw
         inc     di
         inc     di
         mov     [TELETYPE], di
-        cmp     di, $b000 + 4000
-        je      .roll
         
-        ; Установка курсора на новое место
+        ; Проверить переполнение экрана
+        cmp     di, 4000
+        je      short .roll    
+
+        
 .cset:  mov     bx, di
-        sub     bx, $b000
         shr     bx, 1
-        call    CURSET
+        call    CURSET              ; Установка курсора на новое место
+        pop     di si cx bx ax      ; Восстановить старые значения        
         ret
 
-        ; Скроллинг вверх
-.roll:  mov     si, $b000 + 0
-        mov     di, $b000 + 160
-        mov     cx, 24*80
-@@:     mov     ax, [di]        ; lodsw
-        inc     di
-        inc     di
-        mov     [si], ax        ; stosw
-        inc     si
-        inc     si
-        loop    @b    
+; Возврат каретки. Поскольку деления у меня в процессоре нет, вычисляю 
+; остаток через серию минусов
+; -------------------
 
-        ; Вернуть курсор назад
-        sub     di, 160
+.caret:
+
+        mov     bx, di
+@@:     cmp     bx, 160
+        jb      short @f
+        sub     bx, 160
+        jmp     @b
+@@:     sub     di, bx
+        mov     [TELETYPE], di
+        jmp     .cset        
+
+; Line Feed
+; -------------------
+
+.lf:    add     di, 160     ; Сдвинуть стркоку вниз
+        cmp     di, 4000    ; Если она еще в экране
+        mov     [TELETYPE], di
+        jb      short .cset       ; То перейти к установке курсора
+
+; Скроллинг вверх
+; -------------------
+
+.roll:  mov     si, 0
+        mov     cx, 25*80    
+@@:     mov     ax, [$b000 + 160 + si]  ; lodsw
+        mov     [$b000 + si], ax        ; stosw
+        inc     si
+        inc     si
+        loop    @b   
         
         ; Пропечатать пустую строку
         mov     cx, 80
         mov     ah, [COLOR_PRN]
         mov     al, $00
-@@:     mov     [di], ax
-        inc     di
-        inc     di
+@@:     mov     [$b000 - 160 + si], ax
+        inc     si
+        inc     si
         loop    @b
         
-        ; Снова вернуть назад
-        sub     di, 160        
+        ; Вернуть строку назад
+        sub     di, 160                 ; Поднять курсор
         mov     [TELETYPE], di
         jmp     .cset     
-
-; ----------------------------------------------------------------------
-; Пропечатать строку из si на экране, ah - цвет, позиция DI
-
-RAWPRN: mov     al, [si]
-        inc     si          ; lodsb надо бы сделать позже
-        and     al, al
-        je      .fin
-        mov     [di], ax    ; stosw
-        inc     di
-        inc     di
-        jmp     RAWPRN        
-.fin:   ret
 
 ; ----------------------------------------------------------------------
 ; Установка курсора
@@ -154,8 +156,7 @@ CURSET: mov     dx, $3d4
 
 ; Стринги        
 ; ----------------------------------------------------------------------       
-sMemoryTest     db "Memory test...", 0
-sMemoryComplete db " comleted!", 0
+sGreets         db "MY-BASIC 1.0",10,13,"(C) Copyrights Samomade 2018",10,13,"16384 Bytes free",10,13,"Ok",13,10,10,0
 
 ; ----------------------------------------------------------------------       
         db      (0xFFF0 - $) dup 0x00       ; Unused
