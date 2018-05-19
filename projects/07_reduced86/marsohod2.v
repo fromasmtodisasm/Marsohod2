@@ -114,10 +114,12 @@ biosrom BIOSROM( /* 16Kb */
 comram COMMONRAM( /* 16Kb */
 
     .clock   (clk),
+    .addr_rd (a[13:0]),
+    .q       (q_ram),
+
     .addr_wr (a[13:0]),
     .data_wr (o),
     .wren    (wren_cram),
-    .q       (q_ram)
 );
 
 /*
@@ -131,6 +133,8 @@ wire        ps2_command_was_sent;
 wire        ps2_error_communication_timed_out;
 wire [7:0]  ps2_data;
 wire        ps2_data_clk;
+
+always @(posedge div[0]) if (ps2_data_clk) led[3:1] <= ps2_data[2:0];
 
 PS2_Controller Keyboard(
 
@@ -246,14 +250,14 @@ always @* begin
 
     casex (a)
 
-        // Область BIOS памяти (C000-FFFF) 16Kb
-        16'b11xx_xxxx_xxxx_xxxx: begin i = q_rom; {wren_vram, wren_cram} = 2'b00; end
-
         // Общая быстрая память (0000-3FFF) 16 Kb
         16'b00xx_xxxx_xxxx_xxxx: begin i = q_ram; {wren_vram, wren_cram} = {1'b0, w && awf}; end
 
         // Видеопамять текстовая (B000-BFFF) 4 Kb
         16'b1011_xxxx_xxxx_xxxx: begin i = q_vid; {wren_vram, wren_cram} = {w && awf, 1'b0}; end
+
+        // Область BIOS памяти (C000-FFFF) 16Kb
+        16'b11xx_xxxx_xxxx_xxxx: begin i = q_rom; {wren_vram, wren_cram} = 2'b00; end
 
         // Любая другая область
         default: begin i = 8'h00; {wren_vram, wren_cram} = 2'b00; end

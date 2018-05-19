@@ -10,34 +10,44 @@ bios_entry:
         brk
         mov     sp, $c000
         mov     ax, $0720
-        call    clearscreen
-
-        ; Таблица символов для сравнения
-        mov     di, $b000
-        mov     al, $00
+        call    clearscreen   
+        
+        ; Тест памяти
+        mov     si, $B000
+        mov     di, $B000
+        mov     cx, $0010
+.mt:    mov     bx, $55AA
+        mov     ax, [si]
+        mov     [si], bx
+        ;xor     [si], bx
+        mov     dx, [si]
+        ;xor     [si], bx
+        cmp     ax, dx      ; если память не изменилась
+        mov     ax, $072E
+        je      @f
+        mov     al, $40
 @@:     mov     [di], ax
-        inc     ax
+        add     si, $100
         inc     di
         inc     di
-        and     al, al
-        jne     @b
-
+        loop    .mt                
+        
+kb:
 ; -----------------------------
         mov     di, $b000 + 160*4
         mov     ah, 0Eh
-@@:     call    getch    
+@@:     in      al, 64h ; call    getch   
+        cmp     al, 1
+        jne     @b
+        ;and     al, 1
+        ;je      @b
+        in      al, 60h
         mov     [di], ax
         inc     di
         inc     di
         jmp     @b
 ; -----------------------------
 
-getch:  
-@@:     in      al, 64h
-        and     al, 1
-        je      @b
-        in      al, 60h
-        ret
 
 clearscreen: 
 
