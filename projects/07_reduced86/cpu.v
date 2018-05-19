@@ -120,8 +120,8 @@ reg [16:0] Ar;   /* Результат исполнения АЛУ */
 reg [11:0] Af;   /* Флаги */
 
 // Некоторые флаги АЛУ
-wire Zero8  = ~&Ar[7:0];
-wire Zero16 = ~&Ar[15:8] && Zero8;
+wire Zero8  = ~|Ar[7:0];
+wire Zero16 = ~|Ar[15:8] == 8'h00 && Zero8;
 wire Sign8  =   Ar[7];
 wire Sign16 =   Ar[15];
 wire Parity = ~^Ar[7:0];

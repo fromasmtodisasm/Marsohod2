@@ -48,7 +48,7 @@ reg [ 7:0] memory[65536];
 
 // Ревизия 1
 initial begin $readmemh("init/ram.hex",  memory, 16'h0000); end
-initial begin $readmemh("init/bios.hex", memory, 16'hE000); end 
+initial begin $readmemh("init/bios.hex", memory, 16'hC000); end 
 
 always @(posedge clk) begin
 

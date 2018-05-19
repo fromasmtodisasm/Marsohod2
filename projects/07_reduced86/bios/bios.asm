@@ -13,15 +13,15 @@ bios_entry:
         call    clearscreen   
         
         ; Тест памяти
-        mov     si, $B000
+        mov     si, $0000
         mov     di, $B000
         mov     cx, $0010
 .mt:    mov     bx, $55AA
         mov     ax, [si]
         mov     [si], bx
-        ;xor     [si], bx
+        xor     [si], bx
         mov     dx, [si]
-        ;xor     [si], bx
+        xor     [si], bx
         cmp     ax, dx      ; если память не изменилась
         mov     ax, $072E
         je      @f
@@ -36,11 +36,9 @@ kb:
 ; -----------------------------
         mov     di, $b000 + 160*4
         mov     ah, 0Eh
-@@:     in      al, 64h ; call    getch   
-        cmp     al, 1
-        jne     @b
-        ;and     al, 1
-        ;je      @b
+@@:     in      al, 64h
+        and     al, 1
+        je      @b
         in      al, 60h
         mov     [di], ax
         inc     di
@@ -85,7 +83,7 @@ cursor_set:
 ; ----------------------------------------------------------------------
 
 F000_entry:
-
+    
         jmp     bios_entry        
         db      (0x10000 - $) dup 0x00
         
