@@ -7,32 +7,16 @@
 
 bios_entry:
 
-        brk
+        ; Выполнить очистку экрана
         mov     sp, $c000
         mov     ax, $0720
-        call    clearscreen   
+        call    CLS
         
-        ; Тест памяти
-        mov     si, $0000
-        mov     di, $B000
-        mov     cx, $0010
-.mt:    mov     bx, $55AA
-        mov     ax, [si]
-        mov     [si], bx
-        xor     [si], bx
-        mov     dx, [si]
-        xor     [si], bx
-        cmp     ax, dx      ; если память не изменилась
-        mov     ax, $072E
-        je      @f
-        mov     al, $40
-@@:     mov     [di], ax
-        add     si, $100
-        inc     di
-        inc     di
-        loop    .mt                
+        brk
         
-kb:
+        call    MEMTST
+        
+
 ; -----------------------------
         mov     di, $b000 + 160*4
         mov     ah, 0Eh
@@ -44,12 +28,11 @@ kb:
         inc     di
         inc     di
         jmp     @b
-; -----------------------------
 
+; ----------------------------------------------------------------------
+; Очистка экрана в [AX]
 
-clearscreen: 
-
-        mov     di, $b000
+CLS:    mov     di, $b000
         mov     cx, 2000
 @@:     mov     [di], ax
         inc     di
@@ -57,14 +40,50 @@ clearscreen:
         loop    @b
         ret
 
-; ----------------------------------------
+; ----------------------------------------------------------------------
+; Проверка памяти
+
+MEMTST: mov     ah, 07h
+        mov     si, sMemoryTest
+        mov     di, $B000
+        call    RAWPRN        
+        mov     si, $0000
+        mov     cx, $00B0
+.mt:    mov     ax, [si]
+        mov     bx, ax
+        xor     bx, $55AA
+        mov     [si], bx
+        mov     dx, [si]
+        mov     [si], ax
+        cmp     ax, dx
+        mov     ax, $07B0
+        je      @f
+        mov     al, $B2
+@@:     mov     [di], ax
+        add     si, $100
+        inc     di
+        inc     di
+        loop    .mt  
+        ret
+
+; ----------------------------------------------------------------------
+; Пропечатать строку из si на экране, ah - цвет, позиция DI
+
+RAWPRN: mov     al, [si]
+        inc     si          ; lodsb надо бы сделать позже
+        and     al, al
+        je      .fin
+        mov     [di], ax    ; stosw
+        inc     di
+        inc     di
+        jmp     RAWPRN        
+.fin:   ret
+
+; ----------------------------------------------------------------------
 ; Установка курсора
 ; bx = X + Y*80
-; ----------------------------------------
 
-cursor_set:
-
-        mov     dx, $3d4
+CURSET: mov     dx, $3d4
         mov     al, $0f
         out     dx, al      ; outb(0x3D4, 0x0F)
         inc     dx
@@ -77,7 +96,11 @@ cursor_set:
         mov     al, bh
         out     dx, al      ; outb(0x3D5, pos[15:8])
         ret
-        
+
+; Стринги        
+; ----------------------------------------------------------------------       
+sMemoryTest     db "Memory test...", 0
+
 ; ----------------------------------------------------------------------       
         db      (0xFFF0 - $) dup 0x00       ; Unused
 ; ----------------------------------------------------------------------
