@@ -8,6 +8,6 @@ then
     cd bios/bochs
     
     # Для отладки включить
-    bochs -f c.bxrc -q
+    #bochs -f c.bxrc -q
 
 fi

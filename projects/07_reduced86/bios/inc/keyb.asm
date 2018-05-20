@@ -22,9 +22,10 @@ GETCH:  in      al, 64h
         
         ; Преобразование в ASCII (xlatb)
         mov     bx, [SHIFT_TBL]
-        mov     ah, 0
-        add     bx, ax
-        mov     al, [bx]
+        xlatb
+        ;mov     ah, 0
+        ;add     bx, ax
+        ;mov     al, [bx]
         ret
 
 .shift_up: 

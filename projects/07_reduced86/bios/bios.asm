@@ -5,9 +5,7 @@
         org     0xc000
         macro   brk { xchg bx, bx }
         
-TELETYPE        equ $000        ; dw положение курсора
-COLOR_PRN       equ $002        ; db цвет курсора
-SHIFT_TBL       equ $003        ; dw для keyb.asm
+include "inc/equ.asm"           
 
 bios_entry:
 
@@ -15,13 +13,7 @@ bios_entry:
         mov     sp, $c000
         mov     ax, $0720
         call    CMD_CLS                
-
-        ; Инициализация (улучшить)
-        mov     [COLOR_PRN],  byte $07
-        mov     [TELETYPE],   word 0
-        mov     [SHIFT_TBL],  word keyb_dn
-
-        ; Приветственное сообщение
+        call    INIT        
         mov     bp, sGreets
         call    PRINT
     
@@ -30,6 +22,7 @@ bios_entry:
         call    PRNCHR
         jmp     @b
 
+include "inc/init.asm"        
 include "inc/print.asm"        
 include "inc/const.asm"        
 include "inc/keyb.asm"        

@@ -223,8 +223,8 @@ always @(negedge port_clk) begin
         /* Data */
         16'h03d5: case (g_index)
             
-            4'h0E: begin cursor[10:8] <= port_out[2:0]; end /* HI cursor pos */
-            4'h0F: begin cursor[7:0]  <= port_out[7:0]; end /* LO cursor pos */
+            4'hE: begin cursor[10:8] <= port_out[2:0]; end /* HI cursor pos */
+            4'hF: begin cursor[7:0]  <= port_out[7:0]; end /* LO cursor pos */
             
         endcase
     

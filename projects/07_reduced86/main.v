@@ -66,6 +66,7 @@ wire  [15:0] port_out;
 wire         port_bit;
 wire         port_clk;
 wire         port_read;
+wire  [10:0] cursor;
 
 /* Распределитель портов */
 port_controller PortCTRL(
@@ -80,7 +81,9 @@ port_controller PortCTRL(
     
     /* PS/2 интерфейс */
     ps2_data,       /* Принятые данные */
-    ps2_data_clk    /* Строб принятых данных */
+    ps2_data_clk,   /* Строб принятых данных */
+    
+    cursor
 );
 
 // ------------------------------------- Центральный процессор ---------

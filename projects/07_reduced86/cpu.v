@@ -256,12 +256,13 @@ always @(posedge clk25) begin
 
     /* Сброс */
     if (reset) begin
-    
+
         ip <= 16'hFFF0;
         routine <= 1'b0;
         {sw, m} <= 2'b00;
 
     end
+    
     /* Микропроцедуры */
     else case (routine)
 
@@ -320,12 +321,14 @@ always @(posedge clk25) begin
                         m    <= `EXEC;
 
                     end
-
+                    
                     /* Групповые инструкции АЛУ; TEST rm, r; XCHG rm, r */
-                    8'b1000_0xxx: begin
+                    8'b1000_0xxx,
+                    8'b1111_011x: begin
 
                         /* Направление всегда rm,reg */
                         {DBit, CBit} <= {1'b0, i[0]};
+                        CAlu <= 3'h4; /* AND */
                         m <= `MODRM;
 
                     end
@@ -448,6 +451,16 @@ always @(posedge clk25) begin
                         {DBit, CBit} <= {1'b0, i[0]};
                         m <= `MODRM;
 
+                    end
+
+                    /* XLATB */
+                    8'b1101_0111: begin
+                    
+                        ea <= bx + {8'h00, ax[7:0]};
+                        {CReg, CBit} <= {3'h0, 1'b0}; /* AL */
+                        sw <= 1'b1;                                        
+                        m  <= `EXEC;                        
+                    
                     end
 
                     /* Все другие опкоды - на исполнение */
@@ -654,7 +667,7 @@ always @(posedge clk25) begin
                 endcase
 
                 /* GRP <ALU>, imm */
-                8'b10_000_0xx: case (micro)
+                8'b1000_00xx: case (micro)
 
                     /* Выборка АЛУ. Переключиться на память кода */
                     3'h0: begin sw <= 1'b0; micro <= 3'h1; CAlu <= modrm[5:3]; end
@@ -942,7 +955,7 @@ always @(posedge clk25) begin
 
                     /* Если IN - чтение из порта */
                     3'h2: begin port_clk <= 1'b0; CReg <= 4'h0; WReg <= port_in; WR <= ~opcode[1]; m <= `INIT; end
-                    
+
                     /* Для того, чтобы успело чтение из порта */
                     3'h3: micro <= 3'h2;
 
@@ -986,7 +999,7 @@ always @(posedge clk25) begin
                             m    <= `INIT;
                             sw   <= 1'b0;
 
-                        end 
+                        end
 
                         /* Либо в память */
                         else routine <= `SUB_WRITE_MEM;
@@ -1028,7 +1041,38 @@ always @(posedge clk25) begin
                     end
 
                 endcase
-
+                
+                /* XLATB */
+                8'b1101_0111: begin
+                
+                    WR <= 1'b1;
+                    sw <= 1'b0;
+                    WReg <= i;
+                    m <= `EXEC;
+                
+                end
+                
+                /* TEST rm, r8/16 */
+                8'b1000_010x: begin
+                
+                    flags <= Af;
+                    sw <= 1'b0;
+                    m <= `INIT;
+                
+                end
+                
+                /* GRP #1 */
+                8'b1111_011x: case (modrm[5:3])                
+                
+                    // TEST rm, i8/16 */
+                    3'b000, 3'b001: begin
+                    
+                        // ... micro
+                    
+                    end
+                
+                endcase
+                
             endcase
 
         endcase
