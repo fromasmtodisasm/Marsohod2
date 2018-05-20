@@ -33,6 +33,7 @@ include "inc/keyb.asm"
 
 F000_entry:
 
+        mov     [$c003], ax
         jmp     bios_entry 
         db      (0x10000 - $) dup 0x00
         

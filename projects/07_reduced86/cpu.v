@@ -453,6 +453,14 @@ always @(posedge clk25) begin
 
                     end
 
+                    /* A0-A3 MOV moffset <-> AL/AX */
+                    8'b1010_00xx: begin
+                    
+                        {CReg, CBit} <= {3'b000, i[0]};
+                        m <= `EXEC;
+                    
+                    end
+
                     /* XLATB */
                     8'b1101_0111: begin
                     
@@ -460,6 +468,15 @@ always @(posedge clk25) begin
                         {CReg, CBit} <= {3'h0, 1'b0}; /* AL */
                         sw <= 1'b1;                                        
                         m  <= `EXEC;                        
+                    
+                    end
+
+                    /* TEST al/ax, i8/16 */
+                    8'b1010_100x: begin
+                    
+                        {CReg, CBit} <= {3'b000, i[0]};
+                        CAlu <= 3'h4; /* AND */
+                        m <= `EXEC;
                     
                     end
 
@@ -1052,6 +1069,24 @@ always @(posedge clk25) begin
                 
                 end
                 
+                /* A0-A3 MOV moffset <-> AL/AX */
+                8'b1010_00xx: case (micro)
+                
+                    /* Прочесть адрес moffset */
+                    3'h0: begin micro <= 3'h1; ea[7:0]  <= i; ip <= ip + 1'b1; end
+                    3'h1: begin micro <= 3'h2; ea[15:8] <= i; ip <= ip + 1'b1; sw <= 1'b1; end
+                    
+                    /* Писать в память, если запись идет в moffset */
+                    3'h2: if (opcode[1]) begin WReg <= DReg; routine <= routine <= `SUB_WRITE_MEM; end
+                          /* Либо в регистр */
+                          else begin micro <= 3'h3; WReg <= i; WR <= 1'b1; ea <= ea + 1'b1; sw <= opcode[0];
+                                     if (~opcode[0]) m <= `INIT; end
+                                     
+                    /* 16-битный AX */
+                    3'h3: begin WReg[15:8] <= i; sw <= 1'b0; m <= `INIT; end
+                
+                endcase
+                
                 /* TEST rm, r8/16 */
                 8'b1000_010x: begin
                 
@@ -1061,13 +1096,29 @@ always @(posedge clk25) begin
                 
                 end
                 
+                /* TEST al/ax, i8/16 */
+                8'b1010_100x: case (micro)
+
+                    3'h0: begin micro <= 3'h1; op1 <= DReg; op2 <= i; CBitT <= CBit; ip <= ip + 1'b1; end
+                    3'h1: if (CBitT) begin CBitT <= 1'b0; op2[15:8] <= i; ip <= ip + 1'b1; end
+                          else       begin flags <= Af; m <= `INIT; end
+                
+                endcase
+                
                 /* GRP #1 */
                 8'b1111_011x: case (modrm[5:3])                
                 
                     // TEST rm, i8/16 */
                     3'b000, 3'b001: begin
                     
-                        // ... micro
+                        case (micro)
+                        
+                            3'h0: begin micro <= 3'h1; sw  <= 1'b0;  end
+                            3'h1: begin micro <= 3'h2; op2 <= i; ip <= ip + 1'b1; CBitT <= CBit; end
+                            3'h2: if (CBitT) begin CBitT <= 1'b0; ip <= ip + 1'b1; op2[15:8] <= i; end
+                                  else       begin flags <= Af; m <= `INIT; end
+
+                        endcase
                     
                     end
                 

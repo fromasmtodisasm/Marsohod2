@@ -238,10 +238,10 @@
     </tr>
     <tr>
         <th>A0</th>
-        <td><br></td>
-        <td><br></td>
-        <td><br></td>
-        <td><br></td>
+        <td class="done">MOV<br>al, [m16]</td>
+        <td class="done">MOV<br>ax, [m16]</td>
+        <td class="done">MOV<br>[m16], al</td>
+        <td class="done">MOV<br>[m16], ax</td>
         <td><br></td>
         <td><br></td>
         <td><br></td>
@@ -249,8 +249,8 @@
     </tr>
     <tr>
         <th>A8</th>
-        <td><br></td>
-        <td><br></td>
+        <td class="done">TEST<br>al,i8</td>
+        <td class="done">TEST<br>ax,i16</td>
         <td><br></td>
         <td><br></td>
         <td><br></td>
@@ -354,8 +354,8 @@
         <td><br></td>
         <td><br></td>
         <td class="done">CMC<br></td>
-        <td></td>
-        <td></td>
+        <td class="done">0,1: TEST rm,i8<br></td>
+        <td class="done">0,1: TEST rm,i16<br></td>
     </tr>
     <tr>
         <th>F8</th>
