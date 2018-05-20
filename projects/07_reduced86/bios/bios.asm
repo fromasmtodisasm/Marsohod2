@@ -13,9 +13,18 @@ bios_entry:
         mov     sp, $c000
         mov     ax, $0720
         call    CMD_CLS                
-        call    INIT        
+        call    INIT    
         mov     bp, sGreets
         call    PRINT
+        
+        brk
+        mov     si, T
+        mov     cx, 32
+        mov     di, O
+        call    ATOI
+        
+T:      db '65530',0        
+O:      dw 0        
     
 ; -----------------------------
 @@:     call    GETCH        
@@ -26,6 +35,7 @@ include "inc/init.asm"
 include "inc/print.asm"        
 include "inc/const.asm"        
 include "inc/keyb.asm"        
+include "inc/numeric.asm"        
        
 ; ----------------------------------------------------------------------       
         db      (0xFFF0 - $) dup 0x00       ; Unused
@@ -33,7 +43,8 @@ include "inc/keyb.asm"
 
 F000_entry:
 
-        mov     [$c003], ax
+        lahf
+        
         jmp     bios_entry 
         db      (0x10000 - $) dup 0x00
         

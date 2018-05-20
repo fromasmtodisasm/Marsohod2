@@ -480,6 +480,16 @@ always @(posedge clk25) begin
                     
                     end
 
+                    /* SAHF/LAHF */
+                    8'b1001_1110: flags <= ax[15:8];
+                    8'b1001_1111: begin 
+                        
+                        {CBit, CReg} <= {1'h0, 3'h4}; // CReg=AH
+                        WReg <= flags;
+                        WR <= 1'b1;
+                        
+                    end
+
                     /* Все другие опкоды - на исполнение */
                     default: m <= `EXEC;
 
