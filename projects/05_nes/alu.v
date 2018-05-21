@@ -6,7 +6,7 @@ module alu(
     input  wire [3:0] alu,      /* < Режим АЛУ */
     input  wire [7:0] P,        /* < Флаги на вход */
     output wire [7:0] alu_res,  /* > Результат */
-    output wire [7:0] alu_flag /* > Флаги */    
+    output wire [7:0] alu_flag  /* > Флаги */    
         
 );
 
@@ -103,7 +103,7 @@ always @* begin
             alu_rs = A + B;
             alu_fn = {P[7:1], alu_rs[8]};
         
-        end
+        end        
 
     endcase
 
