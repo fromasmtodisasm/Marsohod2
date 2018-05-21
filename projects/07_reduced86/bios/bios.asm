@@ -23,8 +23,8 @@ bios_entry:
         mov     di, O
         call    ATOI
         
-T:      db '65530',0        
-O:      dw 0        
+T:      db '65536',0        
+O:      dd 0        
     
 ; -----------------------------
 @@:     call    GETCH        
@@ -43,8 +43,6 @@ include "inc/numeric.asm"
 
 F000_entry:
 
-        lahf
-        
         jmp     bios_entry 
         db      (0x10000 - $) dup 0x00
         

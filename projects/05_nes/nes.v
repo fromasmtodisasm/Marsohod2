@@ -56,6 +56,27 @@ module nes(
 );
 // --------------------------------------------------------------------------
 
+wire [15:0] address;
+reg  [ 7:0] i_data;
+wire [ 7:0] o_data;
+wire        wreq;
+
+// ----------------- TEST
+always @(posedge clk) i_data <= i_data + 1'b1;
+assign sdram_addr = address[11:0];
+// -----------------
+
+cpu C6502(
+    
+    .clk     (clk),
+    .address (address),
+    .i_data  (i_data),
+    .o_data  (o_data),
+    .wreq    (wreq)
+);
+    
+
+/*
 vga VGA(
     .osc_clock (clk),
     .red    (vga_red),
@@ -64,5 +85,6 @@ vga VGA(
     .hs     (vga_hs),
     .vs     (vga_vs)
 );
+*/
 
 endmodule

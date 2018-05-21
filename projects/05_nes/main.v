@@ -19,10 +19,50 @@ wire [4:0]  blue;
 wire        hs;
 wire        vs;
 wire [15:0] address;
-wire [7:0]  i_data;
+reg  [7:0]  i_data;
 wire [7:0]  o_data;
 wire        wreq;
 
+// Внутрисхемная память
+// ---------------------------------------------------------------------
+reg [ 7:0] memory[65536]; // 64 общая память
+reg [ 7:0] video[65536];  // видеопамять
+reg [ 7:0] i_latency = 1'b0;
+
+always @(posedge clk) begin
+
+    if (wreq) memory[ address ] <= o_data;
+    
+    i_latency <= memory[ address ];
+    i_data    <= i_latency;
+
+end
+
+initial begin $readmemh("init/ram.hex", memory, 16'h0000); end
+initial begin $readmemh("init/rom.hex", memory, 16'h8000); end 
+
+// Центральный процессор
+// ---------------------------------------------------------------------
+
+// Формирование особой частоты для тестов
+reg cpuclock = 1'b0; 
+reg [2:0] div = 2'b00; 
+always @(posedge clk) if (div == 2'b10) 
+    begin div <= 1'b0; cpuclock <= ~cpuclock; end 
+    else  div <= div + 1'b1;
+
+cpu CPU(
+
+    cpuclock,
+    1'b1,
+    address,
+    i_data,
+    o_data,
+    wreq
+
+);
+
+// Графический процессор
 // ---------------------------------------------------------------------
 
 ppu PPU(
@@ -31,18 +71,13 @@ ppu PPU(
     vga_clock,
     ppu_clock,
     cpu_clock,
-    red, green, blue, hs, vs
+    red, 
+    green, 
+    blue, 
+    hs, 
+    vs
 
 );
 
-cpu CPU(
-
-    cpu_clock,
-    address,
-    i_data,
-    o_data,
-    wreq
-
-);
     
 endmodule
