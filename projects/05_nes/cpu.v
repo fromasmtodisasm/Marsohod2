@@ -25,14 +25,19 @@ assign ADDR = AM ? EA : PC;
 `define ABX     5'h0C
 `define ABY     5'h0E
 `define LAT1    5'h10
+`define LATX    5'h18
 
 // Везде переход к исполнению
-`define EXEC    5'h11
 `define IMM     5'h11
 `define IMP     5'h11
 `define ACC     5'h11
-
-`define REL     5'h12 // --- отдельная тема
+`define EXEC    5'h11
+`define EXEC2   5'h12
+`define EXEC3   5'h13
+// Переход
+`define REL     5'h15
+`define REL1    5'h16
+`define REL2    5'h17
 
 initial begin EA = 16'h0000; WREQ = 1'b0; DOUT = 8'h00; RD = 1'b0; end
 
@@ -51,6 +56,7 @@ reg  [7:0]  TR     = 3'h0;  /* Temporary Register */
 reg         WR     = 1'b0;  /* Записать в регистр RA из АЛУ */
 reg         FW     = 1'b0;  /* Записать в регистр P из АЛУ */
 reg         SW     = 1'b0;  /* Записать в S из АЛУ */
+reg         BR     = 1'b0;  /* Если =1, условие выполняется */
 reg         ACC    = 1'b0;  /* Указать A вместо DIN */
 reg         Cout   = 1'b0;  /* Переносы при вычислении адреса */
 reg  [7:0]  opcode = 8'h0;  /* Текущий опкод */
@@ -58,8 +64,9 @@ reg         HOP    = 1'b0;  /* =1 Операнду требуется PC++ */
 
 /* Некоторые часто употребляемые выражения */
 wire [15:0] PCINC   = PC + 1'b1;         /* Инкремент PC */
+wire [15:0] PCRel   = PCINC + {{8{DIN[7]}}, DIN[7:0]}; /* Для переходов */
 wire [5:0]  MSINC   = MS + 1'b1;         /* Инкремент MS */
-wire [7:0]  EAINC   = EA[7:0] + 1'b1;    /* Инкремент EA */
+wire [7:0]  EAINC   = EA + 1'b1;         /* Инкремент EA */
 wire [8:0]  XDin    = X + DIN;           /* Для преиндексной адресации */
 wire [8:0]  YDin    = Y + DIN;           /* Для постиндексной адресации */
 wire [7:0]  HIDin   = DIN + Cout;        /* Перенос */
@@ -110,9 +117,9 @@ always @(posedge CLK) begin
 
         /* Indirect, X */
         // -------------------------------------------------------------
-        4'h1: begin MS <= MSINC; EA <= XDin[7:0]; AM <= 1'b1; end
-        4'h2: begin MS <= MSINC; EA <= EAINC;     TR <= DIN; end
-        4'h3: begin MS <= `LAT1; EA <= EADIN;     RD <= 1'b1; end
+        4'h1: begin MS <= MSINC; EA <= XDin[7:0]; AM <= 1'b1; Cout <= XDin[8]; end
+        4'h2: begin MS <= MSINC; EA <= EAINC;     TR <= DIN;  end
+        4'h3: begin MS <= `LATX; EA <= EADIN;     RD <= 1'b1; end
 
         /* Indirect, Y */
         // -------------------------------------------------------------
@@ -135,7 +142,13 @@ always @(posedge CLK) begin
         /* Absolute */
         // -------------------------------------------------------------
         4'hA: begin MS <= MSINC; TR <= DIN;    PC <= PCINC;  end
-        4'hB: begin MS <= `EXEC; EA <= EADIN;  RD <= 1'b1;    AM <= 1'b1; end
+        4'hB: 
+        
+            /* JMP ABS */
+            if (opcode == 8'h4C) 
+                 begin PC <= EADIN; MS <= 1'b0; end
+            else begin AM <= 1'b1;  MS <= `EXEC; EA <= EADIN; RD <= 1'b1; end
+            
 
         /* Absolute,X */
         // -------------------------------------------------------------
@@ -149,6 +162,9 @@ always @(posedge CLK) begin
 
         /* Отложенный такт (для адресации) */
         `LAT1: MS <= `EXEC;
+        
+        /* Для (I,X) если X превысил границу ZP */
+        `LATX: if (Cout) MS <= `LAT1; else MS <= `EXEC;
 
         /* Исполнение инструкции */
         // -------------------------------------------------------------
@@ -173,10 +189,17 @@ always @(posedge CLK) begin
         end
 
         /* Исполнение инструкции B<cc> */
+        // -------------------------------------------------------------
+
         `REL: begin
-
-
+        
+            if (BR) begin PC <= PCRel; MS <= PCRel[15:8] == PC[15:8] ? `REL2 : `REL1; end
+            else    begin PC <= PCINC; MS <= 1'b0; end
+    
         end
+
+        `REL1: begin MS <= MSINC; end /* +2T если превышение границ */
+        `REL2: begin MS <= 1'b0; end  /* +1T если переход */
 
     endcase
 
@@ -194,7 +217,17 @@ always @* begin
     FW  = 1'b0;
     SW  = 1'b0;  /* Stack Write */
     ACC = 1'b0;
+    BR  = 1'b0; /* Условие выполнения Branch */
 
+    case (opcode[7:6])
+                        
+        /* S */ 2'b00: BR = (P[7] == opcode[5]);
+        /* V */ 2'b01: BR = (P[6] == opcode[5]);
+        /* C */ 2'b10: BR = (P[0] == opcode[5]);
+        /* Z */ 2'b11: BR = (P[1] == opcode[5]);
+                
+    endcase
+            
     if (MS == `EXEC) casex (opcode)
 
         /* STA, CMP */
