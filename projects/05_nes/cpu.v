@@ -6,7 +6,8 @@ module cpu(
     input  wire [7:0]  DIN,     // Входящие данные
     output reg  [7:0]  DOUT,    // Исходящие данные
     output reg  [15:0] EA,      // Эффективный адрес
-    output reg         WREQ     // =1 Запись в память по адресу EA
+    output reg         WREQ,    // =1 Запись в память по адресу EA
+    output reg         RD       // На нисходящем CLK при RD=1, защелка PPU 
 
 );
 
@@ -33,14 +34,14 @@ assign ADDR = AM ? EA : PC;
 
 `define REL     5'h12 // --- отдельная тема
 
-initial begin EA = 16'h0000; WREQ = 1'b0; DOUT = 8'h00; end
+initial begin EA = 16'h0000; WREQ = 1'b0; DOUT = 8'h00; RD = 1'b0; end
 
 /* Регистры */
 reg  [7:0] A  = 8'h81;
-reg  [7:0] X  = 8'hFF;
-reg  [7:0] Y  = 8'h8F;
-reg  [7:0] S  = 8'h00;
-reg  [7:0] P  = 8'b01000000;
+reg  [7:0] X  = 8'h82;
+reg  [7:0] Y  = 8'h80;
+reg  [7:0] S  = 8'hFF;
+reg  [7:0] P  = 8'b00000000;
 reg [15:0] PC = 16'h8000;
 
 /* Состояние процессора */
@@ -49,6 +50,8 @@ reg  [4:0]  MS     = 3'h0;  /* Исполняемый цикл */
 reg  [7:0]  TR     = 3'h0;  /* Temporary Register */
 reg         WR     = 1'b0;  /* Записать в регистр RA из АЛУ */
 reg         FW     = 1'b0;  /* Записать в регистр P из АЛУ */
+reg         SW     = 1'b0;  /* Записать в S из АЛУ */
+reg         ACC    = 1'b0;  /* Указать A вместо DIN */
 reg         Cout   = 1'b0;  /* Переносы при вычислении адреса */
 reg  [7:0]  opcode = 8'h0;  /* Текущий опкод */
 reg         HOP    = 1'b0;  /* =1 Операнду требуется PC++ */
@@ -62,7 +65,10 @@ wire [8:0]  YDin    = Y + DIN;           /* Для постиндексной а
 wire [7:0]  HIDin   = DIN + Cout;        /* Перенос */
 wire [15:0] EADIN   = {DIN,   TR};
 wire [15:0] EADIH   = {HIDin, TR};
-wire        Latency = Cout | opcode[7:5] == 3'b100; /* STA или Cout */
+wire        INCDEC  = ({opcode[7:6], opcode[2:0]} == 5'b11_1_10) || /* INC/DEC */
+                      ({opcode[7],   opcode[2:0]} == 4'b0__1_10);   /* Сдвиговые */
+
+wire        Latency = Cout | (opcode[7:5] == 3'b100) | INCDEC; /* STA, Cout, Сдвиговые */
 wire [4:0]  LATAD   = Latency ? `LAT1 : `EXEC; /* Код адреса при Latency */
 
 /* Исполнение микрокода */
@@ -94,6 +100,7 @@ always @(posedge CLK) begin
             endcase
 
             PC      <= PCINC; /* PC++ */
+            RD      <= 1'b0;  /* Для PPU */
             WREQ    <= 1'b0;  /* Отключение записи в память EA */
             opcode  <= DIN;   /* Принять новый опкод */
 
@@ -105,40 +112,40 @@ always @(posedge CLK) begin
         // -------------------------------------------------------------
         4'h1: begin MS <= MSINC; EA <= XDin[7:0]; AM <= 1'b1; end
         4'h2: begin MS <= MSINC; EA <= EAINC;     TR <= DIN; end
-        4'h3: begin MS <= `LAT1; EA <= EADIN; end
+        4'h3: begin MS <= `LAT1; EA <= EADIN;     RD <= 1'b1; end
 
         /* Indirect, Y */
         // -------------------------------------------------------------
         4'h4: begin MS <= MSINC; EA <= DIN;   AM <= 1'b1; end
         4'h5: begin MS <= MSINC; EA <= EAINC; TR <= YDin[7:0]; Cout <= YDin[8]; end
-        4'h6: begin MS <= LATAD; EA <= EADIH; end
+        4'h6: begin MS <= LATAD; EA <= EADIH; RD <= 1'b1; end
 
         /* ZP */
         // -------------------------------------------------------------
-        4'h7: begin MS <= `EXEC; EA <= DIN;       AM <= 1'b1; end
+        4'h7: begin MS <= `EXEC; EA <= DIN;       RD <= 1'b1; AM <= 1'b1; end
 
         /* ZP,X */
         // -------------------------------------------------------------
-        4'h8: begin MS <= `LAT1; EA <= XDin[7:0]; AM <= 1'b1; end
+        4'h8: begin MS <= `LAT1; EA <= XDin[7:0]; RD <= 1'b1; AM <= 1'b1; end
 
         /* ZP,Y */
         // -------------------------------------------------------------
-        4'h9: begin MS <= `LAT1; EA <= YDin[7:0]; AM <= 1'b1; end
+        4'h9: begin MS <= `LAT1; EA <= YDin[7:0]; RD <= 1'b1; AM <= 1'b1; end
 
         /* Absolute */
         // -------------------------------------------------------------
         4'hA: begin MS <= MSINC; TR <= DIN;    PC <= PCINC;  end
-        4'hB: begin MS <= `EXEC; EA <= EADIN;  AM <= 1'b1; end
+        4'hB: begin MS <= `EXEC; EA <= EADIN;  RD <= 1'b1;    AM <= 1'b1; end
 
         /* Absolute,X */
         // -------------------------------------------------------------
         4'hC: begin MS <= MSINC; TR <= XDin[7:0]; PC <= PCINC; Cout <= XDin[8]; end
-        4'hD: begin MS <= LATAD; EA <= EADIH;     AM <= 1'b1;end
+        4'hD: begin MS <= LATAD; EA <= EADIH;     RD <= 1'b1;  AM <= 1'b1; end
 
         /* Absolute,Y */
         // -------------------------------------------------------------
         4'hE: begin MS <= MSINC; TR <= YDin[7:0]; PC <= PCINC; Cout <= YDin[8]; end
-        4'hF: begin MS <= LATAD; EA <= EADIH;     AM <= 1'b1; end
+        4'hF: begin MS <= LATAD; EA <= EADIH;     RD <= 1'b1;  AM <= 1'b1; end
 
         /* Отложенный такт (для адресации) */
         `LAT1: MS <= `EXEC;
@@ -185,6 +192,8 @@ always @* begin
     RB  = 2'b00; /* DIN */
     WR  = 1'b0;
     FW  = 1'b0;
+    SW  = 1'b0;  /* Stack Write */
+    ACC = 1'b0;
 
     if (MS == `EXEC) casex (opcode)
 
@@ -209,10 +218,24 @@ always @* begin
         /* CPX */
         8'b111_xx1_00,
         8'b111_000_00: {alu, RA, FW} = 7'b0110_01_1;
-        /* TYA */
-        8'b100_110_00: {alu, RB, FW, WR} = 8'b0101_10_11;
+
         /* CLC, SEC, CLI, SEI, CLV, CLD, SED */
         8'bxxx_110_00: {alu, FW} = 5'b1100_1;
+        /* BIT */
+        8'b001_0x1_00: {alu, FW} = 5'b1101_1;
+        
+        8'b100_010_00: {alu, RA, RB, WR, FW} = 10'b1110_10_10_11; /* DEY */
+        8'b110_010_10: {alu, RA, RB, WR, FW} = 10'b1110_01_01_11; /* DEX */
+        8'b110_010_00: {alu, RA, RB, WR, FW} = 10'b1111_10_10_11; /* INY */
+        8'b111_010_00: {alu, RA, RB, WR, FW} = 10'b1111_01_01_11; /* INX */
+                        
+        /* TAX, TAY */
+        8'b101_010_10: {alu, RB, RA, FW, WR, ACC} = 11'b0101_00_01_111;
+        8'b101_010_00: {alu, RB, RA, FW, WR, ACC} = 11'b0101_00_10_111;        
+        8'b100_110_10: {alu, RB, SW}     = 8'b0101_01_1;  /* TXS */
+        8'b100_110_00: {alu, RB, FW, WR} = 8'b0101_10_11; /* TYA */        
+        8'b100_010_10: {alu, RB, FW, WR} = 8'b0101_01_11; /* TXA */        
+        8'b101_110_10: {alu, RB, RA, FW, WR} = 10'b0101_11_01_11; /* TSX */
 
     endcase
 
@@ -232,6 +255,9 @@ always @(posedge CLK) begin
 
     /* Писать флаги */
     if (FW) P <= AF;
+    
+    /* Записать в регистр S результат */
+    if (SW) S <= AR;
 
 end
 
@@ -256,7 +282,7 @@ always @* begin
     endcase
 
     case (RB)
-        2'b00: Bx = DIN;
+        2'b00: Bx = (ACC ? A : DIN);
         2'b01: Bx = X;
         2'b10: Bx = Y;
         2'b11: Bx = S;

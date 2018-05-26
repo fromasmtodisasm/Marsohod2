@@ -18,6 +18,7 @@ wire [5:0]  green;
 wire [4:0]  blue;
 wire        hs;
 wire        vs;
+wire        rd;
 wire [15:0] address;
 wire [15:0] ea;
 reg  [7:0]  i_data;
@@ -52,7 +53,7 @@ always @(posedge clk) if (div == 2'b10)
     begin div <= 1'b0; cpuclock <= ~cpuclock; end 
     else  div <= div + 1'b1;
 
-cpu CPU( cpuclock, 1'b1, address, i_data, o_data, ea, wreq);
+cpu CPU( cpuclock, 1'b1, address, i_data, o_data, ea, wreq, rd);
 
 // Графический процессор
 // ---------------------------------------------------------------------

@@ -32,13 +32,16 @@ always @* begin
     case (ALU)
 
         /* ORA */ 4'b0000: R = A | B;
-        /* AND */ 4'b0001: R = A & B;
+        /* AND */ 4'b0001,
+        /* BIT */ 4'b1101: R = A & B;
         /* EOR */ 4'b0010: R = A ^ B;
         /* ADC */ 4'b0011: R = A + B + Cin;
         /* STA */ 4'b0100: R = A;
         /* LDA */ 4'b0101: R = B;
         /* CMP */ 4'b0110: R = A - B;
         /* SBC */ 4'b0110: R = A - B - (~Cin);
+        /* DEC */ 4'b1110: R = B - 1;
+        /* INC */ 4'b1111: R = B + 1;
 
     endcase
     
@@ -48,7 +51,8 @@ always @* begin
         /* ORA, AND, EOR, LDA, STA */
         4'b000x, /* ORA, AND */
         4'b0010, /* EOR */
-        4'b010x: /* STA, LDA */
+        4'b010x, /* STA, LDA */
+        4'b111x: /* DEC, INC */
                  AF = {Sign,       P[6:2], Zero, P[0]};
         
         /* ADC */
@@ -58,21 +62,21 @@ always @* begin
         4'b011x: AF = {Sign, oSBC, P[5:2], Zero, ~Carry};
         
         /* Сдвиговые */
+        // ...
         
         /* Флаговые */
         4'b1100: casex (OP)
         
             /* CLC */ 3'b00x: AF = {P[7:1], OP[0]};
             /* CLI */ 3'b01x: AF = {P[7:3], OP[0], P[1:0]};
-            /* CLV */ 3'b101: AF = {P[7], 1'b0, P[5:0]};
+            /* CLV */ 3'b101: AF = {P[7],   1'b0,  P[5:0]};
             /* CLD */ 3'b11x: AF = {P[7:4], OP[0], P[2:0]};
             
         endcase
         
-        // 4'b1101: BIT        
-        // 4'b1110: DEC
-        // 4'b1111: INC
-
+        /* BIT */
+        4'b1101: AF = {Sign, B[6], P[5:2], Zero, P[0]};
+         
     endcase
     
 end
