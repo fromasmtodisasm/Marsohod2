@@ -56,28 +56,34 @@ module nes(
 );
 // --------------------------------------------------------------------------
 
-wire [15:0] address;
-reg  [ 7:0] i_data;
-wire [ 7:0] o_data;
-wire        wreq;
+wire [15:0] address;        /* Чтение */    
+wire [15:0] wraddr;         /* Запись */
+reg  [ 7:0] din;
+wire [ 7:0] dout;
+wire        mreq;
 
 // ----------------- TEST
-always @(posedge clk) i_data <= i_data + 1'b1;
+
+always @(posedge clk) din <= din + 1'b1;
 assign sdram_addr = address[11:0];
+wire clk17 = clk; /* временно */
+
 // -----------------
 
 cpu C6502(
     
-    .clk     (clk),
-    .address (address),
-    .i_data  (i_data),
-    .o_data  (o_data),
-    .wreq    (wreq)
+    .CLK    ( clk17 ),          // 1.71 МГц
+    .CE     ( 1'b1 ),           // Готовность памяти
+    .ADDR   ( address ),        // Адрес программы или данных
+    .DIN    ( din ),            // Входящие данные
+    .DOUT   ( dout ),           // Исходящие данные
+    .EA     ( wraddr ),         // Эффективный адрес
+    .WREQ   ( wreq ),           // =1 Запись в память по адресу EA
 );
     
 
 /*
-vga VGA(
+ppu PPU(
     .osc_clock (clk),
     .red    (vga_red),
     .green  (vga_green),

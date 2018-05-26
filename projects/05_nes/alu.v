@@ -78,7 +78,7 @@ always @* begin
             alu_fn = {
                 /* S */ alu_rs[7],
                 /* - */ P[6:2],
-                /* Z */ ~&alu_rs,
+                /* Z */ ~|alu_rs,
                 /* C */ ~alu_rs[8]
             };
 

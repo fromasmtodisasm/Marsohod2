@@ -19,6 +19,7 @@ wire [4:0]  blue;
 wire        hs;
 wire        vs;
 wire [15:0] address;
+wire [15:0] ea;
 reg  [7:0]  i_data;
 wire [7:0]  o_data;
 wire        wreq;
@@ -31,7 +32,7 @@ reg [ 7:0] i_latency = 1'b0;
 
 always @(posedge clk) begin
 
-    if (wreq) memory[ address ] <= o_data;
+    if (wreq) memory[ ea ] <= o_data;
     
     i_latency <= memory[ address ];
     i_data    <= i_latency;
@@ -51,16 +52,7 @@ always @(posedge clk) if (div == 2'b10)
     begin div <= 1'b0; cpuclock <= ~cpuclock; end 
     else  div <= div + 1'b1;
 
-cpu CPU(
-
-    cpuclock,
-    1'b1,
-    address,
-    i_data,
-    o_data,
-    wreq
-
-);
+cpu CPU( cpuclock, 1'b1, address, i_data, o_data, ea, wreq);
 
 // Графический процессор
 // ---------------------------------------------------------------------
