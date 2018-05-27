@@ -7,7 +7,7 @@ module cpu(
     output reg  [7:0]  DOUT,    // Исходящие данные
     output wire [15:0] EAWR,    // Эффективный адрес для записи
     output reg         WREQ,    // =1 Запись в память по адресу EA
-    output reg         RD       // На нисходящем CLK при RD=1, защелка PPU 
+    output reg         RD       // На нисходящем CLK при RD=1, защелка PPU
 
 );
 
@@ -98,7 +98,7 @@ always @(posedge CLK) begin
 
         /* ИНИЦИАЛИЗАЦИЯ */
         4'h0: begin
-        
+
             casex (DIN)
 
                 8'bxxx_000_x1: begin MS <= `NDX; HOP <= 1'b1; end // Indirect, X
@@ -118,7 +118,7 @@ always @(posedge CLK) begin
                 default:       begin MS <= `IMP; HOP <= 1'b0; end
 
             endcase
-            
+
             // if (NMI) --- PC, IRQ, opcode=00
 
             opcode  <= DIN;   /* Принять новый опкод */
@@ -161,13 +161,13 @@ always @(posedge CLK) begin
         /* Absolute */
         // -------------------------------------------------------------
         4'hA: begin MS <= MSINC; TR <= DIN; PC <= PCINC;  end
-        4'hB: 
-        
+        4'hB:
+
             /* JMP ABS */
-            if (opcode == 8'h4C) 
+            if (opcode == 8'h4C)
                  begin MS <= 1'b0;  PC <= EADIN; end
             else begin MS <= `EXEC; EA <= EADIN; {AM, RD} <= 2'b11; end
-            
+
 
         /* Absolute,X */
         // -------------------------------------------------------------
@@ -181,7 +181,7 @@ always @(posedge CLK) begin
 
         /* Отложенный такт (для адресации) */
         `LAT1: MS <= `EXEC;
-        
+
         /* Для (I,X) если X превысил границу ZP */
         `LATX: if (Cout) MS <= `LAT1; else MS <= `EXEC;
 
@@ -195,98 +195,98 @@ always @(posedge CLK) begin
             PCL <= PC[7:0]; /* Для JSR */
 
             /* Инкремент PC по завершении разбора адреса */
-            if (HOP) PC <= PCINC; 
+            if (HOP) PC <= PCINC;
 
             casex (opcode)
 
                 /* STA/STY/STX для АЛУ */
-                8'b100_xxx_01, 
+                8'b100_xxx_01,
                 8'b100_xx1_x0: {AM, MS, WREQ, DOUT} <= {1'b0, 5'h0,  1'b1, AR[7:0]};
-                
+
                 /* JMP (IND) */
                 8'b011_011_00: {MS, TR, EA} <= {MSINC, DIN, EA};
 
                 /* ROL/ROR/ASR/LSR/DEC/INC <mem> */
                 8'b0xx_xx1_10,
                 8'b11x_xx1_10: {AM, MS, WREQ, DOUT} <= {1'b0, MSINC, 1'b1, AR[7:0]};
-                
+
                 /* JSR: Записываем в стек */
                 8'b001_000_00: {AS, MS, WREQ, DOUT} <= {1'b1, MSINC, 1'b1, PC[15:8]};
-                
+
                 /* BRK */
                 8'b000_000_00: {AS, MS, WREQ, DOUT} <= {1'b1, MSINC, 1'b1, PCINC[15:8]};
-                
+
                 /* RTS, RTI */
                 8'b01x_000_00: {AS, MS} <= {1'b1, MSINC};
-                
+
                 /* PHP */
-                8'b000_010_00: {AS, MS, WREQ, DOUT} <= {1'b1, MSINC, 1'b1, P[7:6], 2'b11, P[3:0]};                
-                
+                8'b000_010_00: {AS, MS, WREQ, DOUT} <= {1'b1, MSINC, 1'b1, P[7:6], 2'b11, P[3:0]};
+
                 /* PHA */
-                8'b010_010_00: {AS, MS, WREQ, DOUT} <= {1'b1, MSINC, 1'b1, A};     
-                
+                8'b010_010_00: {AS, MS, WREQ, DOUT} <= {1'b1, MSINC, 1'b1, A};
+
                 /* PLP, PLA */
                 8'b0x1_010_00: {AS, MS} <= {1'b1, MSINC};
-                
+
                 // По умолчанию, завершение инструкции
                 default: {AM, MS} <= 2'b00;
 
             endcase
 
         end
-        
+
         /* Для особых инструкции */
         // -------------------------------------------------------------
-        
+
         `EXEC2: casex (opcode)
-        
-            /* JSR */ 8'b001_000_00: begin MS <= MSINC; DOUT <= PCL; end      
-            /* BRK */ 8'b000_000_00: begin MS <= MSINC; DOUT <= PC[7:0]; end  
-            /* RTS */ 8'b011_000_00: begin MS <= MSINC; PC[7:0] <= DIN; end   
-            /* RTI */ 8'b010_000_00: begin MS <= MSINC; end 
+
+            /* JSR */ 8'b001_000_00: begin MS <= MSINC; DOUT <= PCL; end
+            /* BRK */ 8'b000_000_00: begin MS <= MSINC; DOUT <= PC[7:0]; end
+            /* RTS */ 8'b011_000_00: begin MS <= MSINC; PC[7:0] <= DIN; end
+            /* RTI */ 8'b010_000_00: begin MS <= MSINC; end
             /* JMP */ 8'b011_011_00: begin MS <= 1'b0;  PC <= EADIN; AM <= 1'b0; end  /* Indirect */
             /* PHx */ 8'b0x0_010_00: begin MS <= 1'b0;  {AM, AS, WREQ} <= 3'b000; end /* PHP, PHA */
                             default: begin MS <= MSINC; {AM, AS, WREQ} <= 3'b000; end
-        
+
         endcase
-                
+
         `EXEC3: casex (opcode)
-        
-            /* BRK */ 8'b000_000_00: begin MS <= MSINC; DOUT <= {P[7:5], 1'b1, P[3:0]}; end     
-            /* JSR */ 8'b001_000_00: begin MS <= 1'b0;  PC <= EA; {AS, WREQ, AM} <= 3'b000; end 
-            /* RTS */ 8'b011_000_00: begin MS <= MSINC; PC[15:8] <= DIN; end 
-            /* RTI */ 8'b010_000_00: begin MS <= MSINC; PC[7:0] <= DIN;  end 
+
+            /* BRK */ 8'b000_000_00: begin MS <= MSINC; DOUT <= {P[7:5], 1'b1, P[3:0]}; end
+            /* JSR */ 8'b001_000_00: begin MS <= 1'b0;  PC <= EA; {AS, WREQ, AM} <= 3'b000; end
+            /* RTS */ 8'b011_000_00: begin MS <= MSINC; PC[15:8] <= DIN; end
+            /* RTI */ 8'b010_000_00: begin MS <= MSINC; PC[7:0] <= DIN;  end
                             default: begin MS <= 1'b0; end
-                  
+
         endcase
-        
+
         `EXEC4: casex (opcode)
 
-            /* BRK */ 8'b000_000_00: begin MS <= MSINC; {AS, AM, WREQ} <= 3'b010; EA <= {12'hFFF, 1'b0, IRQ, 1'b1}; end 
-            /* RTS */ 8'b011_000_00: begin MS <= `REL2; /* +1T */ {AS, AM} <= 2'b00; PC <= PCINC; end 
-            /* RTI */ 8'b010_000_00: begin MS <= MSINC; AS <= 1'b0; PC[15:8] <= DIN; end 
+            /* BRK */ 8'b000_000_00: begin MS <= MSINC; {AS, AM, WREQ} <= 3'b010; EA <= {12'hFFF, 1'b0, IRQ, 1'b1}; end
+            /* RTS */ 8'b011_000_00: begin MS <= `REL2; /* +1T */ {AS, AM} <= 2'b00; PC <= PCINC; end
+            /* RTI */ 8'b010_000_00: begin MS <= MSINC; AS <= 1'b0; PC[15:8] <= DIN; end
             /* PLx */ 8'b0x1_010_00: begin MS <= MSINC; AS <= 1'b0; end /* PLA, PLP */
-            
+
         endcase
-                
+
         `EXEC5: casex (opcode)
-        
+
             /* BRK */ 8'b000_000_00: begin MS <= MSINC; TR <= DIN; EA <= EAINC; end
             /* RTI */ 8'b010_000_00: begin MS <= 1'b0; end
-        
-        endcase        
-        
+
+        endcase
+
         /* BRK */
-        `EXEC6: begin MS <= MSINC; AM <= 1'b0; PC <= EADIN;  end        
+        `EXEC6: begin MS <= MSINC; AM <= 1'b0; PC <= EADIN;  end
 
         /* Исполнение инструкции B<cc> */
         // -------------------------------------------------------------
 
         `REL: begin
-        
+
             if (BR) begin PC <= PCRel; MS <= PCRel[15:8] == PC[15:8] ? `REL2 : `REL1; end
             else    begin PC <= PCINC; MS <= 1'b0; end
-    
+
         end
 
         `REL1: begin MS <= MSINC; end /* +2T если превышение границ */
@@ -310,16 +310,16 @@ always @* begin
     ACC = 1'b0;
     BR  = 1'b0; /* Условие выполнения Branch */
     SEI = 1'b0; /* Set Interrupt Flag */
-    
+
     case (opcode[7:6])
-                        
+
         /* S */ 2'b00: BR = (P[7] == opcode[5]);
         /* V */ 2'b01: BR = (P[6] == opcode[5]);
         /* C */ 2'b10: BR = (P[0] == opcode[5]);
         /* Z */ 2'b11: BR = (P[1] == opcode[5]);
-                
+
     endcase
-    
+
     case (MS)
     `EXEC: casex (opcode)
 
@@ -328,86 +328,86 @@ always @* begin
 
         /* ADC, SBC, AND, ORA, EOR, LDA */
         8'bxxx_xxx_01: {WR, FW} = 2'b11;
-        
+
         /* ROL,ROR,ASL,LSR ACC */
         8'b0xx_010_10: {alu, ACC, RB, RA, FW, WR} = {2'b10, opcode[6:5], 1'b1, 6'b00_00_11};
 
         /* ASL,ROL,LSR,ROR <mem> */
         8'b0xx_xx1_10: {alu, FW} = {2'b10, opcode[6:5], 1'b1};
-        
+
         /* DEC/INC */
         8'b11x_xx1_10: {alu, FW} = {3'b111, opcode[5], 1'b1};
 
         /* STY, STX */
         8'b100_xx1_00: {RA} = 2'b10; // Y
         8'b100_xx1_10: {RA} = 2'b01; // X
-        
+
         /* LDY */
         8'b101_xx1_00,
         8'b101_000_00: {WR, RA, FW} = 4'b1_10_1;
-        
+
         /* LDX */
         8'b101_xx1_10,
         8'b101_000_10: {WR, RA, FW} = 4'b1_01_1;
-        
+
         /* CPY */
         8'b110_xx1_00,
         8'b110_000_00: {RA, FW} = 3'b10_1;
-        
+
         /* CPX */
         8'b111_xx1_00,
         8'b111_000_00: {alu, RA, FW} = 7'b0110_01_1;
 
         /* CLC, SEC, CLI, SEI, CLV, CLD, SED */
         8'bxxx_110_00: {alu, FW} = 5'b1100_1;
-        
+
         /* BIT */
         8'b001_0x1_00: {alu, FW} = 5'b1101_1;
-        
+
         /* Transfer */
         8'b100_010_00: {alu, RA, RB, WR, FW} = 10'b1110_10_10_11; /* DEY */
         8'b110_010_10: {alu, RA, RB, WR, FW} = 10'b1110_01_01_11; /* DEX */
         8'b110_010_00: {alu, RA, RB, WR, FW} = 10'b1111_10_10_11; /* INY */
         8'b111_010_00: {alu, RA, RB, WR, FW} = 10'b1111_01_01_11; /* INX */
-                        
+
         /* TAX, TAY */
         8'b101_010_10: {alu, RB, RA, FW, WR, ACC} = 11'b0101_00_01_111;
-        8'b101_010_00: {alu, RB, RA, FW, WR, ACC} = 11'b0101_00_10_111;        
+        8'b101_010_00: {alu, RB, RA, FW, WR, ACC} = 11'b0101_00_10_111;
         8'b100_110_10: {alu, RB, SW}     = 8'b0101_01_1;  /* TXS */
-        8'b100_110_00: {alu, RB, FW, WR} = 8'b0101_10_11; /* TYA */        
-        8'b100_010_10: {alu, RB, FW, WR} = 8'b0101_01_11; /* TXA */        
+        8'b100_110_00: {alu, RB, FW, WR} = 8'b0101_10_11; /* TYA */
+        8'b100_010_10: {alu, RB, FW, WR} = 8'b0101_01_11; /* TXA */
         8'b101_110_10: {alu, RB, RA, FW, WR} = 10'b0101_11_01_11; /* TSX */
-        
+
         /* RTS, RTI, PLP, PLA */
         8'b01x_000_00,
         8'b0x1_010_00: {alu, RB, SW} = 7'b1111_11_1; /* S = S+1 */
-        
+
     endcase
-    
+
     /* Специальные инструкции управления */
     `EXEC2: casex (opcode)
-        
+
         8'b010_000_00: {alu, RB, SW, RA, WR} = 10'b1111_11_1_11_1; /* RTI */
         8'b011_000_00: {alu, RB, SW}         =  7'b1111_11_1;      /* RTS */
         8'b001_000_00,
         8'b000_000_00,
-        8'b0x0_010_00: {alu, RB, SW}     = 7'b1110_11_1;  /* JSR, BRK, PHP, PHA */             
+        8'b0x0_010_00: {alu, RB, SW}     = 7'b1110_11_1;  /* JSR, BRK, PHP, PHA */
         8'b001_010_00: {RA, WR}          = 3'b11_1;       /* PLP */
         8'b011_010_00: {RA, WR, FW, alu} = 8'b00_11_0101; /* PLA */
-    
+
     endcase
-    
+
     `EXEC3: casex (opcode)
-        
-        /* BRK */ 8'b000_000_00, 
+
+        /* BRK */ 8'b000_000_00,
         /* JSR */ 8'b001_000_00,
-        /* RTI */ 8'b010_000_00: {alu, RB, SW} = 7'b1111_11_1;      
-    
+        /* RTI */ 8'b010_000_00: {alu, RB, SW} = 7'b1111_11_1;
+
     endcase
 
     /* BRK */
     `EXEC4: {alu, RB, SW, SEI} = 7'b1110_11_1;
-        
+
     endcase
 
 end
@@ -429,9 +429,9 @@ always @(posedge CLK) begin
         P <= {P[7:3], 1'b1, P[1:0]};
     else if (WR && RA == 2'b11) /* PLP */
         P <= DIN;
-    else if (FW)  
+    else if (FW)
         P <= AF;
-    
+
     /* Записать в регистр S результат */
     if (SW) S <= AR;
 
@@ -441,7 +441,7 @@ end
 // ---------------------------------------------------------------------
 
 reg [3:0] alu = 4'h0;
-reg [1:0] RA = 2'b00; 
+reg [1:0] RA = 2'b00;
 reg [1:0] RB = 2'b00;
 reg [7:0] Ax; reg [7:0] Bx;
 reg [7:0] AR; reg [7:0] AF;
