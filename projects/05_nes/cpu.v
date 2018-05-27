@@ -161,13 +161,14 @@ always @(posedge CLK) begin
         /* Absolute */
         // -------------------------------------------------------------
         4'hA: begin MS <= MSINC; TR <= DIN; PC <= PCINC;  end
-        4'hB:
+        4'hB: begin
 
             /* JMP ABS */
             if (opcode == 8'h4C)
                  begin MS <= 1'b0;  PC <= EADIN; end
             else begin MS <= `EXEC; EA <= EADIN; {AM, RD} <= 2'b11; end
-
+            
+        end
 
         /* Absolute,X */
         // -------------------------------------------------------------
@@ -201,14 +202,14 @@ always @(posedge CLK) begin
 
                 /* STA/STY/STX для АЛУ */
                 8'b100_xxx_01,
-                8'b100_xx1_x0: {AM, MS, WREQ, DOUT} <= {1'b0, 5'h0,  1'b1, AR[7:0]};
+                8'b100_xx1_x0: {AM, MS, WREQ, DOUT} <= {1'b0, 5'h0,  1'b1, AR};
 
                 /* JMP (IND) */
-                8'b011_011_00: {MS, TR, EA} <= {MSINC, DIN, EA};
+                8'b011_011_00: {MS, TR} <= {MSINC, DIN};
 
                 /* ROL/ROR/ASR/LSR/DEC/INC <mem> */
                 8'b0xx_xx1_10,
-                8'b11x_xx1_10: {AM, MS, WREQ, DOUT} <= {1'b0, MSINC, 1'b1, AR[7:0]};
+                8'b11x_xx1_10: {AM, MS, WREQ, DOUT} <= {1'b0, MSINC, 1'b1, AR};
 
                 /* JSR: Записываем в стек */
                 8'b001_000_00: {AS, MS, WREQ, DOUT} <= {1'b1, MSINC, 1'b1, PC[15:8]};
@@ -255,7 +256,7 @@ always @(posedge CLK) begin
             /* BRK */ 8'b000_000_00: begin MS <= MSINC; DOUT <= {P[7:5], 1'b1, P[3:0]}; end
             /* JSR */ 8'b001_000_00: begin MS <= 1'b0;  PC <= EA; {AS, WREQ, AM} <= 3'b000; end
             /* RTS */ 8'b011_000_00: begin MS <= MSINC; PC[15:8] <= DIN; end
-            /* RTI */ 8'b010_000_00: begin MS <= MSINC; PC[7:0] <= DIN;  end
+            /* RTI */ 8'b010_000_00: begin MS <= MSINC; PC[7:0]  <= DIN;  end
                             default: begin MS <= 1'b0; end
 
         endcase
@@ -277,7 +278,7 @@ always @(posedge CLK) begin
         endcase
 
         /* BRK */
-        `EXEC6: begin MS <= MSINC; AM <= 1'b0; PC <= EADIN;  end
+        `EXEC6: begin MS <= 1'b0; AM <= 1'b0; PC <= EADIN;  end
 
         /* Исполнение инструкции B<cc> */
         // -------------------------------------------------------------
@@ -423,14 +424,11 @@ always @(posedge CLK) begin
         2'b01: X <= AR;
         2'b10: Y <= AR;
     endcase
-
-    /* Писать флаги */
-    if (SEI)
-        P <= {P[7:3], 1'b1, P[1:0]};
-    else if (WR && RA == 2'b11) /* PLP */
-        P <= DIN;
-    else if (FW)
-        P <= AF;
+    
+    /* Флаги */
+    if (SEI) /* BRK I=1, B=1 */ P <= {P[7:5], 1'b1, P[3], 1'b1, P[1:0]};     
+    else if (WR && RA == 2'b11) P <= DIN; /* PLP, RTI */
+    else if (FW) /* Другие */   P <= AF;    
 
     /* Записать в регистр S результат */
     if (SW) S <= AR;

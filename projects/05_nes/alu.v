@@ -62,12 +62,16 @@ always @* begin
         /* ADC */
         4'b0011: AF = {Sign, oADC, P[5:2], Zero, Carry}; 
         
-        /* CMP, SBC */       
-        4'b011x: AF = {Sign, oSBC, P[5:2], Zero, ~Carry};
+        /* CMP */
+        4'b0110: AF = {Sign,       P[6:2], Zero, ~Carry};
+        
+        /* SBC */
+        4'b0111: AF = {Sign, oSBC, P[5:2], Zero, ~Carry};        
         
         /* Сдвиговые */
         /* ASL, ROL */
         4'b100x: AF = {Sign, P[6:2], Zero, B[7]};
+        
         /* LSR, ROR */
         4'b101x: AF = {Sign, P[6:2], Zero, B[0]};
         
@@ -82,7 +86,7 @@ always @* begin
         endcase
         
         /* BIT */
-        4'b1101: AF = {Sign, B[6], P[5:2], Zero, P[0]};
+        4'b1101: AF = {B[7:6], P[5:2], Zero, P[0]};
          
     endcase
     
