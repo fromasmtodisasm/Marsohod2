@@ -5,13 +5,14 @@ module cpu(
     output wire [15:0] ADDR,    // Адрес программы или данных
     input  wire [7:0]  DIN,     // Входящие данные
     output reg  [7:0]  DOUT,    // Исходящие данные
-    output reg  [15:0] EA,      // Эффективный адрес
+    output wire [15:0] EAWR,    // Эффективный адрес для записи
     output reg         WREQ,    // =1 Запись в память по адресу EA
     output reg         RD       // На нисходящем CLK при RD=1, защелка PPU 
 
 );
 
-assign ADDR = AM ? EA : PC;
+assign ADDR = AS ? {8'h01, S} : (AM ? EA : PC);
+assign EAWR = AS ? {8'h01, S} : EA;
 
 // ---------------------------------------------------------------------
 
@@ -24,20 +25,21 @@ assign ADDR = AM ? EA : PC;
 `define ABS     5'h0A
 `define ABX     5'h0C
 `define ABY     5'h0E
-`define LAT1    5'h10
-`define LATX    5'h18
 
 // Везде переход к исполнению
+`define LAT1    5'h10
 `define IMM     5'h11
 `define IMP     5'h11
 `define ACC     5'h11
 `define EXEC    5'h11
 `define EXEC2   5'h12
 `define EXEC3   5'h13
+`define EXEC4   5'h14
 // Переход
 `define REL     5'h15
 `define REL1    5'h16
 `define REL2    5'h17
+`define LATX    5'h18
 
 initial begin EA = 16'h0000; WREQ = 1'b0; DOUT = 8'h00; RD = 1'b0; end
 
@@ -46,13 +48,15 @@ reg  [7:0] A  = 8'h43;
 reg  [7:0] X  = 8'h82;
 reg  [7:0] Y  = 8'h80;
 reg  [7:0] S  = 8'hFF;
-reg  [7:0] P  = 8'b00000000;
+reg  [7:0] P  = 8'b00000001;
 reg [15:0] PC = 16'h8000;
 
 /* Состояние процессора */
+reg         AS     = 1'b0;  /* Указатель стека (приориетнее) */
 reg         AM     = 1'b0;  /* 0=PC, 1=EA */
 reg  [4:0]  MS     = 3'h0;  /* Исполняемый цикл */
 reg  [7:0]  TR     = 3'h0;  /* Temporary Register */
+reg  [15:0] EA     = 16'h0000;  /* Эффективный адрес */
 reg         WR     = 1'b0;  /* Записать в регистр RA из АЛУ */
 reg         FW     = 1'b0;  /* Записать в регистр P из АЛУ */
 reg         SW     = 1'b0;  /* Записать в S из АЛУ */
@@ -61,6 +65,7 @@ reg         ACC    = 1'b0;  /* Указать A вместо DIN */
 reg         Cout   = 1'b0;  /* Переносы при вычислении адреса */
 reg  [7:0]  opcode = 8'h0;  /* Текущий опкод */
 reg         HOP    = 1'b0;  /* =1 Операнду требуется PC++ */
+reg  [7:0]  PCL    = 8'h00; /* Для JSR */
 
 /* Некоторые часто употребляемые выражения */
 wire [15:0] PCINC   = PC + 1'b1;         /* Инкремент PC */
@@ -107,6 +112,7 @@ always @(posedge CLK) begin
             endcase
 
             PC      <= PCINC; /* PC++ */
+            AS      <= 1'b0;  /* Указатель стека */
             RD      <= 1'b0;  /* Для PPU */
             WREQ    <= 1'b0;  /* Отключение записи в память EA */
             opcode  <= DIN;   /* Принять новый опкод */
@@ -172,7 +178,8 @@ always @(posedge CLK) begin
         /* Исполнение инструкции */
         `EXEC: begin
 
-            RD <= 1'b0;
+            RD  <= 1'b0;
+            PCL <= PC[7:0];
 
             /* Инкремент PC по завершении разбора адреса */
             if (HOP) PC <= PCINC; 
@@ -184,11 +191,26 @@ always @(posedge CLK) begin
                 8'b100_xx1_x0: {AM, MS, WREQ, DOUT} <= {1'b0, 5'h0,  1'b1, AR[7:0]};
                 
                 /* JMP Indirect */
-                8'b011_011_00: {MS, TR, EA} <= {MSINC, DIN, EAINC};
+                8'b011_011_00: {MS, TR, EA} <= {MSINC, DIN, EA};
 
                 /* ROL/ROR/ASR/LSR/DEC/INC <mem> */
                 8'b0xx_xx1_10,
                 8'b11x_xx1_10: {AM, MS, WREQ, DOUT} <= {1'b0, MSINC, 1'b1, AR[7:0]};
+                
+                /* JSR: Записываем в стек */
+                8'b001_000_00: {AS, MS, WREQ, DOUT} <= {1'b1, MSINC, 1'b1, PC[15:8]};
+                
+                /* RTS */
+                8'b011_000_00: {AS, MS} <= {1'b1, MSINC};
+                
+                /* PHP */
+                8'b000_010_00: {AS, MS, WREQ, DOUT} <= {1'b1, MSINC, 1'b1, P[7:6], 2'b11, P[3:0]};                
+                
+                /* PHA */
+                8'b010_010_00: {AS, MS, WREQ, DOUT} <= {1'b1, MSINC, 1'b1, A};     
+                
+                /* PLP, PLA */
+                8'b0x1_010_00: {AS, MS} <= {1'b1, MSINC};
                 
                 // По умолчанию, завершение инструкции
                 default: {AM, MS} <= 2'b00;
@@ -198,15 +220,33 @@ always @(posedge CLK) begin
         end
         
         /* Для особых инструкции */
+        // -------------------------------------------------------------
+        
         `EXEC2: casex (opcode)
         
-            8'b011_011_00: begin MS <= 1'b0;  AM   <= 1'b0; PC <= EADIN; end
-                  default: begin MS <= MSINC; WREQ <= 1'b0; end
+            8'b001_000_00: begin MS <= MSINC; DOUT <= PCL; end /* JSR */
+            8'b011_000_00: begin MS <= MSINC; PC[7:0] <= DIN; end /* RTS */
+            8'b011_011_00: begin MS <= 1'b0;  AM <= 1'b0; PC <= EADIN; end /* JMP IND */
+            8'b0x0_010_00: begin MS <= 1'b0; {AM, AS, WREQ} <= 3'b000; end /* PHP, PHA */
+                  default: begin MS <= MSINC; {AM, AS, WREQ} <= 3'b000; end
         
         endcase
+                
+        `EXEC3: casex (opcode)
         
+            8'b001_000_00: begin MS <= 1'b0; PC <= EA; {AS, WREQ, AM} <= 3'b000; end /* JSR */
+            8'b011_000_00: begin MS <= MSINC; PC[15:8] <= DIN; end /* RTS */
+                  default: begin MS <= 1'b0; end
+                  
+        endcase
         
-        `EXEC3: begin MS <= 1'b0; end
+        `EXEC4: casex (opcode)
+        
+            8'b011_000_00: begin MS <= `REL2; /* +1T */ {AS, AM} <= 2'b00; PC <= PCINC; end /* RTS */
+            8'b0x1_010_00: begin MS <= MSINC; AS <= 1'b0; end /* PLP, PLA */
+            
+        endcase
+        
 
         /* Исполнение инструкции B<cc> */
         // -------------------------------------------------------------
@@ -247,8 +287,9 @@ always @* begin
         /* Z */ 2'b11: BR = (P[1] == opcode[5]);
                 
     endcase
-            
-    if (MS == `EXEC) casex (opcode)
+    
+    case (MS)
+    `EXEC: casex (opcode)
 
         /* STA, CMP */
         8'b1x0_xxx_01: FW = opcode[6];
@@ -305,7 +346,33 @@ always @* begin
         8'b100_010_10: {alu, RB, FW, WR} = 8'b0101_01_11; /* TXA */        
         8'b101_110_10: {alu, RB, RA, FW, WR} = 10'b0101_11_01_11; /* TSX */
         
+        /* RTS, PLP, PLA */
+        8'b011_000_00,
+        8'b0x1_010_00: {alu, RB, SW} = 7'b1111_11_1; 
+        
     endcase
+    
+    /* Специальные инструкции управления */
+    `EXEC2: casex (opcode)
+        
+        8'b011_000_00: {alu, RB, SW} = 7'b1111_11_1; /* RTS */
+        8'b001_000_00,
+        8'b0x0_010_00: {alu, RB, SW} = 7'b1110_11_1; /* JSR, PHP, PHA */             
+        8'b001_010_00: {RA, WR} = 3'b11_1; /* PLP */
+        8'b011_010_00: {RA, WR, alu} = 7'b00_1_0101; /* PLA */
+    
+    endcase
+    
+    `EXEC3: casex (opcode)
+
+        /* JSR */
+        8'b001_000_00: {alu, RB, SW} = 7'b1110_11_1;
+    
+    endcase
+    
+    endcase
+
+
 
 end
 
@@ -322,7 +389,10 @@ always @(posedge CLK) begin
     endcase
 
     /* Писать флаги */
-    if (FW) P <= AF;
+    if (WR && RA == 2'b11) /* PLP */
+        P <= DIN;
+    else if (FW)  
+        P <= AF;
     
     /* Записать в регистр S результат */
     if (SW) S <= AR;
