@@ -48,7 +48,7 @@ reg  [7:0] A  = 8'h43;
 reg  [7:0] X  = 8'h82;
 reg  [7:0] Y  = 8'h80;
 reg  [7:0] S  = 8'hFF;
-reg  [7:0] P  = 8'b00000001;
+reg  [7:0] P  = 8'b10000001;
 reg [15:0] PC = 16'h8000;
 
 /* Состояние процессора */
@@ -224,9 +224,9 @@ always @(posedge CLK) begin
         
         `EXEC2: casex (opcode)
         
-            8'b001_000_00: begin MS <= MSINC; DOUT <= PCL; end /* JSR */
-            8'b011_000_00: begin MS <= MSINC; PC[7:0] <= DIN; end /* RTS */
-            8'b011_011_00: begin MS <= 1'b0;  AM <= 1'b0; PC <= EADIN; end /* JMP IND */
+            8'b001_000_00: begin MS <= MSINC; DOUT <= PCL; end      /* JSR */
+            8'b011_000_00: begin MS <= MSINC; PC[7:0] <= DIN; end   /* RTS */
+            8'b011_011_00: begin MS <= 1'b0;  PC <= EADIN; AM <= 1'b0;  end /* JMP IND */
             8'b0x0_010_00: begin MS <= 1'b0; {AM, AS, WREQ} <= 3'b000; end /* PHP, PHA */
                   default: begin MS <= MSINC; {AM, AS, WREQ} <= 3'b000; end
         
@@ -348,7 +348,7 @@ always @* begin
         
         /* RTS, PLP, PLA */
         8'b011_000_00,
-        8'b0x1_010_00: {alu, RB, SW} = 7'b1111_11_1; 
+        8'b0x1_010_00: {alu, RB, SW} = 7'b1111_11_1; /* S = S+1 */
         
     endcase
     
@@ -358,8 +358,8 @@ always @* begin
         8'b011_000_00: {alu, RB, SW} = 7'b1111_11_1; /* RTS */
         8'b001_000_00,
         8'b0x0_010_00: {alu, RB, SW} = 7'b1110_11_1; /* JSR, PHP, PHA */             
-        8'b001_010_00: {RA, WR} = 3'b11_1; /* PLP */
-        8'b011_010_00: {RA, WR, alu} = 7'b00_1_0101; /* PLA */
+        8'b001_010_00: {RA, WR}      = 3'b11_1;      /* PLP */
+        8'b011_010_00: {RA, WR, FW, alu} = 8'b00_11_0101; /* PLA */
     
     endcase
     
