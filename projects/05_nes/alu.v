@@ -33,13 +33,17 @@ always @* begin
 
         /* ORA */ 4'b0000: R = A | B;
         /* AND */ 4'b0001,
-        /* BIT */ 4'b1101: R = A & B;
         /* EOR */ 4'b0010: R = A ^ B;
         /* ADC */ 4'b0011: R = A + B + Cin;
         /* STA */ 4'b0100: R = A;
         /* LDA */ 4'b0101: R = B;
         /* CMP */ 4'b0110: R = A - B;
-        /* SBC */ 4'b0110: R = A - B - (~Cin);
+        /* SBC */ 4'b0111: R = A - B - (~Cin);
+        /* ASL */ 4'b1000: R = {B[6:0], 1'b0};
+        /* ROL */ 4'b1001: R = {B[6:0], P[0]};
+        /* LSR */ 4'b1010: R = {1'b0, B[7:1]};
+        /* ROR */ 4'b1011: R = {P[0], B[7:1]};
+        /* BIT */ 4'b1101: R = A & B;
         /* DEC */ 4'b1110: R = B - 1;
         /* INC */ 4'b1111: R = B + 1;
 
@@ -62,7 +66,10 @@ always @* begin
         4'b011x: AF = {Sign, oSBC, P[5:2], Zero, ~Carry};
         
         /* Сдвиговые */
-        // ...
+        /* ASL, ROL */
+        4'b100x: AF = {Sign, P[6:2], Zero, B[7]};
+        /* LSR, ROR */
+        4'b101x: AF = {Sign, P[6:2], Zero, B[0]};
         
         /* Флаговые */
         4'b1100: casex (OP)

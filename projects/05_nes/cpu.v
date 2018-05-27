@@ -42,7 +42,7 @@ assign ADDR = AM ? EA : PC;
 initial begin EA = 16'h0000; WREQ = 1'b0; DOUT = 8'h00; RD = 1'b0; end
 
 /* Регистры */
-reg  [7:0] A  = 8'h81;
+reg  [7:0] A  = 8'h43;
 reg  [7:0] X  = 8'h82;
 reg  [7:0] Y  = 8'h80;
 reg  [7:0] S  = 8'hFF;
@@ -65,8 +65,8 @@ reg         HOP    = 1'b0;  /* =1 Операнду требуется PC++ */
 /* Некоторые часто употребляемые выражения */
 wire [15:0] PCINC   = PC + 1'b1;         /* Инкремент PC */
 wire [15:0] PCRel   = PCINC + {{8{DIN[7]}}, DIN[7:0]}; /* Для переходов */
-wire [5:0]  MSINC   = MS + 1'b1;         /* Инкремент MS */
-wire [7:0]  EAINC   = EA + 1'b1;         /* Инкремент EA */
+wire [4:0]  MSINC   = MS + 1'b1;         /* Инкремент MS */
+wire [15:0] EAINC   = EA + 1'b1;         /* Инкремент EA */
 wire [8:0]  XDin    = X + DIN;           /* Для преиндексной адресации */
 wire [8:0]  YDin    = Y + DIN;           /* Для постиндексной адресации */
 wire [7:0]  HIDin   = DIN + Cout;        /* Перенос */
@@ -172,6 +172,8 @@ always @(posedge CLK) begin
         /* Исполнение инструкции */
         `EXEC: begin
 
+            RD <= 1'b0;
+
             /* Инкремент PC по завершении разбора адреса */
             if (HOP) PC <= PCINC; 
 
@@ -179,14 +181,32 @@ always @(posedge CLK) begin
 
                 /* STA/STY/STX для АЛУ */
                 8'b100_xxx_01, 
-                8'b100_xx1_x0: {AM, MS, WREQ, DOUT} <= {3'b001, AR[7:0]};
+                8'b100_xx1_x0: {AM, MS, WREQ, DOUT} <= {1'b0, 5'h0,  1'b1, AR[7:0]};
+                
+                /* JMP Indirect */
+                8'b011_011_00: {MS, TR, EA} <= {MSINC, DIN, EAINC};
 
+                /* ROL/ROR/ASR/LSR/DEC/INC <mem> */
+                8'b0xx_xx1_10,
+                8'b11x_xx1_10: {AM, MS, WREQ, DOUT} <= {1'b0, MSINC, 1'b1, AR[7:0]};
+                
                 // По умолчанию, завершение инструкции
                 default: {AM, MS} <= 2'b00;
 
             endcase
 
         end
+        
+        /* Для особых инструкции */
+        `EXEC2: casex (opcode)
+        
+            8'b011_011_00: begin MS <= 1'b0;  AM   <= 1'b0; PC <= EADIN; end
+                  default: begin MS <= MSINC; WREQ <= 1'b0; end
+        
+        endcase
+        
+        
+        `EXEC3: begin MS <= 1'b0; end
 
         /* Исполнение инструкции B<cc> */
         // -------------------------------------------------------------
@@ -235,28 +255,43 @@ always @* begin
 
         /* ADC, SBC, AND, ORA, EOR, LDA */
         8'bxxx_xxx_01: {WR, FW} = 2'b11;
+        
+        /* ROL,ROR,ASL,LSR ACC */
+        8'b0xx_010_10: {alu, ACC, RB, RA, FW, WR} = {2'b10, opcode[6:5], 1'b1, 6'b00_00_11};
+
+        /* ASL,ROL,LSR,ROR <mem> */
+        8'b0xx_xx1_10: {alu, FW} = {2'b10, opcode[6:5], 1'b1};
+        
+        /* DEC/INC */
+        8'b11x_xx1_10: {alu, FW} = {3'b111, opcode[5], 1'b1};
 
         /* STY, STX */
         8'b100_xx1_00: {RA} = 2'b10; // Y
         8'b100_xx1_10: {RA} = 2'b01; // X
+        
         /* LDY */
         8'b101_xx1_00,
         8'b101_000_00: {WR, RA, FW} = 4'b1_10_1;
+        
         /* LDX */
         8'b101_xx1_10,
         8'b101_000_10: {WR, RA, FW} = 4'b1_01_1;
+        
         /* CPY */
         8'b110_xx1_00,
         8'b110_000_00: {RA, FW} = 3'b10_1;
+        
         /* CPX */
         8'b111_xx1_00,
         8'b111_000_00: {alu, RA, FW} = 7'b0110_01_1;
 
         /* CLC, SEC, CLI, SEI, CLV, CLD, SED */
         8'bxxx_110_00: {alu, FW} = 5'b1100_1;
+        
         /* BIT */
         8'b001_0x1_00: {alu, FW} = 5'b1101_1;
         
+        /* Transfer */
         8'b100_010_00: {alu, RA, RB, WR, FW} = 10'b1110_10_10_11; /* DEY */
         8'b110_010_10: {alu, RA, RB, WR, FW} = 10'b1110_01_01_11; /* DEX */
         8'b110_010_00: {alu, RA, RB, WR, FW} = 10'b1111_10_10_11; /* INY */
@@ -269,7 +304,7 @@ always @* begin
         8'b100_110_00: {alu, RB, FW, WR} = 8'b0101_10_11; /* TYA */        
         8'b100_010_10: {alu, RB, FW, WR} = 8'b0101_01_11; /* TXA */        
         8'b101_110_10: {alu, RB, RA, FW, WR} = 10'b0101_11_01_11; /* TSX */
-
+        
     endcase
 
 end
@@ -331,4 +366,3 @@ alu ALU(
 );
 
 endmodule
-
