@@ -31,41 +31,48 @@ assign EAWR = AS ? {8'h01, S} : EA;
 `define IMM     5'h11
 `define IMP     5'h11
 `define ACC     5'h11
+
 `define EXEC    5'h11
 `define EXEC2   5'h12
 `define EXEC3   5'h13
 `define EXEC4   5'h14
+`define EXEC5   5'h15
+`define EXEC6   5'h16
 // Переход
-`define REL     5'h15
-`define REL1    5'h16
-`define REL2    5'h17
-`define LATX    5'h18
+`define REL     5'h17
+`define REL1    5'h18
+`define REL2    5'h19
+`define LATX    5'h1A
 
 initial begin EA = 16'h0000; WREQ = 1'b0; DOUT = 8'h00; RD = 1'b0; end
 
 /* Регистры */
-reg  [7:0] A  = 8'h43;
-reg  [7:0] X  = 8'h82;
-reg  [7:0] Y  = 8'h80;
-reg  [7:0] S  = 8'hFF;
-reg  [7:0] P  = 8'b10000001;
-reg [15:0] PC = 16'h8000;
+reg  [7:0]  A   = 8'h43;
+reg  [7:0]  X   = 8'h82;
+reg  [7:0]  Y   = 8'h80;
+reg  [7:0]  S   = 8'hFF;
+reg  [7:0]  P   = 8'b10000001;
+reg [15:0]  PC  = 16'h8000;
 
 /* Состояние процессора */
-reg         AS     = 1'b0;  /* Указатель стека (приориетнее) */
-reg         AM     = 1'b0;  /* 0=PC, 1=EA */
-reg  [4:0]  MS     = 3'h0;  /* Исполняемый цикл */
-reg  [7:0]  TR     = 3'h0;  /* Temporary Register */
+reg  [4:0]  MS     = 3'h0;      /* Исполняемый цикл */
+reg         AS     = 1'b0;      /* 0=PC/AM, 1=S Указатель стека (приоритет) */
+reg         AM     = 1'b0;      /* 0=PC, 1=EA */
+reg  [1:0]  IRQ    = 2'b11;     /* BRK, $FFFE по умолчанию */
+reg         Cout   = 1'b0;      /* Переносы при вычислении адреса */
+reg         HOP    = 1'b0;      /* =1 Операнду требуется PC++ */
+reg  [7:0]  PCL    = 8'h00;     /* Для JSR */
+reg  [7:0]  TR     = 3'h0;      /* Temporary Register */
 reg  [15:0] EA     = 16'h0000;  /* Эффективный адрес */
-reg         WR     = 1'b0;  /* Записать в регистр RA из АЛУ */
-reg         FW     = 1'b0;  /* Записать в регистр P из АЛУ */
-reg         SW     = 1'b0;  /* Записать в S из АЛУ */
-reg         BR     = 1'b0;  /* Если =1, условие выполняется */
-reg         ACC    = 1'b0;  /* Указать A вместо DIN */
-reg         Cout   = 1'b0;  /* Переносы при вычислении адреса */
-reg  [7:0]  opcode = 8'h0;  /* Текущий опкод */
-reg         HOP    = 1'b0;  /* =1 Операнду требуется PC++ */
-reg  [7:0]  PCL    = 8'h00; /* Для JSR */
+
+/* Микрокод */
+reg         WR     = 1'b0;      /* Записать в регистр RA из АЛУ */
+reg         FW     = 1'b0;      /* Записать в регистр P из АЛУ */
+reg         SW     = 1'b0;      /* Записать в S из АЛУ */
+reg         ACC    = 1'b0;      /* Указать A вместо DIN */
+reg         BR     = 1'b0;      /* Если =1, условие выполняется */
+reg         SEI    = 1'b0;      /* Установить I=1 */
+reg  [7:0]  opcode = 8'h0;      /* Текущий опкод */
 
 /* Некоторые часто употребляемые выражения */
 wire [15:0] PCINC   = PC + 1'b1;         /* Инкремент PC */
@@ -77,11 +84,12 @@ wire [8:0]  YDin    = Y + DIN;           /* Для постиндексной а
 wire [7:0]  HIDin   = DIN + Cout;        /* Перенос */
 wire [15:0] EADIN   = {DIN,   TR};
 wire [15:0] EADIH   = {HIDin, TR};
-wire        INCDEC  = ({opcode[7:6], opcode[2:0]} == 5'b11_1_10) || /* INC/DEC */
-                      ({opcode[7],   opcode[2:0]} == 4'b0__1_10);   /* Сдвиговые */
-
 wire        Latency = Cout | (opcode[7:5] == 3'b100) | INCDEC; /* STA, Cout, Сдвиговые */
 wire [4:0]  LATAD   = Latency ? `LAT1 : `EXEC; /* Код адреса при Latency */
+
+/* Определить безусловный Latency для Inc, Dec и сдвиговых */
+wire        INCDEC  = ({opcode[7:6], opcode[2:0]} == 5'b11_1_10) ||
+                      ({opcode[7],   opcode[2:0]} == 4'b0__1_10);
 
 /* Исполнение микрокода */
 always @(posedge CLK) begin
@@ -90,7 +98,7 @@ always @(posedge CLK) begin
 
         /* ИНИЦИАЛИЗАЦИЯ */
         4'h0: begin
-
+        
             casex (DIN)
 
                 8'bxxx_000_x1: begin MS <= `NDX; HOP <= 1'b1; end // Indirect, X
@@ -98,7 +106,7 @@ always @(posedge CLK) begin
                 8'b1xx_000_x1: begin MS <= `IMM; HOP <= 1'b1; end
                 8'bxxx_100_x1: begin MS <= `NDY; HOP <= 1'b1; end // Indirect, Y
                 8'bxxx_110_x1: begin MS <= `ABY; HOP <= 1'b1; end // Absolute, Y
-                8'bxxx_001_xx: begin MS <= `ZP;  HOP <= 1'b1; end  // ZeroPage
+                8'bxxx_001_xx: begin MS <= `ZP;  HOP <= 1'b1; end // ZeroPage
                 8'bxxx_011_xx, // Absolute
                 8'b001_000_00: begin MS <= `ABS; HOP <= 1'b1; end
                 8'b10x_101_1x: begin MS <= `ZPY; HOP <= 1'b1; end // ZeroPage, Y
@@ -110,12 +118,17 @@ always @(posedge CLK) begin
                 default:       begin MS <= `IMP; HOP <= 1'b0; end
 
             endcase
+            
+            // if (NMI) --- PC, IRQ, opcode=00
 
+            opcode  <= DIN;   /* Принять новый опкод */
             PC      <= PCINC; /* PC++ */
+            IRQ     <= 2'b11; /* Для BRK -> $FFFE */
+
+            /* Нормализовать указатели */
             AS      <= 1'b0;  /* Указатель стека */
             RD      <= 1'b0;  /* Для PPU */
             WREQ    <= 1'b0;  /* Отключение записи в память EA */
-            opcode  <= DIN;   /* Принять новый опкод */
 
         end
 
@@ -135,36 +148,36 @@ always @(posedge CLK) begin
 
         /* ZP */
         // -------------------------------------------------------------
-        4'h7: begin MS <= `EXEC; EA <= DIN;       RD <= 1'b1; AM <= 1'b1; end
+        4'h7: begin MS <= `EXEC; EA <= DIN;       {AM, RD} <= 2'b11; end
 
         /* ZP,X */
         // -------------------------------------------------------------
-        4'h8: begin MS <= `LAT1; EA <= XDin[7:0]; RD <= 1'b1; AM <= 1'b1; end
+        4'h8: begin MS <= `LAT1; EA <= XDin[7:0]; {AM, RD} <= 2'b11; end
 
         /* ZP,Y */
         // -------------------------------------------------------------
-        4'h9: begin MS <= `LAT1; EA <= YDin[7:0]; RD <= 1'b1; AM <= 1'b1; end
+        4'h9: begin MS <= `LAT1; EA <= YDin[7:0]; {AM, RD} <= 2'b11; end
 
         /* Absolute */
         // -------------------------------------------------------------
-        4'hA: begin MS <= MSINC; TR <= DIN;    PC <= PCINC;  end
+        4'hA: begin MS <= MSINC; TR <= DIN; PC <= PCINC;  end
         4'hB: 
         
             /* JMP ABS */
             if (opcode == 8'h4C) 
-                 begin PC <= EADIN; MS <= 1'b0; end
-            else begin AM <= 1'b1;  MS <= `EXEC; EA <= EADIN; RD <= 1'b1; end
+                 begin MS <= 1'b0;  PC <= EADIN; end
+            else begin MS <= `EXEC; EA <= EADIN; {AM, RD} <= 2'b11; end
             
 
         /* Absolute,X */
         // -------------------------------------------------------------
         4'hC: begin MS <= MSINC; TR <= XDin[7:0]; PC <= PCINC; Cout <= XDin[8]; end
-        4'hD: begin MS <= LATAD; EA <= EADIH;     RD <= 1'b1;  AM <= 1'b1; end
+        4'hD: begin MS <= LATAD; EA <= EADIH;     {AM, RD} <= 2'b11; end
 
         /* Absolute,Y */
         // -------------------------------------------------------------
         4'hE: begin MS <= MSINC; TR <= YDin[7:0]; PC <= PCINC; Cout <= YDin[8]; end
-        4'hF: begin MS <= LATAD; EA <= EADIH;     RD <= 1'b1;  AM <= 1'b1; end
+        4'hF: begin MS <= LATAD; EA <= EADIH;     {AM, RD} <= 2'b11; end
 
         /* Отложенный такт (для адресации) */
         `LAT1: MS <= `EXEC;
@@ -178,8 +191,8 @@ always @(posedge CLK) begin
         /* Исполнение инструкции */
         `EXEC: begin
 
-            RD  <= 1'b0;
-            PCL <= PC[7:0];
+            RD  <= 1'b0;    /* Сброс такта для PPU */
+            PCL <= PC[7:0]; /* Для JSR */
 
             /* Инкремент PC по завершении разбора адреса */
             if (HOP) PC <= PCINC; 
@@ -190,7 +203,7 @@ always @(posedge CLK) begin
                 8'b100_xxx_01, 
                 8'b100_xx1_x0: {AM, MS, WREQ, DOUT} <= {1'b0, 5'h0,  1'b1, AR[7:0]};
                 
-                /* JMP Indirect */
+                /* JMP (IND) */
                 8'b011_011_00: {MS, TR, EA} <= {MSINC, DIN, EA};
 
                 /* ROL/ROR/ASR/LSR/DEC/INC <mem> */
@@ -200,8 +213,11 @@ always @(posedge CLK) begin
                 /* JSR: Записываем в стек */
                 8'b001_000_00: {AS, MS, WREQ, DOUT} <= {1'b1, MSINC, 1'b1, PC[15:8]};
                 
-                /* RTS */
-                8'b011_000_00: {AS, MS} <= {1'b1, MSINC};
+                /* BRK */
+                8'b000_000_00: {AS, MS, WREQ, DOUT} <= {1'b1, MSINC, 1'b1, PCINC[15:8]};
+                
+                /* RTS, RTI */
+                8'b01x_000_00: {AS, MS} <= {1'b1, MSINC};
                 
                 /* PHP */
                 8'b000_010_00: {AS, MS, WREQ, DOUT} <= {1'b1, MSINC, 1'b1, P[7:6], 2'b11, P[3:0]};                
@@ -224,29 +240,44 @@ always @(posedge CLK) begin
         
         `EXEC2: casex (opcode)
         
-            8'b001_000_00: begin MS <= MSINC; DOUT <= PCL; end      /* JSR */
-            8'b011_000_00: begin MS <= MSINC; PC[7:0] <= DIN; end   /* RTS */
-            8'b011_011_00: begin MS <= 1'b0;  PC <= EADIN; AM <= 1'b0;  end /* JMP IND */
-            8'b0x0_010_00: begin MS <= 1'b0; {AM, AS, WREQ} <= 3'b000; end /* PHP, PHA */
-                  default: begin MS <= MSINC; {AM, AS, WREQ} <= 3'b000; end
+            /* JSR */ 8'b001_000_00: begin MS <= MSINC; DOUT <= PCL; end      
+            /* BRK */ 8'b000_000_00: begin MS <= MSINC; DOUT <= PC[7:0]; end  
+            /* RTS */ 8'b011_000_00: begin MS <= MSINC; PC[7:0] <= DIN; end   
+            /* RTI */ 8'b010_000_00: begin MS <= MSINC; end 
+            /* JMP */ 8'b011_011_00: begin MS <= 1'b0;  PC <= EADIN; AM <= 1'b0; end  /* Indirect */
+            /* PHx */ 8'b0x0_010_00: begin MS <= 1'b0;  {AM, AS, WREQ} <= 3'b000; end /* PHP, PHA */
+                            default: begin MS <= MSINC; {AM, AS, WREQ} <= 3'b000; end
         
         endcase
                 
         `EXEC3: casex (opcode)
         
-            8'b001_000_00: begin MS <= 1'b0; PC <= EA; {AS, WREQ, AM} <= 3'b000; end /* JSR */
-            8'b011_000_00: begin MS <= MSINC; PC[15:8] <= DIN; end /* RTS */
-                  default: begin MS <= 1'b0; end
+            /* BRK */ 8'b000_000_00: begin MS <= MSINC; DOUT <= {P[7:5], 1'b1, P[3:0]}; end     
+            /* JSR */ 8'b001_000_00: begin MS <= 1'b0;  PC <= EA; {AS, WREQ, AM} <= 3'b000; end 
+            /* RTS */ 8'b011_000_00: begin MS <= MSINC; PC[15:8] <= DIN; end 
+            /* RTI */ 8'b010_000_00: begin MS <= MSINC; PC[7:0] <= DIN;  end 
+                            default: begin MS <= 1'b0; end
                   
         endcase
         
         `EXEC4: casex (opcode)
-        
-            8'b011_000_00: begin MS <= `REL2; /* +1T */ {AS, AM} <= 2'b00; PC <= PCINC; end /* RTS */
-            8'b0x1_010_00: begin MS <= MSINC; AS <= 1'b0; end /* PLP, PLA */
+
+            /* BRK */ 8'b000_000_00: begin MS <= MSINC; {AS, AM, WREQ} <= 3'b010; EA <= {12'hFFF, 1'b0, IRQ, 1'b1}; end 
+            /* RTS */ 8'b011_000_00: begin MS <= `REL2; /* +1T */ {AS, AM} <= 2'b00; PC <= PCINC; end 
+            /* RTI */ 8'b010_000_00: begin MS <= MSINC; AS <= 1'b0; PC[15:8] <= DIN; end 
+            /* PLx */ 8'b0x1_010_00: begin MS <= MSINC; AS <= 1'b0; end /* PLA, PLP */
             
         endcase
+                
+        `EXEC5: casex (opcode)
         
+            /* BRK */ 8'b000_000_00: begin MS <= MSINC; TR <= DIN; EA <= EAINC; end
+            /* RTI */ 8'b010_000_00: begin MS <= 1'b0; end
+        
+        endcase        
+        
+        /* BRK */
+        `EXEC6: begin MS <= MSINC; AM <= 1'b0; PC <= EADIN;  end        
 
         /* Исполнение инструкции B<cc> */
         // -------------------------------------------------------------
@@ -278,7 +309,8 @@ always @* begin
     SW  = 1'b0;  /* Stack Write */
     ACC = 1'b0;
     BR  = 1'b0; /* Условие выполнения Branch */
-
+    SEI = 1'b0; /* Set Interrupt Flag */
+    
     case (opcode[7:6])
                         
         /* S */ 2'b00: BR = (P[7] == opcode[5]);
@@ -346,8 +378,8 @@ always @* begin
         8'b100_010_10: {alu, RB, FW, WR} = 8'b0101_01_11; /* TXA */        
         8'b101_110_10: {alu, RB, RA, FW, WR} = 10'b0101_11_01_11; /* TSX */
         
-        /* RTS, PLP, PLA */
-        8'b011_000_00,
+        /* RTS, RTI, PLP, PLA */
+        8'b01x_000_00,
         8'b0x1_010_00: {alu, RB, SW} = 7'b1111_11_1; /* S = S+1 */
         
     endcase
@@ -355,24 +387,28 @@ always @* begin
     /* Специальные инструкции управления */
     `EXEC2: casex (opcode)
         
-        8'b011_000_00: {alu, RB, SW} = 7'b1111_11_1; /* RTS */
+        8'b010_000_00: {alu, RB, SW, RA, WR} = 10'b1111_11_1_11_1; /* RTI */
+        8'b011_000_00: {alu, RB, SW}         =  7'b1111_11_1;      /* RTS */
         8'b001_000_00,
-        8'b0x0_010_00: {alu, RB, SW} = 7'b1110_11_1; /* JSR, PHP, PHA */             
-        8'b001_010_00: {RA, WR}      = 3'b11_1;      /* PLP */
+        8'b000_000_00,
+        8'b0x0_010_00: {alu, RB, SW}     = 7'b1110_11_1;  /* JSR, BRK, PHP, PHA */             
+        8'b001_010_00: {RA, WR}          = 3'b11_1;       /* PLP */
         8'b011_010_00: {RA, WR, FW, alu} = 8'b00_11_0101; /* PLA */
     
     endcase
     
     `EXEC3: casex (opcode)
-
-        /* JSR */
-        8'b001_000_00: {alu, RB, SW} = 7'b1110_11_1;
+        
+        /* BRK */ 8'b000_000_00, 
+        /* JSR */ 8'b001_000_00,
+        /* RTI */ 8'b010_000_00: {alu, RB, SW} = 7'b1111_11_1;      
     
     endcase
-    
+
+    /* BRK */
+    `EXEC4: {alu, RB, SW, SEI} = 7'b1110_11_1;
+        
     endcase
-
-
 
 end
 
@@ -389,7 +425,9 @@ always @(posedge CLK) begin
     endcase
 
     /* Писать флаги */
-    if (WR && RA == 2'b11) /* PLP */
+    if (SEI)
+        P <= {P[7:3], 1'b1, P[1:0]};
+    else if (WR && RA == 2'b11) /* PLP */
         P <= DIN;
     else if (FW)  
         P <= AF;
@@ -403,22 +441,21 @@ end
 // ---------------------------------------------------------------------
 
 reg [3:0] alu = 4'h0;
-reg [1:0] RA = 2'b00;
+reg [1:0] RA = 2'b00; 
 reg [1:0] RB = 2'b00;
-reg [7:0] Ax;
-reg [7:0] Bx;
-reg [7:0] AR;
-reg [7:0] AF;
+reg [7:0] Ax; reg [7:0] Bx;
+reg [7:0] AR; reg [7:0] AF;
 
 always @* begin
 
-    case (RA)
+    /* Операнд A */
+    casex (RA)
         2'b00: Ax = A;
         2'b01: Ax = X;
-        2'b10: Ax = Y;
-        2'b11: Ax = 0;
+        2'b1x: Ax = Y; /* b11 Неиспользуемый */
     endcase
 
+    /* Операнд B */
     case (RB)
         2'b00: Bx = (ACC ? A : DIN);
         2'b01: Bx = X;
