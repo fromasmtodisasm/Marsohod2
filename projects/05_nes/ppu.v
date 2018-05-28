@@ -19,6 +19,7 @@ module ppu(
     /* Знакогенератор */
     output  reg  [12:0] faddr,
     input   wire [ 7:0] fdata
+    
 );
 
 // Тайминги для горизонтальной развертки (640)
@@ -49,6 +50,9 @@ reg [9:0]   y = 1'b0;
 wire [9:0]  X = x - 64 + 16;
 wire [9:0]  Y = y;
 
+/* Палитра в регистрах PPU */
+reg [5:0]   PALBG[16];
+
 /* Параметры видеоадаптера */
 reg         bankbg = 1'b1;      /* Выбранный банк для отрисовки фона */
 
@@ -64,14 +68,35 @@ reg  [1:0]  colorpad;   /* Атрибуты */
 reg  [15:0] colormap;   /* Цвета битов */
 
 /* Текущий рисуемый цвет фона */
-wire [3:0]  current_color = {colorpad, colormap[ {X[3:1], 1'b1} ], colormap[ {X[3:1], 1'b0} ]};
+wire [3:0]  curclr = {colorpad, colormap[ {X[3:1], 1'b1} ], colormap[ {X[3:1], 1'b0} ]};
 
 /* Два дополнительных бита из ATTR секции VRAM */
 wire [1:0]  cpad = {hiclr[ {Y[5], X[5], 1'b1} ],  /* 7531 */
                     hiclr[ {Y[5], X[5], 1'b0} ]}; /* 6420 */
-                
-// !! Temporary !!                
-wire [5:0] color = current_color;
+
+// Транслируем в конечный цвет
+wire [5:0] color = PALBG[ (curclr[1:0] == 2'b00) ? 4'h0 : curclr[3:0] ];
+
+initial begin
+
+    /* 0 */  PALBG[0]  = 5'h12;
+    /* 1 */  PALBG[1]  = 5'h16;
+    /* 2 */  PALBG[2]  = 5'h30;
+    /* 3 */  PALBG[3]  = 5'h38;
+    /* 4 */
+    /* 5 */  PALBG[5]  = 5'h17;
+    /* 6 */  PALBG[6]  = 5'h26;
+    /* 7 */  PALBG[7]  = 5'h07;
+    /* 8 */
+    /* 9 */  PALBG[9]  = 5'h16;
+    /* 10 */ PALBG[10] = 5'h00;
+    /* 11 */ PALBG[11] = 5'h30;
+    /* 12 */
+    /* 13 */ PALBG[13] = 5'h38;
+    /* 14 */ PALBG[14] = 5'h28;
+    /* 15 */ PALBG[15] = 5'h10;
+
+end
                 
 // Частота видеоадаптера VGA 25 Mhz
 always @(posedge CLK25) begin
@@ -150,19 +175,20 @@ always @(posedge CLK25) begin
 
 end
 
+/* Преобразования номера цвета палитры в реальный */
 always @* case (color)
 
-    6'd0: rgb = 16'h73ae;
-	6'd1: rgb = 16'h88c4;
-	6'd2: rgb = 16'ha800;
-	6'd3: rgb = 16'h9808;
-	6'd4: rgb = 16'h7011;
-	6'd5: rgb = 16'h1015;
-	6'd6: rgb = 16'h14;
-	6'd7: rgb = 16'h4f;
-	6'd8: rgb = 16'h168;
-	6'd9: rgb = 16'h220;
-	6'd10: rgb = 16'h280;
+    6'd0:  rgb = 16'h73ae;
+	6'd1:  rgb = 16'h88c4;
+	6'd2:  rgb = 16'ha800;
+	6'd3:  rgb = 16'h9808;
+	6'd4:  rgb = 16'h7011;
+	6'd5:  rgb = 16'h1015;
+	6'd6:  rgb = 16'h0014;
+	6'd7:  rgb = 16'h004f;
+	6'd8:  rgb = 16'h0168;
+	6'd9:  rgb = 16'h0220;
+	6'd10: rgb = 16'h0280;
 	6'd11: rgb = 16'h11e0;
 	6'd12: rgb = 16'h59e3;
 	6'd16: rgb = 16'hbdf7;
@@ -171,11 +197,11 @@ always @* case (color)
 	6'd19: rgb = 16'hf010;
 	6'd20: rgb = 16'hb817;
 	6'd21: rgb = 16'h581c;
-	6'd22: rgb = 16'h15b;
-	6'd23: rgb = 16'ha79;
-	6'd24: rgb = 16'h391;
-	6'd25: rgb = 16'h4a0;
-	6'd26: rgb = 16'h540;
+	6'd22: rgb = 16'h015b;
+	6'd23: rgb = 16'h0a79;
+	6'd24: rgb = 16'h0391;
+	6'd25: rgb = 16'h04a0;
+	6'd26: rgb = 16'h0540;
 	6'd27: rgb = 16'h3c80;
 	6'd28: rgb = 16'h8c00;
 	6'd32: rgb = 16'hffff;

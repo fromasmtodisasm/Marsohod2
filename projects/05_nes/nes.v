@@ -127,7 +127,7 @@ ppu PPU(
     
     /* Знакогенератор */
     .faddr  (addr_frd),
-    .fdata  (data_frd),
+    .fdata  (data_frd),   
     
 );
 
