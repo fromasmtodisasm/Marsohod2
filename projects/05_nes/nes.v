@@ -56,20 +56,21 @@ module nes(
 );
 // --------------------------------------------------------------------------
 
+reg  [1:0]  div;
+wire        clk25 = div[1];
+
 wire [15:0] address;        /* Чтение */    
-wire [15:0] wraddr;         /* Запись */
+wire [15:0] waddr;          /* Запись в память */
 reg  [ 7:0] din;
 wire [ 7:0] dout;
 wire        mreq;
 
-// ----------------- TEST
+// --------------------------------------------------------------------------
+always @(posedge clk) div <= div + 1'b1;
 
-always @(posedge clk) din <= din + 1'b1;
-assign sdram_addr = address[11:0];
-wire clk17 = clk; /* временно */
+// --------------------------------------------------------------------------
 
-// -----------------
-
+/*
 cpu C6502(
     
     .CLK    ( clk17 ),          // 1.71 МГц
@@ -77,20 +78,57 @@ cpu C6502(
     .ADDR   ( address ),        // Адрес программы или данных
     .DIN    ( din ),            // Входящие данные
     .DOUT   ( dout ),           // Исходящие данные
-    .EAWR   ( wraddr ),         // Эффективный адрес
+    .EAWR   ( waddr ),          // Эффективный адрес
     .WREQ   ( wreq ),           // =1 Запись в память по адресу EA
 );
-    
+*/
 
-/*
+// --------------------------------------------------------------------------
+
+wire [10:0] addr_vrd; // 2048
+wire [12:0] addr_frd; // 8192
+wire [ 7:0] data_vrd;
+wire [ 7:0] data_frd;
+
+vram VRAM(
+
+    /* Для чтения из PPU */
+    .clock   (clk),
+    .addr_rd (addr_vrd),
+    .q       (data_vrd),
+    
+    /* Для записи из PPU */
+
+);
+
+romchr CHRROM(
+
+    /* Для чтения из PPU */
+    .clock   (clk),
+    .addr_rd (addr_frd),
+    .q       (data_frd),
+    
+    /* Для записи из программатора */
+
+);
+
 ppu PPU(
-    .osc_clock (clk),
+    
+    .CLK25  (clk25),
     .red    (vga_red),
     .green  (vga_green),
     .blue   (vga_blue),
     .hs     (vga_hs),
-    .vs     (vga_vs)
+    .vs     (vga_vs),
+    
+    /* Видеопамять (2Кб) */
+    .vaddr  (addr_vrd),
+    .vdata  (data_vrd),
+    
+    /* Знакогенератор */
+    .faddr  (addr_frd),
+    .fdata  (data_frd),
+    
 );
-*/
 
 endmodule
