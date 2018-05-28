@@ -46,19 +46,10 @@ assign vs = y >= (vert_visible  + vert_front)  && y < (vert_visible  + vert_fron
 reg [9:0]   x = 1'b0; // 2^10 = 1024 точек возможно
 reg [9:0]   y = 1'b0;
 
-/* Реальные значения X,Y, начинаются с (0, 0) */
-wire [9:0]  X = x - 64 + 16;
-wire [9:0]  Y = y;
-
-/* Палитра в регистрах PPU */
-reg [5:0]   PALBG[16];
-
 /* Параметры видеоадаптера */
 reg         bankbg = 1'b1;      /* Выбранный банк для отрисовки фона */
-
-
-//reg  [5:0]  color;      /* Запрос цвета из палитры */
-reg  [15:0] rgb;        /* Данные из стандартной палитры PPL */
+reg  [5:0]  PALBG[16];          /* Палитра в регистрах PPU */
+reg  [15:0] rgb;                /* Данные из стандартной палитры PPL */
 
 /* Данные для рендеринга */
 reg  [7:0]  chrl;
@@ -67,15 +58,15 @@ reg  [7:0]  hiclr;      /* 3=[7:6] 2=[5:4] 1=[3:2] 0=[1:0] */
 reg  [1:0]  colorpad;   /* Атрибуты */
 reg  [15:0] colormap;   /* Цвета битов */
 
-/* Текущий рисуемый цвет фона */
-wire [3:0]  curclr = {colorpad, colormap[ {X[3:1], 1'b1} ], colormap[ {X[3:1], 1'b0} ]};
-
 /* Два дополнительных бита из ATTR секции VRAM */
-wire [1:0]  cpad = {hiclr[ {Y[5], X[5], 1'b1} ],  /* 7531 */
-                    hiclr[ {Y[5], X[5], 1'b0} ]}; /* 6420 */
+wire [1:0]  cpad = {hiclr[ {PPUY[4], PPUX[4], 1'b1} ],  /* 7531 */
+                    hiclr[ {PPUY[4], PPUX[4], 1'b0} ]}; /* 6420 */
+
+/* Текущий рисуемый цвет фона */
+wire [3:0]  curclr = {colorpad, colormap[ {PPUX[2:0], 1'b1} ], colormap[ {PPUX[2:0], 1'b0} ]};
 
 // Транслируем в конечный цвет
-wire [5:0] color = PALBG[ (curclr[1:0] == 2'b00) ? 4'h0 : curclr[3:0] ];
+wire [5:0]  color = PALBG[ (curclr[1:0] == 2'b00) ? 4'h0 : curclr[3:0] ];
 
 initial begin
 
@@ -95,6 +86,86 @@ initial begin
     /* 13 */ PALBG[13] = 5'h38;
     /* 14 */ PALBG[14] = 5'h28;
     /* 15 */ PALBG[15] = 5'h10;
+
+end
+
+reg       DE2P = 1'b0; /* Уменьшители частоты */
+reg       DE2Y = 1'b0; /* Деление сканлайна на 2 */
+reg [8:0] PPUX = 1'b0; /* Положение X в сканлайне [0..340]=341T */
+reg [8:0] PPUY = 1'b0; /* Положение Y в сканлайне [0..261]=262T */
+
+// Тайминги PPU 341 x 262
+// https://wiki.nesdev.com/w/index.php/Clock_rate
+always @(posedge CLK25) begin
+
+    /* Сброс регистров таймингов PPU */
+    if (x == 0 && y == 0) begin
+    
+        DE2P <= 1'b0;
+    
+    end
+
+    /* Пропуск 64 тактов (25 Mhz), потом 341T по 2T на частоте 25 Мгц */
+    /* -16 для того, чтобы PPU успел подготовить данные. 525-я линия Y не используется */
+    else if (x > (64 - 16) && x <= (746 - 16)) DE2P <= ~DE2P;    
+        
+end
+
+/* ~ 5,3675 Mhz: PPUX=[0..340], PPUY=[0..261] */
+always @(posedge DE2P) begin
+
+    // PPUX, PPUY могут быть замещены
+    
+    case (PPUX[2:0])
+        
+        /* Прочитаем из памяти символ 8x8 */
+        3'h0: begin vaddr <= {PPUY[7:3], PPUX[7:3]}; /* 32x30 */ end
+        
+        /* Начнем чтение CHR (BA=0, CHR=00000000, B=0, Y=000} */
+        3'h1: begin faddr <= {bankbg, vdata[7:0], 1'b0, PPUY[2:0]}; end
+        
+        /* Чтение верхней палитры знакогенератора */
+        3'h2: begin faddr <= {bankbg, vdata[7:0], 1'b1, PPUY[2:0]}; chrl <= fdata; end
+                    
+        /* Палитра прочитана, читаем дополнительную палитру */
+        3'h3: begin vaddr <= { 4'b1111, PPUY[7:5], PPUX[7:5] }; chrh <= fdata; end            
+        
+        /* Читать данные, завершены */
+        3'h4: begin hiclr <= vdata; end
+        
+        /* Итоговый результат */
+        3'h7: begin
+            
+            /* Старшие цвета пикселей */
+            colorpad <= cpad;
+            
+            /* Нижние цвета пикселей */
+            colormap <= {/* BIT 7 */ chrh[0], chrl[0], /* BIT 6 */ chrh[1], chrl[1], 
+                         /* BIT 5 */ chrh[2], chrl[2], /* BIT 4 */ chrh[3], chrl[3],
+                         /* BIT 3 */ chrh[4], chrl[4], /* BIT 2 */ chrh[5], chrl[5], 
+                         /* BIT 1 */ chrh[6], chrl[6], /* BIT 0 */ chrh[7], chrl[7]};
+
+        end
+
+    endcase
+
+    // 525-й такт, не используемый в NES
+    if (y == vert_whole - 1) PPUY <= 1'b0;
+
+    // Конец сканлайна (341 пиксель)
+    else if (PPUX == 9'd340) begin
+    
+        PPUX <= 1'b0;
+        DE2Y <= ~DE2Y;
+        
+        /* Второй сканлайн НЕ учитывается. При достижении 261-го, сбросить до 0 */
+        if (DE2Y) PPUY <= PPUY + 1'b1; // (PPUY == 9'd261 ? 1'b0 : PPUY + 1'b1;
+                
+    end else begin
+    
+        PPUX <= PPUX + 1'b1;
+
+    end
 
 end
                 
@@ -119,39 +190,6 @@ always @(posedge CLK25) begin
 
     if (x < horiz_visible && y < vert_visible) begin
     
-        case (x[3:0])
-        
-            /* Прочитаем из памяти символ 8x8 */
-            4'h0: begin vaddr <= { Y[8:4], X[8:4] }; /* 32x30 */ end
-            
-            /* Начнем чтение CHR (BA=0, CHR=00000000, B=0, Y=000} */
-            4'h1: begin faddr <= {bankbg, vdata[7:0], 1'b0, Y[3:1]}; end
-            
-            /* Чтение верхней палитры знакогенератора */
-            4'h2: begin faddr <= {bankbg, vdata[7:0], 1'b1, Y[3:1]}; chrl <= fdata; end
-                        
-            /* Палитра прочитана, читаем дополнительную палитру */
-            4'h3: begin vaddr <= { 4'b1111, Y[8:6], X[8:6] }; chrh <= fdata; end            
-            
-            /* Читать данные, завершены */
-            4'h4: begin hiclr <= vdata; end
-            
-            /* Итоговый результат */
-            4'hF: begin
-                
-                /* Старшие цвета пикселей */
-                colorpad <= cpad;
-                
-                /* Нижние цвета пикселей */
-                colormap <= {/* BIT 7 */ chrh[0], chrl[0], /* BIT 6 */ chrh[1], chrl[1], 
-                             /* BIT 5 */ chrh[2], chrl[2], /* BIT 4 */ chrh[3], chrl[3],
-                             /* BIT 3 */ chrh[4], chrl[4], /* BIT 2 */ chrh[5], chrl[5], 
-                             /* BIT 1 */ chrh[6], chrl[6], /* BIT 0 */ chrh[7], chrl[7]};
-
-            end
-
-        endcase
-
         // Экран Денди находится посередине
         if (x >= 64 && x < 576)
 
