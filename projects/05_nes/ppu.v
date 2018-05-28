@@ -11,15 +11,15 @@ module ppu(
     output  reg  [4:0]  blue,       // 5 бит на синий (4,3,2,1,0)
     output  wire        hs,         // синхросигнал горизонтальной развертки
     output  wire        vs,         // синхросигнал вертикальной развертки
-    
+
     /* Видеопамять (2Кб) */
     output  reg  [10:0] vaddr,
     input   wire [ 7:0] vdata,
-    
+
     /* Знакогенератор */
     output  reg  [12:0] faddr,
     input   wire [ 7:0] fdata
-    
+
 );
 
 // Тайминги для горизонтальной развертки (640)
@@ -94,55 +94,52 @@ reg       DE2Y = 1'b0; /* Деление сканлайна на 2 */
 reg [8:0] PPUX = 1'b0; /* Положение X в сканлайне [0..340]=341T */
 reg [8:0] PPUY = 1'b0; /* Положение Y в сканлайне [0..261]=262T */
 
-// Тайминги PPU 341 x 262
-// https://wiki.nesdev.com/w/index.php/Clock_rate
+// Тайминги PPU 341 x 262 линии
+// https://wiki.nesdev.com/w/index.php/Clock_rate (NTSC)
+
 always @(posedge CLK25) begin
 
     /* Сброс регистров таймингов PPU */
-    if (x == 0 && y == 0) begin
-    
-        DE2P <= 1'b0;
-    
-    end
+    if (x == 0 && y == 0) DE2P <= 1'b0;
 
     /* Пропуск 64 тактов (25 Mhz), потом 341T по 2T на частоте 25 Мгц */
     /* -16 для того, чтобы PPU успел подготовить данные. 525-я линия Y не используется */
-    else if (x > (64 - 16) && x <= (746 - 16)) DE2P <= ~DE2P;    
-        
+    else if (x > (64 - 16) && x <= (746 - 16)) DE2P <= ~DE2P;
+
 end
 
 /* ~ 5,3675 Mhz: PPUX=[0..340], PPUY=[0..261] */
 always @(posedge DE2P) begin
 
     // PPUX, PPUY могут быть замещены
-    
+
     case (PPUX[2:0])
-        
+
         /* Прочитаем из памяти символ 8x8 */
         3'h0: begin vaddr <= {PPUY[7:3], PPUX[7:3]}; /* 32x30 */ end
-        
+
         /* Начнем чтение CHR (BA=0, CHR=00000000, B=0, Y=000} */
         3'h1: begin faddr <= {bankbg, vdata[7:0], 1'b0, PPUY[2:0]}; end
-        
+
         /* Чтение верхней палитры знакогенератора */
         3'h2: begin faddr <= {bankbg, vdata[7:0], 1'b1, PPUY[2:0]}; chrl <= fdata; end
-                    
+
         /* Палитра прочитана, читаем дополнительную палитру */
-        3'h3: begin vaddr <= { 4'b1111, PPUY[7:5], PPUX[7:5] }; chrh <= fdata; end            
-        
+        3'h3: begin vaddr <= { 4'b1111, PPUY[7:5], PPUX[7:5] }; chrh <= fdata; end
+
         /* Читать данные, завершены */
         3'h4: begin hiclr <= vdata; end
-        
+
         /* Итоговый результат */
         3'h7: begin
-            
+
             /* Старшие цвета пикселей */
             colorpad <= cpad;
-            
+
             /* Нижние цвета пикселей */
-            colormap <= {/* BIT 7 */ chrh[0], chrl[0], /* BIT 6 */ chrh[1], chrl[1], 
+            colormap <= {/* BIT 7 */ chrh[0], chrl[0], /* BIT 6 */ chrh[1], chrl[1],
                          /* BIT 5 */ chrh[2], chrl[2], /* BIT 4 */ chrh[3], chrl[3],
-                         /* BIT 3 */ chrh[4], chrl[4], /* BIT 2 */ chrh[5], chrl[5], 
+                         /* BIT 3 */ chrh[4], chrl[4], /* BIT 2 */ chrh[5], chrl[5],
                          /* BIT 1 */ chrh[6], chrl[6], /* BIT 0 */ chrh[7], chrl[7]};
 
         end
@@ -154,21 +151,21 @@ always @(posedge DE2P) begin
 
     // Конец сканлайна (341 пиксель)
     else if (PPUX == 9'd340) begin
-    
+
         PPUX <= 1'b0;
         DE2Y <= ~DE2Y;
-        
+
         /* Второй сканлайн НЕ учитывается. При достижении 261-го, сбросить до 0 */
         if (DE2Y) PPUY <= PPUY + 1'b1; // (PPUY == 9'd261 ? 1'b0 : PPUY + 1'b1;
-                
+
     end else begin
-    
+
         PPUX <= PPUX + 1'b1;
 
     end
 
 end
-                
+
 // Частота видеоадаптера VGA 25 Mhz
 always @(posedge CLK25) begin
 
@@ -189,18 +186,18 @@ always @(posedge CLK25) begin
     // загружаются в области заднего порожека, и потом уже мы можем показать
 
     if (x < horiz_visible && y < vert_visible) begin
-    
+
         // Экран Денди находится посередине
         if (x >= 64 && x < 576)
 
             {red, green, blue} <= {rgb[4:0], rgb[10:5], rgb[15:11]};
-            
+
         else
             /* Сверху и снизу подсвечивается легким синим */
             {red, green, blue} <= {5'h03, 6'h03, 5'h03};
 
     end
-    
+
     // В невидимой области мы ДОЛЖНЫ очищать в черный цвет
     // иначе видеоадаптер работать будет неправильно
     else begin
@@ -263,12 +260,12 @@ always @* case (color)
 	6'd53: rgb = 16'hde3f;
 	6'd54: rgb = 16'hb5ff;
 	6'd55: rgb = 16'haedf;
-	6'd56: rgb = 16'ha73f; 
+	6'd56: rgb = 16'ha73f;
 	6'd57: rgb = 16'ha7fc;
 	6'd58: rgb = 16'hbf95;
 	6'd59: rgb = 16'hcff6;
 	6'd60: rgb = 16'hf7f3;
-	default: rgb = 1'b0; 
+	default: rgb = 1'b0;
 
 endcase
 
