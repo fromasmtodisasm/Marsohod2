@@ -26,22 +26,28 @@ wire        cpuclk;
 
 // Внутрисхемная память
 // ---------------------------------------------------------------------
-reg [ 7:0] memory[65536]; // 64 общая память
-reg [ 7:0] video[65536];  // видеопамять
+reg [ 7:0] sram[65536]; 
+reg [ 7:0] vram[2048]; /* Видеопамять */
+reg [ 7:0] crom[8192]; /* CHR-ROM */
 
 always @(posedge clk) begin
 
-    if (wreq) memory[ ea ] <= dout;
-
-    i_data <= memory[ address ];
+    /* SRAM */
+    if (wreq)  sram[ ea ] <= dout;
+    i_data  <= sram[ address ];
+    
+    /* VRAM */
+    if (vwreq) vram[ waddr ] <= wdata;
+    vin     <= vram[ waddr ];
+    fin     <= crom[ waddr ];
 
 end
 
 // Роутинг памяти (из PPU к процессору). Важно указывать именно address
 wire [7:0] din = (address[15:13] == 3'b001) ? ppu_dout : i_data;
 
-initial begin $readmemh("init/ram.hex", memory, 16'h0000); end
-initial begin $readmemh("init/rom.hex", memory, 16'h8000); end
+initial begin $readmemh("init/ram.hex", sram, 16'h0000); end
+initial begin $readmemh("init/rom.hex", sram, 16'h8000); end
 
 // Центральный процессор
 // ---------------------------------------------------------------------
@@ -55,6 +61,12 @@ wire [ 7:0] ppu_dout;
 wire [10:0] vaddr; wire [7:0] vdata;
 wire [12:0] faddr; wire [7:0] fdata;
 
+reg  [ 7:0] vin;
+reg  [ 7:0] fin;
+wire [ 7:0] wdata;
+wire [12:0] waddr;
+wire        vwreq;
+
 ppu PPU(
 
     /* 100 Mhz */
@@ -64,10 +76,11 @@ ppu PPU(
     red, green, blue, hs, vs, 
     
     /* VRAM */
-    vaddr, vdata, 
+    vaddr, vdata,               /* Чтение видеоадаптером */
+    vin, vwreq, waddr, wdata,   /* Чтение и запись */  
     
     /* CHR  */
-    faddr, fdata, 
+    faddr, fdata, fin,          /* Чтение из CHR-ROM */
     
     ppuclk, /* 5 Mhz */
     cpuclk, /* 1.6 Mhz */

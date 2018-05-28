@@ -48,7 +48,7 @@ initial begin EA = 16'h0000; WREQ = 1'b0; DOUT = 8'h00; RD = 1'b0; end
 
 /* Регистры */
 reg  [7:0]  A   = 8'h43;
-reg  [7:0]  X   = 8'h82;
+reg  [7:0]  X   = 8'h37;
 reg  [7:0]  Y   = 8'h80;
 reg  [7:0]  S   = 8'hFF;
 reg  [7:0]  P   = 8'b10000001;
