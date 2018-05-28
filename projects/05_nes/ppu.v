@@ -15,12 +15,30 @@ module ppu(
     /* Видеопамять (2Кб) */
     output  reg  [10:0] vaddr,
     input   wire [ 7:0] vdata,
+    // --- чтение и запись из памяти (2-х портовая)
 
     /* Знакогенератор */
     output  reg  [12:0] faddr,
-    input   wire [ 7:0] fdata
+    input   wire [ 7:0] fdata,
+
+    /* Исходящий PPU/CPU */
+    output  wire        CLKPPU,
+    output  reg         CLKCPU,
+    
+    /* Обмен данными с процессором */
+    input   wire [15:0] ea,         /* Запрошенный эффективный адрес */
+    input   wire [ 7:0] din,        /* Данные из процессора */
+    input   wire        rd,         /* Действие чтения из памяти */
+    input   wire        wreq,       /* Запрос на запись в PPU */
+    output  reg  [ 7:0] dout        /* Выход данных из PPU */
 
 );
+
+/* Валидный тайминг PPU (~5 Мгц) */
+assign CLKPPU = !DE2Y & DE2P;
+
+/* Инициализация */
+initial begin CLKCPU = 1'b0; dout = 8'h00; end
 
 // Тайминги для горизонтальной развертки (640)
 parameter horiz_visible = 640;
@@ -50,6 +68,8 @@ reg [9:0]   y = 1'b0;
 reg         bankbg = 1'b1;      /* Выбранный банк для отрисовки фона */
 reg  [5:0]  PALBG[16];          /* Палитра в регистрах PPU */
 reg  [15:0] rgb;                /* Данные из стандартной палитры PPL */
+reg  [1:0]  div = 2'b00;        /* CPU Clock */
+
 
 /* Данные для рендеринга */
 reg  [7:0]  chrl;
@@ -70,22 +90,22 @@ wire [5:0]  color = PALBG[ (curclr[1:0] == 2'b00) ? 4'h0 : curclr[3:0] ];
 
 initial begin
 
-    /* 0 */  PALBG[0]  = 5'h12;
-    /* 1 */  PALBG[1]  = 5'h16;
-    /* 2 */  PALBG[2]  = 5'h30;
-    /* 3 */  PALBG[3]  = 5'h38;
+    /* 0 */  PALBG[0]  = 6'h12;
+    /* 1 */  PALBG[1]  = 6'h16;
+    /* 2 */  PALBG[2]  = 6'h30;
+    /* 3 */  PALBG[3]  = 6'h38;
     /* 4 */
-    /* 5 */  PALBG[5]  = 5'h17;
-    /* 6 */  PALBG[6]  = 5'h26;
-    /* 7 */  PALBG[7]  = 5'h07;
+    /* 5 */  PALBG[5]  = 6'h17;
+    /* 6 */  PALBG[6]  = 6'h26;
+    /* 7 */  PALBG[7]  = 6'h07;
     /* 8 */
-    /* 9 */  PALBG[9]  = 5'h16;
-    /* 10 */ PALBG[10] = 5'h00;
-    /* 11 */ PALBG[11] = 5'h30;
+    /* 9 */  PALBG[9]  = 6'h16;
+    /* 10 */ PALBG[10] = 6'h00;
+    /* 11 */ PALBG[11] = 6'h30;
     /* 12 */
-    /* 13 */ PALBG[13] = 5'h38;
-    /* 14 */ PALBG[14] = 5'h28;
-    /* 15 */ PALBG[15] = 5'h10;
+    /* 13 */ PALBG[13] = 6'h38;
+    /* 14 */ PALBG[14] = 6'h28;
+    /* 15 */ PALBG[15] = 6'h10;
 
 end
 
@@ -93,6 +113,13 @@ reg       DE2P = 1'b0; /* Уменьшители частоты */
 reg       DE2Y = 1'b0; /* Деление сканлайна на 2 */
 reg [8:0] PPUX = 1'b0; /* Положение X в сканлайне [0..340]=341T */
 reg [8:0] PPUY = 1'b0; /* Положение Y в сканлайне [0..261]=262T */
+
+/* Регистры контроля */
+reg [7:0]  CTRL0 = 8'h0;
+reg [7:0]  CTRL1 = 8'h0;
+reg [7:0]  SPRADR = 8'h0;
+reg [15:0] SCROLL = 16'h0000; /* Аппаратный скроллинг */
+reg [15:0] WADDR  = 16'h0000; /* Видеоадрес */
 
 // Тайминги PPU 341 x 262 линии
 // https://wiki.nesdev.com/w/index.php/Clock_rate (NTSC)
@@ -108,12 +135,72 @@ always @(posedge CLK25) begin
 
 end
 
+/* Тайминг процессора (который в 3 раза медленнее PPU) */
+always @(posedge CLKPPU) begin
+
+    case (div)
+
+        2'b00: begin div <= 2'b01; CLKCPU <= 1'b1; end
+        2'b01: begin div <= 2'b10; CLKCPU <= 1'b0; end
+        2'b10: begin div <= 2'b00; end
+
+    endcase
+
+end
+
 /* ~ 5,3675 Mhz: PPUX=[0..340], PPUY=[0..261] */
 always @(posedge DE2P) begin
 
-    // PPUX, PPUY могут быть замещены
+    /* Запись/чтение в регистры PPU: на негативном фронте CPU */
+    if (div == 2'b01) begin
+    
+        // if wreq
+        case (ea)
+        
+            /* Регистр управления 1 */
+            16'h2000: if (wreq) CTRL0  <= din; 
+            
+            /* Регистр управления 2 */
+            16'h2001: if (wreq) CTRL1  <= din; 
+            
+            // 16'h2002            
+            
+            /* Адрес спрайта */
+            16'h2003: if (wreq) SPRADR <= din; 
+            
+            // 16'h2004
+                        
+            /* Установка данных о скроллинге */
+            16'h2005: if (wreq) SCROLL <= {SCROLL[7:0], din};
+            
+            /* Запись адреса */
+            16'h2006: if (wreq) WADDR  <= {WADDR[7:0], din};
+            
+            /* Запись данных */
+            16'h2007: begin
 
-    case (PPUX[2:0])
+                // if (wreq)
+                //WDATA <= din;
+                //WADDR <= WADDR + 1 или +32
+                
+            end
+        
+        endcase    
+    
+    end    
+
+    /* Видеопроцессор может отдавать данные только на Y = [240 .. 261], 22 сканлайна */    
+    /* Либо, когда выключен рендеринг */
+    if (PPUY >= 240) begin
+
+        // .. Используется как PPU Clk
+        // --- отслеживание запроса из CPU
+        
+        colorpad <= 2'b00;
+        colormap <= 16'h0000;
+
+    /* При рендеринге, vaddr / faddr заняты */
+    end else case (PPUX[2:0])
 
         /* Прочитаем из памяти символ 8x8 */
         3'h0: begin vaddr <= {PPUY[7:3], PPUX[7:3]}; /* 32x30 */ end
@@ -121,14 +208,12 @@ always @(posedge DE2P) begin
         /* Начнем чтение CHR (BA=0, CHR=00000000, B=0, Y=000} */
         3'h1: begin faddr <= {bankbg, vdata[7:0], 1'b0, PPUY[2:0]}; end
 
-        /* Чтение верхней палитры знакогенератора */
-        3'h2: begin faddr <= {bankbg, vdata[7:0], 1'b1, PPUY[2:0]}; chrl <= fdata; end
+        /* Чтение верхней палитры знакогенератора, а также дополнительной ATTR */
+        3'h2: begin faddr <= {bankbg, vdata[7:0], 1'b1, PPUY[2:0]}; chrl <= fdata;
+                    vaddr <= {4'b1111, PPUY[7:5],  PPUX[7:5] }; end
 
-        /* Палитра прочитана, читаем дополнительную палитру */
-        3'h3: begin vaddr <= { 4'b1111, PPUY[7:5], PPUX[7:5] }; chrh <= fdata; end
-
-        /* Читать данные, завершены */
-        3'h4: begin hiclr <= vdata; end
+        /* Палитра прочитана */
+        3'h3: begin hiclr <= vdata; chrh <= fdata; end
 
         /* Итоговый результат */
         3'h7: begin
@@ -152,15 +237,15 @@ always @(posedge DE2P) begin
     // Конец сканлайна (341 пиксель)
     else if (PPUX == 9'd340) begin
 
-        PPUX <= 1'b0;
+        PPUX <= 1'b0; // @TODO OVERRIDE SCROLL-X
         DE2Y <= ~DE2Y;
 
         /* Второй сканлайн НЕ учитывается. При достижении 261-го, сбросить до 0 */
-        if (DE2Y) PPUY <= PPUY + 1'b1; // (PPUY == 9'd261 ? 1'b0 : PPUY + 1'b1;
+        if (DE2Y) PPUY <= PPUY + 1'b1;  // @TODO OVERRIDE SCROLL-Y
 
     end else begin
 
-        PPUX <= PPUX + 1'b1;
+        PPUX <= PPUX + 1'b1; // @TODO OVERRIDE SCROLL-X
 
     end
 

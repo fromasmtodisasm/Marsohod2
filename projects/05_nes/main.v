@@ -10,9 +10,6 @@ always #0.5 clk = ~clk;
 initial begin clk = 1; #4000 $finish; end
 initial begin $dumpfile("nes.vcd"); $dumpvars(0, main); end
 
-wire        vga_clock;
-wire        ppu_clock;
-wire        cpu_clock;
 wire [4:0]  red;
 wire [5:0]  green;
 wire [4:0]  blue;
@@ -21,56 +18,62 @@ wire        vs;
 wire        rd;
 wire [15:0] address;
 wire [15:0] ea;
+wire [7:0]  dout;
 reg  [7:0]  i_data;
-wire [7:0]  o_data;
 wire        wreq;
+wire        ppuclk;
+wire        cpuclk;
 
 // Внутрисхемная память
 // ---------------------------------------------------------------------
 reg [ 7:0] memory[65536]; // 64 общая память
 reg [ 7:0] video[65536];  // видеопамять
-reg [ 7:0] i_latency = 1'b0;
 
 always @(posedge clk) begin
 
-    if (wreq) memory[ ea ] <= o_data;
-    
-    i_latency <= memory[ address ];
-    i_data    <= i_latency;
+    if (wreq) memory[ ea ] <= dout;
+
+    i_data <= memory[ address ];
 
 end
 
+// Роутинг памяти (из PPU к процессору). Важно указывать именно address
+wire [7:0] din = (address[15:13] == 3'b001) ? ppu_dout : i_data;
+
 initial begin $readmemh("init/ram.hex", memory, 16'h0000); end
-initial begin $readmemh("init/rom.hex", memory, 16'h8000); end 
+initial begin $readmemh("init/rom.hex", memory, 16'h8000); end
 
 // Центральный процессор
 // ---------------------------------------------------------------------
 
-// Формирование особой частоты для тестов
-reg cpuclock = 1'b0; 
-reg [2:0] div = 2'b00; 
-always @(posedge clk) if (div == 2'b10) 
-    begin div <= 1'b0; cpuclock <= ~cpuclock; end 
-    else  div <= div + 1'b1;
-
-cpu CPU( cpuclock, 1'b1, address, i_data, o_data, ea, wreq, rd);
+cpu CPU( cpuclk, 1'b1, address, din, dout, ea, wreq, rd);
 
 // Графический процессор
 // ---------------------------------------------------------------------
 
+wire [ 7:0] ppu_dout;
+wire [10:0] vaddr; wire [7:0] vdata;
+wire [12:0] faddr; wire [7:0] fdata;
+
 ppu PPU(
 
+    /* 100 Mhz */
     clk,
-    vga_clock,
-    ppu_clock,
-    cpu_clock,
-    red, 
-    green, 
-    blue, 
-    hs, 
-    vs
-
+    
+    /* VGA */
+    red, green, blue, hs, vs, 
+    
+    /* VRAM */
+    vaddr, vdata, 
+    
+    /* CHR  */
+    faddr, fdata, 
+    
+    ppuclk, /* 5 Mhz */
+    cpuclk, /* 1.6 Mhz */
+    
+    /* Данные на запись/чтение */
+    ea, dout, rd, wreq, ppu_dout
 );
 
-    
 endmodule

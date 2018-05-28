@@ -167,7 +167,7 @@ always @(posedge CLK) begin
             if (opcode == 8'h4C)
                  begin MS <= 1'b0;  PC <= EADIN; end
             else begin MS <= `EXEC; EA <= EADIN; {AM, RD} <= 2'b11; end
-            
+
         end
 
         /* Absolute,X */
@@ -424,11 +424,11 @@ always @(posedge CLK) begin
         2'b01: X <= AR;
         2'b10: Y <= AR;
     endcase
-    
+
     /* Флаги */
-    if (SEI) /* BRK I=1, B=1 */ P <= {P[7:5], 1'b1, P[3], 1'b1, P[1:0]};     
+    if (SEI) /* BRK I=1, B=1 */ P <= {P[7:5], 1'b1, P[3], 1'b1, P[1:0]};
     else if (WR && RA == 2'b11) P <= DIN; /* PLP, RTI */
-    else if (FW) /* Другие */   P <= AF;    
+    else if (FW) /* Другие */   P <= AF;
 
     /* Записать в регистр S результат */
     if (SW) S <= AR;
