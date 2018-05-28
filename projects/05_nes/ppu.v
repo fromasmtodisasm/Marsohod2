@@ -17,7 +17,7 @@ module ppu(
     input   wire [ 7:0] vdata,
     
     /* Знакогенератор */
-    output  reg  [10:0] faddr,
+    output  reg  [12:0] faddr,
     input   wire [ 7:0] fdata
 );
 
@@ -45,9 +45,34 @@ assign vs = y >= (vert_visible  + vert_front)  && y < (vert_visible  + vert_fron
 reg [9:0]   x = 1'b0; // 2^10 = 1024 точек возможно
 reg [9:0]   y = 1'b0;
 
-reg [5:0]   color;      /* Запрос цвета из палитры */
-reg [15:0]  rgb;        /* Данные из стандартной палитры PPL */
+/* Реальные значения X,Y, начинаются с (0, 0) */
+wire [9:0]  X = x - 64 + 16;
+wire [9:0]  Y = y;
 
+/* Параметры видеоадаптера */
+reg         bankbg = 1'b1;      /* Выбранный банк для отрисовки фона */
+
+
+//reg  [5:0]  color;      /* Запрос цвета из палитры */
+reg  [15:0] rgb;        /* Данные из стандартной палитры PPL */
+
+/* Данные для рендеринга */
+reg  [7:0]  chrl;
+reg  [7:0]  chrh;
+reg  [7:0]  hiclr;      /* 3=[7:6] 2=[5:4] 1=[3:2] 0=[1:0] */
+reg  [1:0]  colorpad;   /* Атрибуты */
+reg  [15:0] colormap;   /* Цвета битов */
+
+/* Текущий рисуемый цвет фона */
+wire [3:0]  current_color = {colorpad, colormap[ {X[3:1], 1'b1} ], colormap[ {X[3:1], 1'b0} ]};
+
+/* Два дополнительных бита из ATTR секции VRAM */
+wire [1:0]  cpad = {hiclr[ {Y[5], X[5], 1'b1} ],  /* 7531 */
+                    hiclr[ {Y[5], X[5], 1'b0} ]}; /* 6420 */
+                
+// !! Temporary !!                
+wire [5:0] color = current_color;
+                
 // Частота видеоадаптера VGA 25 Mhz
 always @(posedge CLK25) begin
 
@@ -68,11 +93,44 @@ always @(posedge CLK25) begin
     // загружаются в области заднего порожека, и потом уже мы можем показать
 
     if (x < horiz_visible && y < vert_visible) begin
+    
+        case (x[3:0])
+        
+            /* Прочитаем из памяти символ 8x8 */
+            4'h0: begin vaddr <= { Y[8:4], X[8:4] }; /* 32x30 */ end
+            
+            /* Начнем чтение CHR (BA=0, CHR=00000000, B=0, Y=000} */
+            4'h1: begin faddr <= {bankbg, vdata[7:0], 1'b0, Y[3:1]}; end
+            
+            /* Чтение верхней палитры знакогенератора */
+            4'h2: begin faddr <= {bankbg, vdata[7:0], 1'b1, Y[3:1]}; chrl <= fdata; end
+                        
+            /* Палитра прочитана, читаем дополнительную палитру */
+            4'h3: begin vaddr <= { 4'b1111, Y[8:6], X[8:6] }; chrh <= fdata; end            
+            
+            /* Читать данные, завершены */
+            4'h4: begin hiclr <= vdata; end
+            
+            /* Итоговый результат */
+            4'hF: begin
+                
+                /* Старшие цвета пикселей */
+                colorpad <= cpad;
+                
+                /* Нижние цвета пикселей */
+                colormap <= {/* BIT 7 */ chrh[0], chrl[0], /* BIT 6 */ chrh[1], chrl[1], 
+                             /* BIT 5 */ chrh[2], chrl[2], /* BIT 4 */ chrh[3], chrl[3],
+                             /* BIT 3 */ chrh[4], chrl[4], /* BIT 2 */ chrh[5], chrl[5], 
+                             /* BIT 1 */ chrh[6], chrl[6], /* BIT 0 */ chrh[7], chrl[7]};
+
+            end
+
+        endcase
 
         // Экран Денди находится посередине
         if (x >= 64 && x < 576)
-                
-            {red, green, blue} <= {5'h0F, x[0] ^ y[0] ? 6'h1F : 6'h00, 5'h0F};
+
+            {red, green, blue} <= {rgb[4:0], rgb[10:5], rgb[15:11]};
             
         else
             /* Сверху и снизу подсвечивается легким синим */
