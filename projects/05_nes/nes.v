@@ -79,9 +79,11 @@ cpu C6502(
 
 // --------------------------------------------------------------------------
 
+reg [1:0] div = 2'b00; always @(posedge clk) div <= div + 1'b1;
+
 ppu PPU(
     
-    .CLK25  (clk25),
+    .CLK25  (div[1]),
     .red    (vga_red),
     .green  (vga_green),
     .blue   (vga_blue),
@@ -144,7 +146,7 @@ romchr CHRROM(
     .q       (data_frd),
     
     /* Для записи из программатора */
-    .addr_rd (WADDR),
+    .addr_wr (WADDR),
     .qw      (VIN)
 
 );
