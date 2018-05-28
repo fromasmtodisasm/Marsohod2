@@ -89,6 +89,11 @@ wire [10:0] addr_vrd; // 2048
 wire [12:0] addr_frd; // 8192
 wire [ 7:0] data_vrd;
 wire [ 7:0] data_frd;
+wire [ 7:0] FIN;
+wire [ 7:0] VIN;
+wire [ 7:0] WDATA;
+wire [12:0] WADDR;
+wire        WVREQ;
 
 vram VRAM(
 
@@ -98,6 +103,10 @@ vram VRAM(
     .q       (data_vrd),
     
     /* Для записи из PPU */
+    .addr_wr (WADDR[10:0]),
+    .data_wr (WDATA),
+    .wren    (WVREQ),
+    .qw      (VIN),
 
 );
 
@@ -109,6 +118,8 @@ romchr CHRROM(
     .q       (data_frd),
     
     /* Для записи из программатора */
+    .addr_rd (WADDR),
+    .qw      (VIN)
 
 );
 
@@ -125,9 +136,15 @@ ppu PPU(
     .vaddr  (addr_vrd),
     .vdata  (data_vrd),
     
+    .VIN    (VIN),
+    .WVREQ  (WVREQ),
+    .WADDR  (WADDR),
+    .WDATA  (WDATA),    
+    
     /* Знакогенератор */
     .faddr  (addr_frd),
     .fdata  (data_frd),   
+    .FIN    (FIN),   
     
 );
 
