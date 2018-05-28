@@ -76,7 +76,8 @@ reg [9:0]   x = 1'b0; // 2^10 = 1024 точек возможно
 reg [9:0]   y = 1'b0;
 
 /* Параметры видеоадаптера */
-reg  [ 5:0] PALBG[16];          /* Палитра в регистрах PPU */
+reg  [ 5:0] PALBG[16];          /* Палитра фона в регистрах PPU */
+reg  [ 5:0] PALSP[16];          /* Палитра спрайтов в регистрах PPU */
 reg  [13:0] ADDR = 1'b0;        /* Адрес внутри PPU */
 reg  [ 1:0] div = 2'b00;        /* Формирование PPU/CPU clock */
 reg  [15:0] rgb;                /* Данные из стандартной палитры PPL */
@@ -208,7 +209,7 @@ always @(posedge DE2P) begin
     /* Запись / чтение */
     2'b01: begin
 
-        case (ea)
+        casex (ea)
 
             /* w/o Регистр управления 0 */
             16'h2000: if (WREQ) CTRL0  <= din;
@@ -259,6 +260,14 @@ always @(posedge DE2P) begin
                 end
 
             end
+            
+            /* Палитра фона */
+            16'h3F0x: if (WREQ) PALBG[ ea[3:0] ] <= din[5:0];
+                      else if (RD) DOUT <= PALBG[ ea[3:0] ];
+            
+            /* Палитра спрайтов */
+            16'h3F1x: if (WREQ) PALSP[ ea[3:0] ] <= din[5:0];  
+                      else if (RD) DOUT <= PALSP[ ea[3:0] ];          
 
         endcase
 

@@ -56,9 +56,6 @@ module nes(
 );
 // --------------------------------------------------------------------------
 
-reg  [1:0]  div;
-wire        clk25 = div[1];
-
 wire [15:0] address;        /* Чтение */    
 wire [15:0] waddr;          /* Запись в память */
 reg  [ 7:0] din;
@@ -66,15 +63,12 @@ wire [ 7:0] dout;
 wire        mreq;
 
 // --------------------------------------------------------------------------
-always @(posedge clk) div <= div + 1'b1;
-
-// --------------------------------------------------------------------------
 
 /*
 cpu C6502(
     
-    .CLK    ( clk17 ),          // 1.71 МГц
-    .CE     ( 1'b1 ),           // Готовность памяти
+    .CLK    ( CLKCPU ),         // 1.71 МГц
+    .CE     ( 1'b1 ),           // Временное блокирование исполнения (DMA Request)
     .ADDR   ( address ),        // Адрес программы или данных
     .DIN    ( din ),            // Входящие данные
     .DOUT   ( dout ),           // Исходящие данные
@@ -82,6 +76,38 @@ cpu C6502(
     .WREQ   ( wreq ),           // =1 Запись в память по адресу EA
 );
 */
+
+// --------------------------------------------------------------------------
+
+ppu PPU(
+    
+    .CLK25  (clk25),
+    .red    (vga_red),
+    .green  (vga_green),
+    .blue   (vga_blue),
+    .hs     (vga_hs),
+    .vs     (vga_vs),
+    
+    /* Тактовые частоты */
+    .CLKPPU (CLKPPU),
+    .CLKCPU (CLKCPU),
+    
+    /* Видеопамять (2Кб) */
+    .vaddr  (addr_vrd),
+    .vdata  (data_vrd),
+    
+    /* Обмен данными с видеопамятью */
+    .VIN    (VIN),
+    .WVREQ  (WVREQ),
+    .WADDR  (WADDR),
+    .WDATA  (WDATA),    
+    
+    /* Знакогенератор */
+    .faddr  (addr_frd),
+    .fdata  (data_frd),   
+    .FIN    (FIN),   
+    
+);
 
 // --------------------------------------------------------------------------
 
@@ -121,31 +147,6 @@ romchr CHRROM(
     .addr_rd (WADDR),
     .qw      (VIN)
 
-);
-
-ppu PPU(
-    
-    .CLK25  (clk25),
-    .red    (vga_red),
-    .green  (vga_green),
-    .blue   (vga_blue),
-    .hs     (vga_hs),
-    .vs     (vga_vs),
-    
-    /* Видеопамять (2Кб) */
-    .vaddr  (addr_vrd),
-    .vdata  (data_vrd),
-    
-    .VIN    (VIN),
-    .WVREQ  (WVREQ),
-    .WADDR  (WADDR),
-    .WDATA  (WDATA),    
-    
-    /* Знакогенератор */
-    .faddr  (addr_frd),
-    .fdata  (data_frd),   
-    .FIN    (FIN),   
-    
 );
 
 endmodule
