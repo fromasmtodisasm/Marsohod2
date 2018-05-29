@@ -78,7 +78,7 @@ wire [7:0]  din = sram_route ? Dram :               /* 0000-07FF SRAM */
                   ppu_route  ? Dppu :               /* 2000-3FFF PPU */
                   srom_route ? Drom : 8'h00;        /* 8000-FFFF ROM */
 
-always @(posedge clk) dlSRAM <= {dlSRAM[0], wreq};
+always @(posedge clk) dlSRAM <= {dlSRAM[0], CLKCPU};
 always @(posedge clk) dlVRAM <= {dlVRAM[0], WVREQ};
                   
 // --------------------------------------------------------------------------
@@ -269,10 +269,10 @@ sram SRAM(
     .addr_rd  (address[10:0]), // 2K
     .q        (Dram),
     
-    /* Запись */
+    /* Запись на обратном фронте CPU в память */
     .addr_wr  (address[10:0]),
     .data_wr  (dout),
-    .wren     (dlSRAM == 2'b01 && sram_write),
+    .wren     (dlSRAM == 2'b10 && wreq && sram_write),
 
 );
 

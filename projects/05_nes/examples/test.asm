@@ -3,11 +3,26 @@
                 
         lda #$10
         sta $2000
-        lda #$02        
+        
+        lda #$5B
+        jsr CLRSCR        
+TS
+        ; --------
+        lda #$20
+        sta $2006
+        lda #$00
+        sta $2006
 
-        jsr CLRSCR
+        ldx #$00
+WRTI        
+        lda MESG,X
+        beq INFLOOP
+        sta $2007
+        inx
+        jmp WRTI        
 
-       
+MESG
+        .text "debug monitor", 0
         
         
 INFLOOP        
