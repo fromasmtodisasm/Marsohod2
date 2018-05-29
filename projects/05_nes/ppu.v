@@ -238,8 +238,10 @@ always @(posedge DE2P) begin
             16'h2002: if (RD) begin
 
                 DOUT <= {
-                    VBlankT ^ VBlank,   /* Генерация синхроимпульса? */
-                    3'b000,
+                    VBlankT ^ VBlank,   /* Генерация синхроимпульса */
+                    1'b0,               /* Вывод спрайта ID=0 */
+                    1'b0,               /* =1 На линии более 8 спрайтов */
+                    (PPUY > 9'd239),    /* Разрешение записи в видеопамять */
                     4'b0000             /* Не используется */
                 };
                 
@@ -258,7 +260,7 @@ always @(posedge DE2P) begin
             16'h2005: if (WREQ) SCROLL <= {SCROLL[7:0], din};
 
             /* w/o(2) Запись адреса */
-            16'h2006: if (WREQ) ADDR <= {ADDR[5:0], din};
+            16'h2006: if (WREQ) ADDR   <= {ADDR[5:0], din};
 
             /* r/w Запись/чтение данных */
             16'h2007: begin
@@ -266,17 +268,15 @@ always @(posedge DE2P) begin
                 /* Записать данные в память */
                 if (WREQ) begin
 
-                    /* Писать можно только в VRAM */
-                    if (ADDR >= 16'h2000)
-                        WVREQ <= 1'b1;
+                    /* Писать можно только в VRAM (исключая палитру) */
+                    if (ADDR >= 16'h2000 && ADDR < 16'h3F00) WVREQ <= 1'b1;
 
                     WDATA <= din;
 
-                /* Прочитать */
+                /* Прочитать из памяти */
                 end else if (RD) begin
 
-                    // Чтение через буфер поначалу
-                    DOUT <= DBUF;
+                    DOUT <= DBUF; /* Используется операционный буфер */
                     DBUF <= (ADDR >= 14'h2000 ? VIN : FIN);
 
                 end
