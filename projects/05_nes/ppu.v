@@ -312,7 +312,30 @@ always @(posedge DE2P) begin
 
     end
     endcase
+    
+    // Установка NMI, VBlank
+    // -----------------------------------------------------------------
 
+    if (!DE2Y) begin
+
+        /* Установка VBlank=1 */
+        if (PPUY == 9'd241 && PPUX == 1'b1) begin 
+        
+            NMI     <= CTRL0[7]; /* Разрешен импульс NMI? */
+            VBlankT <= VBlankT ^ VBlankS ^ 1'b1;
+
+        end
+        
+        /* Установка VBlank=0 */
+        else if (PPUY == 9'd261 && PPUX == 1'b1) begin                
+
+            NMI     <= 1'b0;
+            VBlankT <= VBlankT ^ VBlankS ^ 1'b0;
+            
+        end
+    
+    end
+        
     // -----------------------------------------------------------------
 
     /* Выключен рендеринг */
@@ -326,26 +349,6 @@ always @(posedge DE2P) begin
     
     /* При рендеринге, vaddr / faddr заняты */    
     else begin
-    
-        if (!DE2Y) begin
-
-            /* Установка VBlank=1 */
-            if (PPUY == 9'd241 && PPUX == 1'b1) begin 
-            
-                NMI     <= CTRL0[7]; /* Разрешен импульс NMI? */
-                VBlankT <= VBlankT ^ VBlankS ^ 1'b1;
-
-            end
-            
-            /* Установка VBlank=0 */
-            else if (PPUY == 9'd261 && PPUX == 1'b1) begin                
-
-                NMI     <= 1'b0;
-                VBlankT <= VBlankT ^ VBlankS ^ 1'b0;
-                
-            end
-        
-        end
 
         /* Прорисовка фона */
         case (PPUX[2:0])
@@ -396,15 +399,12 @@ always @(posedge DE2P) begin
 
         /* Второй сканлайн НЕ учитывается. При достижении 261-го, сбросить до 0 */
         if (DE2Y) PPUY <= PPUY + 1'b1;
-
     
     end else begin
 
         PPUX <= PPUX + 1'b1;
 
     end
-
-    // -----------------------------------------------------------------
 
 end
 
