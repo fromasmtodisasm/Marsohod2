@@ -112,11 +112,12 @@ always @(posedge CLK) begin
         /* ИНИЦИАЛИЗАЦИЯ */
         4'h0: begin
 
+
             casex (DIN)
 
                 8'bxxx_000_x1: begin MS <= `NDX; HOP <= 1'b1; end // Indirect, X
                 8'bxxx_010_x1, // Immediate
-                8'b1xx_000_x1: begin MS <= `IMM; HOP <= 1'b1; end
+                8'b1xx_000_x0: begin MS <= `IMM; HOP <= 1'b1; end
                 8'bxxx_100_x1: begin MS <= `NDY; HOP <= 1'b1; end // Indirect, Y
                 8'bxxx_110_x1: begin MS <= `ABY; HOP <= 1'b1; end // Absolute, Y
                 8'bxxx_001_xx: begin MS <= `ZP;  HOP <= 1'b1; end // ZeroPage

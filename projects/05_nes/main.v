@@ -23,6 +23,7 @@ reg  [7:0]  i_data;
 wire        wreq;
 wire        ppuclk;
 wire        cpuclk;
+wire        reset = 1'b0;
 
 // Внутрисхемная память
 // ---------------------------------------------------------------------
@@ -52,7 +53,7 @@ initial begin $readmemh("init/rom.hex", sram, 16'h8000); end
 // Центральный процессор
 // ---------------------------------------------------------------------
 
-cpu CPU( cpuclk, 1'b1, address, din, dout, ea, wreq, rd);
+cpu CPU( reset, cpuclk, 1'b1, address, din, dout, ea, wreq, rd); 
 
 // Графический процессор
 // ---------------------------------------------------------------------
@@ -70,7 +71,8 @@ wire        vwreq;
 ppu PPU(
 
     /* 100 Mhz */
-    clk,
+    clk,    
+    reset,
     
     /* VGA */
     red, green, blue, hs, vs, 
