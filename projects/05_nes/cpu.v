@@ -33,17 +33,26 @@ assign EAWR = AS ? {8'h01, S} : EA;
 `define IMP     5'h11
 `define ACC     5'h11
 
+// Исполнение инструкции
 `define EXEC    5'h11
 `define EXEC2   5'h12
 `define EXEC3   5'h13
 `define EXEC4   5'h14
 `define EXEC5   5'h15
 `define EXEC6   5'h16
+
 // Переход
 `define REL     5'h17
 `define REL1    5'h18
 `define REL2    5'h19
 `define LATX    5'h1A
+
+// 5h1B, 5h1C - Unused yet
+
+// Сброс
+`define RST     5'h1D
+`define RST2    5'h1E
+`define RST3    5'h1F
 
 initial begin EA = 16'h0000; WREQ = 1'b0; DOUT = 8'h00; RD = 1'b0; end
 
@@ -56,7 +65,7 @@ reg  [7:0]  P   = 8'b10000001;
 reg [15:0]  PC  = 16'h8000;
 
 /* Состояние процессора */
-reg  [4:0]  MS     = 3'h0;      /* Исполняемый цикл */
+reg  [4:0]  MS     = `RST;      /* Исполняемый цикл */
 reg         AS     = 1'b0;      /* 0=PC/AM, 1=S Указатель стека (приоритет) */
 reg         AM     = 1'b0;      /* 0=PC, 1=EA */
 reg  [1:0]  IRQ    = 2'b11;     /* BRK, $FFFE по умолчанию */
@@ -94,17 +103,16 @@ wire        INCDEC  = ({opcode[7:6], opcode[2:0]} == 5'b11_1_10) ||
                       ({opcode[7],   opcode[2:0]} == 4'b0__1_10);
 
 /* Исполнение микрокода */
-always @(posedge CLK) begin    
+always @(posedge CLK) begin
 
     /* Сброс процессора */
     if (RESET) begin
-    
-        {AS, AM} <= 2'b00;
-        MS   <= 1'b0;
+
+        MS   <= `RST;
         WREQ <= 1'b0;
-        PC   <= 16'h8000; // @todo тут требуется переход к адресу RST
-    
-    end 
+        {AS, AM} <= 2'b00;
+
+    end
 
     /* Нормальное исполнение */
     else case (MS)
@@ -307,6 +315,11 @@ always @(posedge CLK) begin
         `REL1: begin MS <= MSINC; end /* +2T если превышение границ */
         `REL2: begin MS <= 1'b0; end  /* +1T если переход */
 
+        /* Сброс */
+        `RST:  begin MS <= MSINC; PC <= 16'hFFFC;  end
+        `RST2: begin MS <= MSINC; PC <= PCINC; TR <= DIN; end
+        `RST3: begin PC <= EADIN; MS <= 1'b0; end
+
     endcase
 
 end
@@ -325,14 +338,14 @@ always @* begin
     ACC = 1'b0;
     BR  = 1'b0; /* Условие выполнения Branch */
     SEI = 1'b0; /* Set Interrupt Flag */
-    ENARD = 1'b1; 
-    
+    ENARD = 1'b1;
+
     /* Все методы адресации разрешить читать из PPU, кроме STA */
     casex (opcode)
-    
+
         8'b100xxx01,
         8'b100xx1x0: ENARD = 1'b0;
-    
+
     endcase
 
     case (opcode[7:6])
