@@ -1,5 +1,6 @@
 module cpu(
 
+    input  wire        RESET,   // Сброс процессора
     input  wire        CLK,     // 1.71 МГц
     input  wire        CE,      // Готовность
     output wire [15:0] ADDR,    // Адрес программы или данных
@@ -72,6 +73,7 @@ reg         SW     = 1'b0;      /* Записать в S из АЛУ */
 reg         ACC    = 1'b0;      /* Указать A вместо DIN */
 reg         BR     = 1'b0;      /* Если =1, условие выполняется */
 reg         SEI    = 1'b0;      /* Установить I=1 */
+reg         ENARD  = 1'b0;      /* Если =1, то разрешить RD */
 reg  [7:0]  opcode = 8'h0;      /* Текущий опкод */
 
 /* Некоторые часто употребляемые выражения */
@@ -92,9 +94,20 @@ wire        INCDEC  = ({opcode[7:6], opcode[2:0]} == 5'b11_1_10) ||
                       ({opcode[7],   opcode[2:0]} == 4'b0__1_10);
 
 /* Исполнение микрокода */
-always @(posedge CLK) begin
+always @(posedge CLK) begin    
 
-    case (MS)
+    /* Сброс процессора */
+    if (RESET) begin
+    
+        {AS, AM} <= 2'b00;
+        MS   <= 1'b0;
+        WREQ <= 1'b0;
+        PC   <= 16'h8000; // @todo тут требуется переход к адресу RST
+    
+    end 
+
+    /* Нормальное исполнение */
+    else case (MS)
 
         /* ИНИЦИАЛИЗАЦИЯ */
         4'h0: begin
@@ -138,25 +151,25 @@ always @(posedge CLK) begin
         // -------------------------------------------------------------
         4'h1: begin MS <= MSINC; EA <= XDin[7:0]; AM <= 1'b1; Cout <= XDin[8]; end
         4'h2: begin MS <= MSINC; EA <= EAINC;     TR <= DIN;  end
-        4'h3: begin MS <= `LATX; EA <= EADIN;     RD <= 1'b1; end
+        4'h3: begin MS <= `LATX; EA <= EADIN;     RD <= ENARD; end
 
         /* Indirect, Y */
         // -------------------------------------------------------------
         4'h4: begin MS <= MSINC; EA <= DIN;   AM <= 1'b1; end
         4'h5: begin MS <= MSINC; EA <= EAINC; TR <= YDin[7:0]; Cout <= YDin[8]; end
-        4'h6: begin MS <= LATAD; EA <= EADIH; RD <= 1'b1; end
+        4'h6: begin MS <= LATAD; EA <= EADIH; RD <= ENARD; end
 
         /* ZP */
         // -------------------------------------------------------------
-        4'h7: begin MS <= `EXEC; EA <= DIN;       {AM, RD} <= 2'b11; end
+        4'h7: begin MS <= `EXEC; EA <= DIN;       {AM, RD} <= {1'b1, ENARD}; end
 
         /* ZP,X */
         // -------------------------------------------------------------
-        4'h8: begin MS <= `LAT1; EA <= XDin[7:0]; {AM, RD} <= 2'b11; end
+        4'h8: begin MS <= `LAT1; EA <= XDin[7:0]; {AM, RD} <= {1'b1, ENARD}; end
 
         /* ZP,Y */
         // -------------------------------------------------------------
-        4'h9: begin MS <= `LAT1; EA <= YDin[7:0]; {AM, RD} <= 2'b11; end
+        4'h9: begin MS <= `LAT1; EA <= YDin[7:0]; {AM, RD} <= {1'b1, ENARD}; end
 
         /* Absolute */
         // -------------------------------------------------------------
@@ -166,19 +179,19 @@ always @(posedge CLK) begin
             /* JMP ABS */
             if (opcode == 8'h4C)
                  begin MS <= 1'b0;  PC <= EADIN; end
-            else begin MS <= `EXEC; EA <= EADIN; {AM, RD} <= 2'b11; end
+            else begin MS <= `EXEC; EA <= EADIN; {AM, RD} <= {1'b1, ENARD}; end
 
         end
 
         /* Absolute,X */
         // -------------------------------------------------------------
         4'hC: begin MS <= MSINC; TR <= XDin[7:0]; PC <= PCINC; Cout <= XDin[8]; end
-        4'hD: begin MS <= LATAD; EA <= EADIH;     {AM, RD} <= 2'b11; end
+        4'hD: begin MS <= LATAD; EA <= EADIH;     {AM, RD} <= {1'b1, ENARD}; end
 
         /* Absolute,Y */
         // -------------------------------------------------------------
         4'hE: begin MS <= MSINC; TR <= YDin[7:0]; PC <= PCINC; Cout <= YDin[8]; end
-        4'hF: begin MS <= LATAD; EA <= EADIH;     {AM, RD} <= 2'b11; end
+        4'hF: begin MS <= LATAD; EA <= EADIH;     {AM, RD} <= {1'b1, ENARD}; end
 
         /* Отложенный такт (для адресации) */
         `LAT1: MS <= `EXEC;
@@ -230,7 +243,7 @@ always @(posedge CLK) begin
                 8'b0x1_010_00: {AS, MS} <= {1'b1, MSINC};
 
                 // По умолчанию, завершение инструкции
-                default: {AM, MS} <= 2'b00;
+                default: {AM, MS} <= 6'b0_00000;
 
             endcase
 
@@ -311,6 +324,15 @@ always @* begin
     ACC = 1'b0;
     BR  = 1'b0; /* Условие выполнения Branch */
     SEI = 1'b0; /* Set Interrupt Flag */
+    ENARD = 1'b1; 
+    
+    /* Все методы адресации разрешить читать из PPU, кроме STA */
+    casex (opcode)
+    
+        8'b100xxx01,
+        8'b100xx1x0: ENARD = 1'b0;
+    
+    endcase
 
     case (opcode[7:6])
 
