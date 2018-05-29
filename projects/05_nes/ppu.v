@@ -39,7 +39,10 @@ module ppu(
     input   wire [ 7:0] din,        /* Данные из процессора */
     input   wire        RD,         /* Действие чтения из памяти */
     input   wire        WREQ,       /* Запрос на запись в PPU */
-    output  reg  [ 7:0] DOUT        /* Выход данных из PPU */
+    output  reg  [ 7:0] DOUT,       /* Выход данных из PPU */
+    
+    /* NMI сигнал */
+    output  reg         NMI         /* Выход NMI */
 
 );
 
@@ -96,21 +99,29 @@ wire [1:0]  cpad = {hiclr[ {PPUY[4], PPUX[4], 1'b1} ],  /* 7|5|3|1 */
                     hiclr[ {PPUY[4], PPUX[4], 1'b0} ]}; /* 6|4|2|0 */
 
 /* Текущий рисуемый цвет фона */
-wire [3:0]  curclr = {colorpad, 
-                      colormap[ {PPUX[2:0], 1'b1} ], 
+wire [3:0]  curclr = {colorpad,
+                      colormap[ {PPUX[2:0], 1'b1} ],
                       colormap[ {PPUX[2:0], 1'b0} ]};
 
 // Транслируем в конечный цвет
 wire [3:0]  colmp = (curclr[1:0] == 2'b00) ? 4'h0 : curclr[3:0];
-wire [5:0]  color = PALBG[ (x < 64 || x > 576) ? 4'h0 : colmp ];
+wire [5:0]  color = PALBG[ (x < 64 || x > 575) ? 4'h0 : colmp ];
 // ---------------------------------------------------------------------
+
+/* Флаг VBlank */
+reg  VBlank  = 1'b0;
+reg  VBlankT = 1'b0;
+wire VBlankS = VBlank ^ VBlankT;
 
 /* Инициализация */
 initial begin
 
     CLKCPU = 1'b0;
     DOUT   = 8'h00;
-    WVREQ  = 1'b0;
+    WVREQ  = 1'b0;    
+    NMI    = 1'b0;
+    
+    // NMI_trigger2 = 1'b0;
 
     /* 0 */  PALBG[0]  = 6'h12;
     /* 1 */  PALBG[1]  = 6'h16;
@@ -153,7 +164,7 @@ reg [8:0] PPUY = 1'b0; /* Положение Y в сканлайне [0..261]=26
     (00 – $2000; 01 – $2400; 10 – $2800; 11 - $2C00)
 */
 
-reg [7:0]  CTRL0  = 8'b000_10_1_00;
+reg [7:0]  CTRL0  = 8'b1_00_10_1_00;
 
 /* 7-5     Яркость экрана/интенсивность цвета в RGB (в Денди не используется)
     4      0 – Спрайты не отображаются; 1 – Спрайты отображаются
@@ -169,9 +180,6 @@ reg [7:0]  SPRADR = 8'h0;
 
 /* Аппаратный скроллинг */
 reg [15:0] SCROLL = 16'h0000;
-
-/* Статус видеопамяти */
-wire [3:0] CTRL2  = 4'b0000;
 
 /* Буфер VRAM */
 reg  [7:0] DBUF = 8'hFF;
@@ -208,13 +216,12 @@ always @(posedge DE2P) begin
 
     /* Сброс некоторых значений */
     if (RESET) begin
-    
+
         ADDR  <= 1'b0;
         WVREQ <= 1'b0;
-    
+
     end
-    else 
-    case (div)
+    else case (div)
 
     /* Запись / чтение */
     2'b01: begin
@@ -230,9 +237,14 @@ always @(posedge DE2P) begin
             /* r/o Чтение статуса */
             16'h2002: if (RD) begin
 
-                DOUT <= {CTRL2, 4'b0000};
-
-                // Сброс при чтении флага генерации обратного кадрового импульса
+                DOUT <= {
+                    VBlankT ^ VBlank,   /* Генерация синхроимпульса? */
+                    3'b000,
+                    4'b0000             /* Не используется */
+                };
+                
+                /* Если был 1, перевести в 0, иначе оставить как 0 */
+                VBlank <= VBlank ^ VBlankS;
 
             end
 
@@ -270,14 +282,14 @@ always @(posedge DE2P) begin
                 end
 
             end
-            
+
             /* Палитра фона */
             16'h3F0x: if (WREQ) PALBG[ ea[3:0] ] <= din[5:0];
                       else if (RD) DOUT <= PALBG[ ea[3:0] ];
-            
+
             /* Палитра спрайтов */
-            16'h3F1x: if (WREQ) PALSP[ ea[3:0] ] <= din[5:0];  
-                      else if (RD) DOUT <= PALSP[ ea[3:0] ];          
+            16'h3F1x: if (WREQ) PALSP[ ea[3:0] ] <= din[5:0];
+                      else if (RD) DOUT <= PALSP[ ea[3:0] ];
 
         endcase
 
@@ -310,9 +322,31 @@ always @(posedge DE2P) begin
         colorpad <= 2'b00;
         colormap <= 16'h0000;
 
-    /* При рендеринге, vaddr / faddr заняты */
-    end else begin
+    end
     
+    /* При рендеринге, vaddr / faddr заняты */    
+    else begin
+    
+        if (!DE2Y) begin
+
+            /* Установка VBlank=1 */
+            if (PPUY == 9'd241 && PPUX == 1'b1) begin 
+            
+                NMI     <= CTRL0[7]; /* Разрешен импульс NMI? */
+                VBlankT <= VBlankT ^ VBlankS ^ 1'b1;
+
+            end
+            
+            /* Установка VBlank=0 */
+            else if (PPUY == 9'd261 && PPUX == 1'b1) begin                
+
+                NMI     <= 1'b0;
+                VBlankT <= VBlankT ^ VBlankS ^ 1'b0;
+                
+            end
+        
+        end
+
         /* Прорисовка фона */
         case (PPUX[2:0])
 
@@ -328,7 +362,7 @@ always @(posedge DE2P) begin
 
             /* Палитра прочитана */
             3'h3: begin hiclr <= vdata; chrh <= fdata; end
-            
+
             // 4,5,6 -- поиск спрайтов на будущий сканлайн
 
             /* Результат */
@@ -346,7 +380,7 @@ always @(posedge DE2P) begin
             end
 
         endcase
-    
+
     end
 
     // -----------------------------------------------------------------
@@ -363,6 +397,7 @@ always @(posedge DE2P) begin
         /* Второй сканлайн НЕ учитывается. При достижении 261-го, сбросить до 0 */
         if (DE2Y) PPUY <= PPUY + 1'b1;
 
+    
     end else begin
 
         PPUX <= PPUX + 1'b1;
@@ -385,7 +420,7 @@ always @(posedge CLK25) begin
     end
 
     if (x < horiz_visible && y < vert_visible)
-         {red, green, blue} <= {rgb[4:0], rgb[10:5], rgb[15:11]};                   
+         {red, green, blue} <= {rgb[4:0], rgb[10:5], rgb[15:11]};
     else {red, green, blue} <= 16'h0000;
 
 end

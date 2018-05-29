@@ -8,7 +8,8 @@ module cpu(
     output reg  [7:0]  DOUT,    // Исходящие данные
     output wire [15:0] EAWR,    // Эффективный адрес для записи
     output reg         WREQ,    // =1 Запись в память по адресу EA
-    output reg         RD       // На нисходящем CLK при RD=1, защелка PPU
+    output reg         RD,      // На нисходящем CLK при RD=1, защелка PPU
+    input  wire        NMI      // Синхроимпульс NMI
 
 );
 
@@ -74,6 +75,7 @@ reg         HOP    = 1'b0;      /* =1 Операнду требуется PC++ *
 reg  [7:0]  PCL    = 8'h00;     /* Для JSR */
 reg  [7:0]  TR     = 3'h0;      /* Temporary Register */
 reg  [15:0] EA     = 16'h0000;  /* Эффективный адрес */
+reg         NMI_trigger = 1'b0; /* Для отслеживания изменения в синхроимпульсе NMI */
 
 /* Микрокод */
 reg         WR     = 1'b0;      /* Записать в регистр RA из АЛУ */
@@ -102,6 +104,9 @@ wire [4:0]  LATAD   = Latency ? `LAT1 : `EXEC; /* Код адреса при Lat
 wire        INCDEC  = ({opcode[7:6], opcode[2:0]} == 5'b11_1_10) ||
                       ({opcode[7],   opcode[2:0]} == 4'b0__1_10);
 
+/* Текущий статус NMI */
+wire        NMI_status = NMI_trigger ^ NMI; 
+
 /* Исполнение микрокода */
 always @(posedge CLK) begin
 
@@ -119,33 +124,48 @@ always @(posedge CLK) begin
 
         /* ИНИЦИАЛИЗАЦИЯ */
         4'h0: begin
+            
+            /* Получено изменение NMI. Переброска статуса. */
+            if (NMI_status) begin            
+                NMI_trigger <= NMI_trigger ^ 1'b1;
+            end
+            
+            /* Восходящий фронт NMI */
+            if (NMI_status && NMI) begin
+            
+                IRQ    <= 2'b01; // $FFFA
+                opcode <= 8'h00; // BRK
+                MS     <= `IMP;
+                HOP    <= 1'b0;
 
+            /* Обычное исполнение */
+            end else begin
 
-            casex (DIN)
+                opcode <= DIN;   /* Принять новый опкод */
+                PC     <= PCINC; /* PC++ */
+                IRQ    <= 2'b11; /* Для BRK -> $FFFE */
+                
+                casex (DIN)
 
-                8'bxxx_000_x1: begin MS <= `NDX; HOP <= 1'b1; end // Indirect, X
-                8'bxxx_010_x1, // Immediate
-                8'b1xx_000_x0: begin MS <= `IMM; HOP <= 1'b1; end
-                8'bxxx_100_x1: begin MS <= `NDY; HOP <= 1'b1; end // Indirect, Y
-                8'bxxx_110_x1: begin MS <= `ABY; HOP <= 1'b1; end // Absolute, Y
-                8'bxxx_001_xx: begin MS <= `ZP;  HOP <= 1'b1; end // ZeroPage
-                8'bxxx_011_xx, // Absolute
-                8'b001_000_00: begin MS <= `ABS; HOP <= 1'b1; end
-                8'b10x_101_1x: begin MS <= `ZPY; HOP <= 1'b1; end // ZeroPage, Y
-                8'bxxx_101_xx: begin MS <= `ZPX; HOP <= 1'b1; end // ZeroPage, X
-                8'b10x_111_1x: begin MS <= `ABY; HOP <= 1'b1; end // Absolute, Y
-                8'bxxx_111_xx: begin MS <= `ABX; HOP <= 1'b1; end // Absolute, X
-                8'bxxx_100_00: begin MS <= `REL; HOP <= 1'b1; end // Relative
-                8'b0xx_010_10: begin MS <= `ACC; HOP <= 1'b0; end // Accumulator
-                default:       begin MS <= `IMP; HOP <= 1'b0; end
+                    8'bxxx_000_x1: begin MS <= `NDX; HOP <= 1'b1; end // Indirect, X
+                    8'bxxx_010_x1, // Immediate
+                    8'b1xx_000_x0: begin MS <= `IMM; HOP <= 1'b1; end
+                    8'bxxx_100_x1: begin MS <= `NDY; HOP <= 1'b1; end // Indirect, Y
+                    8'bxxx_110_x1: begin MS <= `ABY; HOP <= 1'b1; end // Absolute, Y
+                    8'bxxx_001_xx: begin MS <= `ZP;  HOP <= 1'b1; end // ZeroPage
+                    8'bxxx_011_xx, // Absolute
+                    8'b001_000_00: begin MS <= `ABS; HOP <= 1'b1; end
+                    8'b10x_101_1x: begin MS <= `ZPY; HOP <= 1'b1; end // ZeroPage, Y
+                    8'bxxx_101_xx: begin MS <= `ZPX; HOP <= 1'b1; end // ZeroPage, X
+                    8'b10x_111_1x: begin MS <= `ABY; HOP <= 1'b1; end // Absolute, Y
+                    8'bxxx_111_xx: begin MS <= `ABX; HOP <= 1'b1; end // Absolute, X
+                    8'bxxx_100_00: begin MS <= `REL; HOP <= 1'b1; end // Relative
+                    8'b0xx_010_10: begin MS <= `ACC; HOP <= 1'b0; end // Accumulator
+                    default:       begin MS <= `IMP; HOP <= 1'b0; end
 
-            endcase
-
-            // if (NMI) --- PC, IRQ, opcode=00
-
-            opcode  <= DIN;   /* Принять новый опкод */
-            PC      <= PCINC; /* PC++ */
-            IRQ     <= 2'b11; /* Для BRK -> $FFFE */
+                endcase
+            
+            end
 
             /* Нормализовать указатели */
             AS      <= 1'b0;  /* Указатель стека */
@@ -275,7 +295,7 @@ always @(posedge CLK) begin
 
         `EXEC3: casex (opcode)
 
-            /* BRK */ 8'b000_000_00: begin MS <= MSINC; DOUT <= {P[7:5], 1'b1, P[3:0]}; end
+            /* BRK */ 8'b000_000_00: begin MS <= MSINC; DOUT <= (IRQ == 2'b11 ? {P[7:5], 1'b1, P[3:0]} : P); end
             /* JSR */ 8'b001_000_00: begin MS <= 1'b0;  PC <= EA; {AS, WREQ, AM} <= 3'b000; end
             /* RTS */ 8'b011_000_00: begin MS <= MSINC; PC[15:8] <= DIN; end
             /* RTI */ 8'b010_000_00: begin MS <= MSINC; PC[7:0]  <= DIN;  end
@@ -285,7 +305,7 @@ always @(posedge CLK) begin
 
         `EXEC4: casex (opcode)
 
-            /* BRK */ 8'b000_000_00: begin MS <= MSINC; {AS, AM, WREQ} <= 3'b010; EA <= {12'hFFF, 1'b0, IRQ, 1'b1}; end
+            /* BRK */ 8'b000_000_00: begin MS <= MSINC; {AS, AM, WREQ} <= 3'b010; EA <= {12'hFFF, 1'b1, IRQ, 1'b0}; end
             /* RTS */ 8'b011_000_00: begin MS <= `REL2; /* +1T */ {AS, AM} <= 2'b00; PC <= PCINC; end
             /* RTI */ 8'b010_000_00: begin MS <= MSINC; AS <= 1'b0; PC[15:8] <= DIN; end
             /* PLx */ 8'b0x1_010_00: begin MS <= MSINC; AS <= 1'b0; end /* PLA, PLP */
@@ -366,7 +386,7 @@ always @* begin
         /* ADC, SBC, AND, ORA, EOR, LDA */
         8'bxxx_xxx_01: {WR, FW} = 2'b11;
 
-        /* ROL,ROR,ASL,LSR ACC */
+        /* ROL, ROR, ASL, LSR ACC */
         8'b0xx_010_10: {alu, ACC, RB, RA, FW, WR} = {2'b10, opcode[6:5], 1'b1, 6'b00_00_11};
 
         /* ASL,ROL,LSR,ROR <mem> */
@@ -437,13 +457,18 @@ always @* begin
     `EXEC3: casex (opcode)
 
         /* BRK */ 8'b000_000_00,
-        /* JSR */ 8'b001_000_00,
+        /* JSR */ 8'b001_000_00: {alu, RB, SW} = 7'b1110_11_1;
         /* RTI */ 8'b010_000_00: {alu, RB, SW} = 7'b1111_11_1;
 
     endcase
 
     /* BRK */
-    `EXEC4: {alu, RB, SW, SEI} = 7'b1110_11_1;
+    `EXEC4: casex (opcode)
+    
+        /* BRK */ 8'b000_000_00: {alu, RB, SW, SEI} = 8'b1110_11_11;
+        /* RTI */ 8'b010_000_00: {alu, RB, SW}      = 8'b1111_11_1_;
+        
+    endcase
 
     endcase
 
@@ -462,7 +487,7 @@ always @(posedge CLK) begin
     endcase
 
     /* Флаги */
-    if (SEI) /* BRK I=1, B=1 */ P <= {P[7:5], 1'b1, P[3], 1'b1, P[1:0]};
+    if (SEI) /* BRK I=1, B=1 */ P <= (IRQ == 2'b11 ? {P[7:5], 1'b1, P[3], 1'b1, P[1:0]} : P);
     else if (WR && RA == 2'b11) P <= DIN; /* PLP, RTI */
     else if (FW) /* Другие */   P <= AF;
 

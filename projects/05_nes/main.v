@@ -23,6 +23,7 @@ reg  [7:0]  i_data;
 wire        wreq;
 wire        ppuclk;
 wire        cpuclk;
+wire        NMI;
 wire        reset = 1'b0;
 
 // Внутрисхемная память
@@ -49,11 +50,21 @@ wire [7:0] din = (address[15:13] == 3'b001) ? ppu_dout : i_data;
 
 initial begin $readmemh("init/ram.hex", sram, 16'h0000); end
 initial begin $readmemh("init/rom.hex", sram, 16'h8000); end
+initial begin 
+
+    // NMI
+    sram[ 16'hFFFA ] = 8'h05;
+    sram[ 16'hFFFB ] = 8'h80;
+    
+    // RESET
+    sram[ 16'hFFFC ] = 8'h00;
+    sram[ 16'hFFFD ] = 8'h80; 
+end
 
 // Центральный процессор
 // ---------------------------------------------------------------------
 
-cpu CPU( reset, cpuclk, 1'b1, address, din, dout, ea, wreq, rd); 
+cpu CPU( reset, cpuclk, 1'b1, address, din, dout, ea, wreq, rd, NMI); 
 
 // Графический процессор
 // ---------------------------------------------------------------------
@@ -88,7 +99,10 @@ ppu PPU(
     cpuclk, /* 1.6 Mhz */
     
     /* Данные на запись/чтение */
-    ea, dout, rd, wreq, ppu_dout
+    ea, dout, rd, wreq, ppu_dout,
+    
+    /* NonMasking */
+    NMI
 );
 
 endmodule
