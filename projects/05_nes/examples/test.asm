@@ -3,24 +3,30 @@
                 
         lda #$10
         sta $2000
+        lda #$02        
 
-        lda #$20
-        sta $2006
+        jsr CLRSCR
 
-        lda #$00
-        sta $2006
        
-        ; ---
-        lda #$45
-        sta $2007
-                  
-        lda #$59
-        sta $2007
         
-FILLSTA        
-        sta $2007
-        dex 
-        bne FILLSTA
         
 INFLOOP        
         jmp INFLOOP
+
+CLRSCR  ; (Y,X) = 3C0h очистка экрана 
+
+        pha
+        lda #$20
+        sta $2006
+        lda #$00
+        sta $2006
+        ldy #$04
+        ldx #$C0
+        pla
+FSTA
+        sta $2007
+        dex 
+        bne FSTA
+        dey
+        bne FSTA
+        rts
