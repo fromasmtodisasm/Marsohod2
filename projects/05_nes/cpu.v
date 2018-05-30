@@ -9,12 +9,16 @@ module cpu(
     output wire [15:0] EAWR,    // Эффективный адрес для записи
     output reg         WREQ,    // =1 Запись в память по адресу EA
     output reg         RD,      // На нисходящем CLK при RD=1, защелка PPU
-    input  wire        NMI      // Синхроимпульс NMI
+    input  wire        NMI,     // Синхроимпульс NMI
+    output wire [7:0]  DEBUG    // Отладочный
 
 );
 
-assign ADDR = AS ? {8'h01, S} : (AM ? EA : PC);
-assign EAWR = AS ? {8'h01, S} : EA;
+assign ADDR  = AS ? {8'h01, S} : (AM ? EA : PC);
+assign EAWR  = AS ? {8'h01, S} : EA;
+
+assign  DEBUG = EA[7:0];
+`define DEBUGPC 16'h0000 // 16'hC240
 
 // ---------------------------------------------------------------------
 
@@ -58,12 +62,12 @@ assign EAWR = AS ? {8'h01, S} : EA;
 initial begin EA = 16'h0000; WREQ = 1'b0; DOUT = 8'h00; RD = 1'b0; end
 
 /* Регистры */
-reg  [7:0]  A   = 8'h43;
-reg  [7:0]  X   = 8'h37;
-reg  [7:0]  Y   = 8'h80;
-reg  [7:0]  S   = 8'hFF;
-reg  [7:0]  P   = 8'b10000001;
-reg [15:0]  PC  = 16'h8000;
+reg  [7:0]  A   = 8'h00;
+reg  [7:0]  X   = 8'h00;
+reg  [7:0]  Y   = 8'h00;
+reg  [7:0]  S   = 8'h00;
+reg  [7:0]  P   = 8'b00000000;
+reg [15:0]  PC  = 16'hC000;
 
 /* Состояние процессора */
 reg  [4:0]  MS     = `RST;      /* Исполняемый цикл */
@@ -124,53 +128,62 @@ always @(posedge CLK) begin
 
         /* ИНИЦИАЛИЗАЦИЯ */
         4'h0: begin
+        
+            if (PC == `DEBUGPC) begin
             
-            /* Получено изменение NMI. Переброска статуса. */
-            if (NMI_status) begin            
-                NMI_trigger <= NMI_trigger ^ 1'b1;
-            end
+                // .. Останов процессора для отладки
+                AM <= 1'b1; AS <= 1'b0; EA <= 2;
             
-            /* Восходящий фронт NMI */
-            if (NMI_status && NMI) begin
-            
-                IRQ    <= 2'b01; // $FFFA
-                opcode <= 8'h00; // BRK
-                MS     <= `IMP;
-                HOP    <= 1'b0;
-
-            /* Обычное исполнение */
             end else begin
-
-                opcode <= DIN;   /* Принять новый опкод */
-                PC     <= PCINC; /* PC++ */
-                IRQ    <= 2'b11; /* Для BRK -> $FFFE */
+                    
+                /* Получено изменение NMI. Переброска статуса. */
+                if (NMI_status) begin            
+                    NMI_trigger <= NMI_trigger ^ 1'b1;
+                end
                 
-                casex (DIN)
+                /* Восходящий фронт NMI */
+                if (NMI_status && NMI) begin
+                
+                    IRQ    <= 2'b01; // $FFFA
+                    opcode <= 8'h00; // BRK
+                    MS     <= `IMP;
+                    HOP    <= 1'b0;
 
-                    8'bxxx_000_x1: begin MS <= `NDX; HOP <= 1'b1; end // Indirect, X
-                    8'bxxx_010_x1, // Immediate
-                    8'b1xx_000_x0: begin MS <= `IMM; HOP <= 1'b1; end
-                    8'bxxx_100_x1: begin MS <= `NDY; HOP <= 1'b1; end // Indirect, Y
-                    8'bxxx_110_x1: begin MS <= `ABY; HOP <= 1'b1; end // Absolute, Y
-                    8'bxxx_001_xx: begin MS <= `ZP;  HOP <= 1'b1; end // ZeroPage
-                    8'bxxx_011_xx, // Absolute
-                    8'b001_000_00: begin MS <= `ABS; HOP <= 1'b1; end
-                    8'b10x_101_1x: begin MS <= `ZPY; HOP <= 1'b1; end // ZeroPage, Y
-                    8'bxxx_101_xx: begin MS <= `ZPX; HOP <= 1'b1; end // ZeroPage, X
-                    8'b10x_111_1x: begin MS <= `ABY; HOP <= 1'b1; end // Absolute, Y
-                    8'bxxx_111_xx: begin MS <= `ABX; HOP <= 1'b1; end // Absolute, X
-                    8'bxxx_100_00: begin MS <= `REL; HOP <= 1'b1; end // Relative
-                    8'b0xx_010_10: begin MS <= `ACC; HOP <= 1'b0; end // Accumulator
-                    default:       begin MS <= `IMP; HOP <= 1'b0; end
+                /* Обычное исполнение */
+                end else begin
 
-                endcase
-            
+                    opcode <= DIN;   /* Принять новый опкод */
+                    PC     <= PCINC; /* PC++ */
+                    IRQ    <= 2'b11; /* Для BRK -> $FFFE */
+                    
+                    casex (DIN)
+
+                        8'bxxx_000_x1: begin MS <= `NDX; HOP <= 1'b1; end // Indirect, X
+                        8'bxxx_010_x1, // Immediate
+                        8'b1xx_000_x0: begin MS <= `IMM; HOP <= 1'b1; end
+                        8'bxxx_100_x1: begin MS <= `NDY; HOP <= 1'b1; end // Indirect, Y
+                        8'bxxx_110_x1: begin MS <= `ABY; HOP <= 1'b1; end // Absolute, Y
+                        8'bxxx_001_xx: begin MS <= `ZP;  HOP <= 1'b1; end // ZeroPage
+                        8'bxxx_011_xx, // Absolute
+                        8'b001_000_00: begin MS <= `ABS; HOP <= 1'b1; end
+                        8'b10x_101_1x: begin MS <= `ZPY; HOP <= 1'b1; end // ZeroPage, Y
+                        8'bxxx_101_xx: begin MS <= `ZPX; HOP <= 1'b1; end // ZeroPage, X
+                        8'b10x_111_1x: begin MS <= `ABY; HOP <= 1'b1; end // Absolute, Y
+                        8'bxxx_111_xx: begin MS <= `ABX; HOP <= 1'b1; end // Absolute, X
+                        8'bxxx_100_00: begin MS <= `REL; HOP <= 1'b1; end // Relative
+                        8'b0xx_010_10: begin MS <= `ACC; HOP <= 1'b0; end // Accumulator
+                        default:       begin MS <= `IMP; HOP <= 1'b0; end
+
+                    endcase
+                
+                end                
+
+                /* Нормализовать указатели */
+                AS      <= 1'b0;  /* Указатель стека */
+                RD      <= 1'b0;  /* Для PPU */
+                WREQ    <= 1'b0;  /* Отключение записи в память EA */
+                
             end
-
-            /* Нормализовать указатели */
-            AS      <= 1'b0;  /* Указатель стека */
-            RD      <= 1'b0;  /* Для PPU */
-            WREQ    <= 1'b0;  /* Отключение записи в память EA */
 
         end
 
@@ -380,8 +393,17 @@ always @* begin
     case (MS)
     `EXEC: casex (opcode)
 
-        /* STA, CMP */
-        8'b1x0_xxx_01: FW = opcode[6];
+        /* STA */
+        8'b100_xxx_01: RA <= {2'b00};
+
+        /* STX */
+        8'b100_xx1_10: RA <= {2'b01};
+        
+        /* STY */
+        8'b100_xx1_00: RA <= {2'b10};
+
+        /* CMP */
+        8'b110_xxx_01: FW = opcode[6];
 
         /* ADC, SBC, AND, ORA, EOR, LDA */
         8'bxxx_xxx_01: {WR, FW} = 2'b11;

@@ -42,7 +42,8 @@ module ppu(
     output  reg  [ 7:0] DOUT,       /* Выход данных из PPU */
     
     /* NMI сигнал */
-    output  reg         NMI         /* Выход NMI */
+    output  reg         NMI,         /* Выход NMI */
+    output  wire [ 7:0] DEBUG
 
 );
 
@@ -51,6 +52,8 @@ assign CLKPPU = !DE2Y & DE2P;
 
 /* Роутинг на выход */
 assign WADDR  = ADDR[10:0];
+
+assign DEBUG = ADDR[7:0];
 
 // ---------------------------------------------------------------------
 
@@ -121,12 +124,10 @@ initial begin
     WVREQ  = 1'b0;    
     NMI    = 1'b0;
     
-    // NMI_trigger2 = 1'b0;
-
-    /* 0 */  PALBG[0]  = 6'h12;
-    /* 1 */  PALBG[1]  = 6'h16;
-    /* 2 */  PALBG[2]  = 6'h30;
-    /* 3 */  PALBG[3]  = 6'h38;
+    /* 0 */  PALBG[0]  = 6'h38; // 12
+    /* 1 */  PALBG[1]  = 6'h30; // 16
+    /* 2 */  PALBG[2]  = 6'h16; // 30
+    /* 3 */  PALBG[3]  = 6'h12; // 38
     /* 4 */
     /* 5 */  PALBG[5]  = 6'h17;
     /* 6 */  PALBG[6]  = 6'h26;
@@ -146,6 +147,7 @@ reg       DE2P = 1'b0; /* Уменьшители частоты */
 reg       DE2Y = 1'b0; /* Деление сканлайна на 2 */
 reg [8:0] PPUX = 1'b0; /* Положение X в сканлайне [0..340]=341T */
 reg [8:0] PPUY = 1'b0; /* Положение Y в сканлайне [0..261]=262T */
+reg       INCADDR = 1'b0; /* Решение об увеличении +1/+32 ADDR */
 
 /*  Регистры контроля
 // ---------------------
@@ -164,7 +166,7 @@ reg [8:0] PPUY = 1'b0; /* Положение Y в сканлайне [0..261]=26
     (00 – $2000; 01 – $2400; 10 – $2800; 11 - $2C00)
 */
 
-reg [7:0]  CTRL0  = 8'b0_00_10_1_00;
+reg [7:0]  CTRL0  = 8'b0_00_00_0_00;
 
 /* 7-5     Яркость экрана/интенсивность цвета в RGB (в Денди не используется)
     4      0 – Спрайты не отображаются; 1 – Спрайты отображаются
@@ -226,13 +228,13 @@ always @(posedge DE2P) begin
     /* Запись / чтение */
     2'b01: begin
 
-        casex (ea)
+        case (ea)
 
             /* w/o Регистр управления 0 */
-            16'h2000: if (WREQ) CTRL0  <= din;
+            16'h2000: if (WREQ) CTRL0 <= din;
 
             /* w/o Регистр управления 1 */
-            16'h2001: if (WREQ) CTRL1  <= din;
+            16'h2001: if (WREQ) CTRL1 <= din;
 
             /* r/o Чтение статуса */
             16'h2002: if (RD) begin
@@ -264,32 +266,40 @@ always @(posedge DE2P) begin
 
             /* r/w Запись/чтение данных */
             16'h2007: begin
+            
+                /* Увеличить на 1 или 32 после чтения или записи */
+                INCADDR <= RD | WREQ;
 
                 /* Записать данные в память */
                 if (WREQ) begin
 
                     /* Писать можно только в VRAM (исключая палитру) */
-                    if (ADDR >= 16'h2000 && ADDR < 16'h3F00) WVREQ <= 1'b1;
+                    if (ADDR >= 16'h2000 && ADDR < 16'h3F00) begin
+                    
+                        WVREQ <= 1'b1;
+                        WDATA <= din;
+                    
+                    end
+                    
+                    /* Палитра фона */
+                    else if (ADDR >= 16'h3F00 && ADDR < 16'h3F10)
+                        PALBG[ ADDR[3:0] ] <= din[5:0];
 
-                    WDATA <= din;
-
+                    /* Палитра спрайтов */
+                    else if (ADDR >= 16'h3F10 && ADDR < 16'h3F20)
+                        PALSP[ ADDR[3:0] ] <= din[5:0];    
+                        
                 /* Прочитать из памяти */
                 end else if (RD) begin
 
                     DOUT <= DBUF; /* Используется операционный буфер */
                     DBUF <= (ADDR >= 14'h2000 ? VIN : FIN);
+                    
+                    // @todo READ PAL
 
                 end
 
             end
-
-            /* Палитра фона */
-            16'h3F0x: if (WREQ) PALBG[ ea[3:0] ] <= din[5:0];
-                      else if (RD) DOUT <= PALBG[ ea[3:0] ];
-
-            /* Палитра спрайтов */
-            16'h3F1x: if (WREQ) PALSP[ ea[3:0] ] <= din[5:0];
-                      else if (RD) DOUT <= PALSP[ ea[3:0] ];
 
         endcase
 
@@ -300,8 +310,8 @@ always @(posedge DE2P) begin
 
         case (ea)
 
-            // +1/+32
-            16'h2007: if (RD || WVREQ) begin
+            // +1/+32 (INCADDR)
+            16'h2007: if (INCADDR) begin
 
                 ADDR  <= ADDR + (CTRL0[2] ? 6'h20 : 1'b1);
                 WVREQ <= 1'b0;
@@ -340,7 +350,7 @@ always @(posedge DE2P) begin
 
     /* Выключен рендеринг */
     /* Либо спрайты, либо фон не отображаются - тогда выключить рендеринг */
-    if (CTRL1[4:3] == 2'b00) begin
+    if (CTRL1[4:3] == 2'b00 && 0) begin /* Пока всегда отображать */
 
         colorpad <= 2'b00;
         colormap <= 16'h0000;

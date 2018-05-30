@@ -54,6 +54,16 @@ module nes(
     inout   wire [1:0]  ps2_keyb,
     inout   wire [1:0]  ps2_mouse
 );
+
+// --------------------------------------------------------------------------
+wire [7:0] DEBUGCPU;
+wire [7:0] DEBUGPPU;
+// wire [7:0] DEBUG = DEBUGCPU;
+reg [31:0] Timer;
+
+always @(posedge clk) 
+begin Timer <= (Timer == 50000000) ? 0 : Timer + 1; led <= Timer > 25000000 ? DEBUGPPU[3:0] : DEBUGPPU[7:4]; end
+
 // --------------------------------------------------------------------------
 
 wire [15:0] address;        /* Чтение */    
@@ -66,11 +76,12 @@ wire        NMI;
 wire [7:0]  Dram;
 wire [7:0]  Drom;
 wire [7:0]  Dppu;
-reg  [1:0]  dlVRAM = 2'b00;     /* Отложенная запись в VRAM */
-reg  [1:0]  dlSRAM = 2'b00;     /* ... в SRAM */
+reg  [1:0]  DVRAM = 2'b00;     /* Отложенная запись в VRAM */
+reg         DSRAM = 1'b0;     /* ... в SRAM */
+reg         prg_led;
 
-wire        sram_write = eawr     < 16'h0800;
-wire        sram_route = address  < 16'h0800;
+wire        sram_write = eawr     < 16'h2000;
+wire        sram_route = address  < 16'h2000;
 wire        srom_route = address >= 16'h8000;
 wire        ppu_route  = address >= 16'h2000 && address < 16'h3FFF;
 
@@ -78,8 +89,8 @@ wire [7:0]  din = sram_route ? Dram :               /* 0000-07FF SRAM */
                   ppu_route  ? Dppu :               /* 2000-3FFF PPU */
                   srom_route ? Drom : 8'h00;        /* 8000-FFFF ROM */
 
-always @(posedge clk) dlSRAM <= {dlSRAM[0], CLKCPU};
-always @(posedge clk) dlVRAM <= {dlVRAM[0], WVREQ};
+always @(posedge clk) DSRAM <= CLKCPU;
+always @(posedge clk) DVRAM <= {DVRAM[0], WVREQ};
                   
 // --------------------------------------------------------------------------
 
@@ -94,7 +105,8 @@ cpu C6502(
     .EAWR   ( eawr ),           // Эффективный адрес
     .WREQ   ( wreq ),           // =1 Запись в память по адресу EA
     .RD     ( RD ),             // =1 Чтение из PPU
-    .NMI    (NMI),
+    .NMI    ( NMI ),
+    .DEBUG  ( DEBUG )           // Отладочный
 );
 
 // --------------------------------------------------------------------------
@@ -146,7 +158,7 @@ ppu PPU(
     .faddr  (addr_frd), /* Адрес CHR-ROM */
     .fdata  (data_frd), /* Данные CHR-ROM */
     .FIN    (FIN),      /* Данные из знакогенератора на чтение */    
-    
+    .DEBUG  (DEBUGPPU)
     
 );
 
@@ -198,7 +210,7 @@ always @(posedge rx_ready) begin
         prg_enable <= 1'b1;
         prg_wren   <= 1'b1;
         prg_addr   <= 16'h0000;
-        led[0]     <= 1'b1;
+        prg_led    <= 1'b1;
 
     end
     else begin
@@ -206,7 +218,7 @@ always @(posedge rx_ready) begin
         if (prg_addr == (prg_len - 2)) begin
             prg_enable <= 1'b0;
             prg_wren   <= 1'b0;
-            led[0]     <= 1'b0;
+            prg_led    <= 1'b0;
         end
 
         prg_addr <= prg_addr + 1'b1;
@@ -228,7 +240,7 @@ vram VRAM(
     /* Для записи из PPU */
     .addr_wr (WADDR[10:0]),
     .data_wr (WDATA),
-    .wren    (dlVRAM == 2'b01),
+    .wren    (DVRAM == 2'b01),
     .qw      (VIN),
 
 );
@@ -270,9 +282,9 @@ sram SRAM(
     .q        (Dram),
     
     /* Запись на обратном фронте CPU в память */
-    .addr_wr  (address[10:0]),
+    .addr_wr  (eawr[10:0]),
     .data_wr  (dout),
-    .wren     (dlSRAM == 2'b10 && wreq && sram_write),
+    .wren     ({DSRAM, CLKCPU} == 2'b10 && wreq && sram_write),
 
 );
 

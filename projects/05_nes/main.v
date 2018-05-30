@@ -24,6 +24,8 @@ wire        wreq;
 wire        ppuclk;
 wire        cpuclk;
 wire        NMI;
+wire [7:0]  DEBUG;
+wire [7:0]  DEBUGPPU;
 wire        reset = 1'b0;
 
 // Внутрисхемная память
@@ -64,7 +66,7 @@ end
 // Центральный процессор
 // ---------------------------------------------------------------------
 
-cpu CPU( reset, cpuclk, 1'b1, address, din, dout, ea, wreq, rd, NMI); 
+cpu CPU( reset, cpuclk, 1'b1, address, din, dout, ea, wreq, rd, NMI, DEBUG); 
 
 // Графический процессор
 // ---------------------------------------------------------------------
@@ -102,7 +104,7 @@ ppu PPU(
     ea, dout, rd, wreq, ppu_dout,
     
     /* NonMasking */
-    NMI
+    NMI, DEBUGPPU
 );
 
 endmodule
