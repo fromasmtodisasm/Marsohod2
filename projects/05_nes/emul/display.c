@@ -166,16 +166,19 @@ void printScreen() {
             
             // Расcчитать позицию на этой странице
             ADDRPG = (0x20*scroll_y + scroll_x);            
-            ADDRAT = (scroll_y >> 2)*16 + (scroll_x >> 2);
+            ADDRAT = (scroll_y >> 2)*8 + (scroll_x >> 2);
              
             ch = sram[ ADDRNT + 0x000 + ADDRPG ];
             at = sram[ ADDRNT + 0x3C0 + ADDRAT ];
 
-            // 0 1
-            // 2 3
+            // 0 1 Тайлы 4x4 
+            // 2 3 Каждый 2x2
+
+            // Номер тайлов 2x2: 0,1,2,3
+            bn = ((scroll_y & 2) << 1) + (scroll_x & 2);
             
-            bn = (i & 2) + (j >> 1) & 1;
-            at = (at >> (2*bn)) & 3;
+            // Извлекаем атрибуты
+            at = (at >> bn) & 3;
 
             for (a = 0; a < 8; a++) {
 
@@ -188,7 +191,7 @@ void printScreen() {
 
                     // Получение 4-х битов
                     color = (fol & s ? 1 : 0) | (foh & s ? 2 : 0);
-                    color = 4*at | color;
+                    color = (4*at) | color;
 
                     if (color & 3) {
                         color = sram[ 0x13F00 + color ]; // 16 цветов палитры фона
@@ -210,6 +213,8 @@ void printScreen() {
         }
     }
     
+    /* Сброс cntVT по завершению отрисовки фрейма */
+    cntVT = 0;    
 }
 
 // Рисование линии (для проверки)

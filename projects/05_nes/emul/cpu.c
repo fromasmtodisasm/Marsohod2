@@ -126,7 +126,7 @@ char* operandNamesString[57] = {
 };
 
 int cycles_basic[256] = {
-      
+
       7, 6, 2, 8, 3, 3, 5, 5, 3, 2, 2, 2, 4, 4, 6, 6,
       2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
       6, 6, 2, 8, 3, 3, 5, 5, 4, 2, 2, 2, 4, 4, 6, 6,
@@ -174,21 +174,21 @@ void initCPU() {
     for (i = 0; i < 256; i++) {
         breakpoints[i] = -1;
     }
-    
+
     if (TRACER) {
-        
+
         FILE* f = fopen("trace.log", "w+");
         fclose(f);
-        
+
     }
-    
+
     // ---
     // breakpointsMax = 1; breakpoints[0] = 0xC240;
     //breakpointsMax = 1; breakpoints[0] = 0x03A0; //  0xE390
 }
 
 // Чтение слова из памяти
-unsigned int readW(int addr) {    
+unsigned int readW(int addr) {
     return sram[addr & 0xffff] + 256 * sram[(1 + addr) & 0xffff];
 }
 
@@ -201,87 +201,87 @@ unsigned char PULL() {
 
 // Чтение байта из памяти
 unsigned char readB(int addr) {
-    
+
     int tmp, olddat;
-    
+
     if (addr >= 0x2000 && addr < 0x3F00) {
-        
+
         switch (addr & 7) {
-            
-            case 2: 
+
+            case 2:
 
                 /* Предыдущее значение */
                 tmp = ppu_status;
 
                 /* Сброс при чтении */
-                ppu_status = ppu_status & 0b00111111;         
-                
+                ppu_status = ppu_status & 0b00111111;
+
                 /* Сброс 2005, 2007 чтения/записи */
-                firstWrite = 1;   
-                
+                firstWrite = 1;
+
                 return tmp;
-            
+
             /* Чтение из видеопамяти (кроме STA) */
             case 7:
-            
+
                 olddat = objvar;
                 objvar = sram[ 0x10000 + VRAMAddress ];
                 VRAMAddress += (ctrl0 & 0x04 ? 32 : 1);
-                
+
                 return olddat;
-        }            
+        }
     }
-    
+
     return sram[ addr & 0xffff ];
 }
 
 // Запись байта в память
 void writeB(int addr, unsigned char data) {
-    
+
     if (addr >= 0x8000) {
         return;
     }
-    
+
     if (addr >= 0x2000 && addr <= 0x3FFF) {
-        
+
         switch (addr & 7) {
-            
+
             case 0: ctrl0 = data; break;
             case 1: ctrl1 = data; break;
             // 2
             case 3: spraddr = data; break;
             case 4: sprite[ spraddr ] = data; spraddr = (spraddr + 1) & 0xff; break;
-            
+
             /* Скроллинг */
-            case 5: 
-            
+            case 5:
+
                 /* Горизонтальный скроллинг */
                 if (firstWrite) {
-                    
+
                   regFH =  data & 7;        // Точный скроллинг по X (Fine Horizontal)
                   regHT = (data >> 3) & 31; // Грубый скроллинг по X (Horizontal Tile)
-                
+
                 /* Вертикальный */
                 } else {
-                    
+
                   regFV =  data & 7;        // Точный скроллинг по Y (Fine Vertical)
                   regVT = (data >> 3) & 31; // Грубый скроллинг по Y (Vertical Tile)
                 }
-                
-                firstWrite = !firstWrite;            
+
+                firstWrite = !firstWrite;
                 break;
-            
+
             case 6: // Запись адреса курсора в память
-            
+
                 if (firstWrite) {
-                    
+
                     regFV = (data >> 4) & 3;
                     regV  = (data >> 3) & 1;
                     regH  = (data >> 2) & 1;
                     regVT = (regVT & 7) | ((data & 3) << 3);
-                    
+
                 } else {
-                    
+
                     regVT = (regVT & 24) | ((data >> 5) & 7);
                     regHT =  data & 31;
 
@@ -292,12 +292,12 @@ void writeB(int addr, unsigned char data) {
                     cntV  = regV;
                     cntH  = regH;
                 }
-                
+
                 firstWrite = !firstWrite;
-                                
+
                 // FE DC BA 98765 43210
                 // .. UU VH YYYYY XXXXX
-                
+
                 // Старшие биты
                 b1  = (cntFV & 7) << 4; // Верхние 2 бита
                 b1 |= ( cntV & 1) << 3; // Экран (2, 3)
@@ -309,18 +309,18 @@ void writeB(int addr, unsigned char data) {
                 b2 |=  cntHT & 31;      // X[4:0]
 
                 VRAMAddress = ((b1 << 8) | b2) & 0x7fff;
-                break;            
-            
+                break;
+
             case 7: // Запись данных в видеопамять
 
-                sram[ 0x10000 + VRAMAddress ] = data;    
-                
+                sram[ 0x10000 + VRAMAddress ] = data;
+
                 VRAMAddress += (ctrl0 & 0x04 ? 32 : 1);
                 break;
         }
-        
-        
-    } else {        
+
+
+    } else {
         sram[ addr & 0xffff ] = data;
     }
 }
@@ -360,11 +360,11 @@ unsigned int getEffectiveAddress(int addr) {
         case ABY: return (readW(addr) + reg_Y) & 0xffff;
 
         /* Indirect */
-        case IND: 
-        
-            addr  = readW(addr);        
-            iaddr = readB(addr) + 256*readB((addr & 0xFF00) + ((addr + 1) & 0x00FF));        
-            return iaddr;        
+        case IND:
+
+            addr  = readW(addr);
+            iaddr = readB(addr) + 256*readB((addr & 0xFF00) + ((addr + 1) & 0x00FF));
+            return iaddr;
 
         /* Relative */
         case REL:
@@ -388,12 +388,12 @@ void exec() {
     opcode = readB(addr);
     optype = operandTypes[ opcode ];
     opname = operandNames[ opcode ];
-    
+
     if (opname == STA || opname == STX || opname == STY) {
         ppurd = 0;
     }
 
-    INCRADDR;    
+    INCRADDR;
 
     // Тип операнда
     switch (optype) {
@@ -416,7 +416,7 @@ void exec() {
 
             INCRADDR;
             INCRADDR;
-                        
+
             if (ppurd) src = readB( iaddr );
             break;
 
@@ -431,7 +431,7 @@ void exec() {
             src = reg_A;
             break;
     }
-    
+
     cycles += cycles_basic[ opcode ];
 
     /* Разбор инструкции и исполнение */
@@ -796,16 +796,16 @@ void exec() {
             reg_A = (src);
             break;
         }
-        
+
         case AAC: {
-            
+
             src &= reg_A;
             SET_SIGN(src);
             SET_ZERO(src);
             SET_CARRY(src & 0x80);
             reg_A = src;
             break;
-            
+
         }
     }
 
@@ -817,16 +817,16 @@ void exec() {
 
     // ---- Отладка ---
     if (TRACER && debugOldPC != reg_PC) {
-        
-        FILE* ab = fopen("trace.log", "a+");        
-        
+
+        FILE* ab = fopen("trace.log", "a+");
+
         decodeLine(reg_PC);
         int AE = getEffectiveAddress(reg_PC);
-        
+
         fprintf(ab, "%04X | %02X %02X %02X | %04X: %02X | %s\n", reg_PC, sram[ reg_PC ], sram[ reg_PC+1 ], sram[ reg_PC+2 ], AE & 0xFFFF, sram[AE], debLine);
         fclose(ab);
         debugOldPC = reg_PC;
-    }    
+    }
 }
 
 // Декодирование линии, указанной по адресу
@@ -906,7 +906,7 @@ void disassembleAll() {
     if (deb_bottom >= 0 && deb_addr > deb_bottom) {
         deb_top = deb_addr;
     }
-    
+
     // Выровнять если PC ушел
     if (reg_PC < deb_top || reg_PC > deb_bottom) {
         deb_top = reg_PC;
@@ -966,30 +966,30 @@ void disassembleAll() {
 }
 
 // Исполнение кванта инструкции по NMI (1/60)
-void nmi_exec() {    
+void nmi_exec() {
 
     if (cpu_running) {
 
         int i, j, l, frame_start = 0, iter;
-        unsigned char bt;    
-        
+        unsigned char bt;
+
         locked = 1;
         cycles = 0;
-        iter   = 0;        
-        
+        iter   = 0;
+
         /* При старте рендеринга, использовать regHT, regVT от $2005 */
         coarse_x = regHT; fine_x = regFH;
         coarse_y = cntVT; fine_y = regFV;
-        
+
         // 341 x 262 / 3 = 29167 циклов на 1 кадр
         while (cycles < EXEC_QUANT && iter < EXEC_QUANT) {
-            
+
             iter++;
             bt = sram[ reg_PC ];
- 
+
             // Программная точка останова (BRK и KIL)
             if (bt == 0x02 /* || bt == 0x00 */) {
-                
+
                 cpu_running = 0;
 
             } else {
@@ -1005,45 +1005,42 @@ void nmi_exec() {
                     }
                 }
             }
-            
-            if (cpu_running) {
-            
-                // Установка VBlank
-                if ((cycles > 240*EXEC_QUANT/262) && frame_start == 0) {
-                    
-                    /* Сброс cntVT по завершению отрисовки фрейма */
-                    cntVT = 0;  
 
-                    frame_start = 1;                
+            if (cpu_running) {
+
+                // Может быть отключено при точке останова
+                exec();
+
+                // Установка VBlank
+                if ((cycles > 241*EXEC_QUANT/262) && frame_start == 0) {
+
+                    frame_start = 1;
                     ppu_status |= 0b10000000;
 
                     /* NMI */
                     if ((ctrl0 & 0x80) && 1)  {
-                        
+
                         PUSH((reg_PC >> 8) & 0xff);	     /* Вставка обратного адреса в стек */
                         PUSH(reg_PC & 0xff);
                         SET_BREAK(1);                    /* Установить BFlag перед вставкой */
                         PUSH(reg_P);
-                        SET_INTERRUPT(1);            
-                        reg_PC = readW(0xFFFA);                        
+                        SET_INTERRUPT(1);
+                        reg_PC = readW(0xFFFA);
                     }
-                    
+
                 // Сброс VBlank
                 } else if (cycles > EXEC_QUANT - 64 && frame_start == 1) {
-                    
-                    frame_start = 0;
+
                     ppu_status &= 0b01111111;
                 }
 
-                // Может быть отключено при точке останова                
-                exec();
-            }    
-            else break;        
+            }
+            else break;
 
         }
-        
 
+        frame_start = 0;
         locked = 0;
     }
-    
+
 }
