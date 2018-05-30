@@ -249,8 +249,7 @@ void writeB(int addr, unsigned char data) {
         int baseaddr = 0x100 * data;                    
         for (i = 0; i < 256; i++) {
             spriteRam[i] = sram[baseaddr + i];
-        }     
-        printf("%02x ", data);
+        }             
         return;                
     }
         

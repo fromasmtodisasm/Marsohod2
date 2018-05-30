@@ -212,6 +212,16 @@ void printScreen() {
             }
         }
     }
+   
+    // Рисование спрайтов
+    for (i = 0; i < 256; i += 4) {
+        
+        int sprite_x = spriteRam[i + 0];
+        int sprite_y = spriteRam[i + 3];
+        int icon_src = spriteRam[i + 1];
+        int attr_spr = spriteRam[i + 2];
+        
+    }
     
     /* Сброс cntVT по завершению отрисовки фрейма */
     cntVT = 0;    
