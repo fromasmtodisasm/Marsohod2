@@ -110,6 +110,7 @@ unsigned int  reg_PC;
 
 // 64Кб общей + 16Кб CHR-ROM/VRAM
 unsigned char sram[ 256*1024 ]; // PRG-ROM (32k) + CHR-ROM (8k) + VRAM(4)
+unsigned char spriteRam[ 256];  // Память спрайтов
 
 // Статус CPU, если 0 - остановлен для отладки
 int  cpu_running;

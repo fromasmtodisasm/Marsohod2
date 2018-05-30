@@ -242,6 +242,18 @@ void writeB(int addr, unsigned char data) {
         return;
     }
 
+    /* Обновление спрайтов */
+    if (addr == 0x4014) {
+        
+        int i;
+        int baseaddr = 0x100 * data;                    
+        for (i = 0; i < 256; i++) {
+            spriteRam[i] = sram[baseaddr + i];
+        }     
+        printf("%02x ", data);
+        return;                
+    }
+        
     if (addr >= 0x2000 && addr <= 0x3FFF) {
 
         switch (addr & 7) {
@@ -250,7 +262,7 @@ void writeB(int addr, unsigned char data) {
             case 1: ctrl1 = data; break;
             // 2
             case 3: spraddr = data; break;
-            case 4: sprite[ spraddr ] = data; spraddr = (spraddr + 1) & 0xff; break;
+            case 4: spriteRam[ spraddr ] = data; spraddr = (spraddr + 1) & 0xff; break;
 
             /* Скроллинг */
             case 5:
@@ -312,10 +324,9 @@ void writeB(int addr, unsigned char data) {
                 break;
 
             case 7: // Запись данных в видеопамять
-
+                                
                 sram[ 0x10000 + VRAMAddress ] = data;
-
-                VRAMAddress += (ctrl0 & 0x04 ? 32 : 1);
+                VRAMAddress += (ctrl0 & 0x04 ? 32 : 1);                                
                 break;
         }
 
