@@ -90,10 +90,15 @@ void setPixel(int x, int y, int color, int scale) {
     for (i = 0; i < scale; i++) {
 
         for (j = 0; j < scale; j++) {
+            
+            int TX = x + j;
+            int TY = HEIGHT - 1 - y - i;
 
-            frame[ HEIGHT - 1 - y - i ][ x + j ].b =  color & 0xff;
-            frame[ HEIGHT - 1 - y - i ][ x + j ].g = (color >> 8) & 0xff;
-            frame[ HEIGHT - 1 - y - i ][ x + j ].r = (color >> 16) & 0xff;
+            if (TX >= 0 && TX < WIDTH && TY >= 0 && TY < HEIGHT) {                
+                frame[ HEIGHT - 1 - y - i ][ x + j ].b =  color & 0xff;
+                frame[ HEIGHT - 1 - y - i ][ x + j ].g = (color >> 8) & 0xff;
+                frame[ HEIGHT - 1 - y - i ][ x + j ].r = (color >> 16) & 0xff;
+            }
         }
     }
 
@@ -135,13 +140,9 @@ void printScreen() {
     int screen_id  = (ctrl0 & 0x01);
     int active_chr = (ctrl0 & 0x10) ? 0x1000 : 0x0;
 
-    int ADDRNT, ADDRPG, ADDRAT;
-    int i, j, a, b, ch, fol, foh, at, color, bn;
-
-    int nametable = (video_scroll >> 10) & 0x03;
-    int fine_y    = (video_scroll >> 12) & 0x07;
-    
     int xp, yp;
+    int i, j, a, b, ch, fol, foh, at, color, bn;    
+    int ADDRNT, ADDRPG, ADDRAT;
 
     // Обновление символов
     for (i = 0; i < 30; i++) {
@@ -167,7 +168,7 @@ void printScreen() {
             ADDRPG = (0x20*scroll_y + scroll_x);            
             ADDRAT = (scroll_y >> 2)*16 + (scroll_x >> 2);
              
-            ch = sram[ ADDRNT + 0x000 + ADDRPG ]; // (i*32) + j
+            ch = sram[ ADDRNT + 0x000 + ADDRPG ];
             at = sram[ ADDRNT + 0x3C0 + ADDRAT ];
 
             // 0 1
@@ -248,8 +249,6 @@ void display() {
     // Очистка буфера. В том числе и Z-буфера
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    nmi_exec();
-
     // Очистка экрана
     for (i = 0; i < HEIGHT; i++) {
     for (j = 0; j < WIDTH; j++) {
@@ -257,6 +256,10 @@ void display() {
         frame[i][j].g = 0;
         frame[i][j].b = 0;
     } }
+
+    if (locked == 0) {
+        nmi_exec();
+    }
 
     // Знакогенератор встроенный
     printScreen();
@@ -395,8 +398,6 @@ void printRegisters() {
     } else {
         printString(9, baseline + 21, "F5",  0xC0A000, 0);
     }
-
-    //printString(1, 47, "", 0x808080, 0);
 
     int zp;
     printString(6, baseline + 11, "+0 +1 +2 +3 +4 +5 +6 +7", 0xffffff, 0);

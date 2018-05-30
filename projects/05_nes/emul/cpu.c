@@ -164,6 +164,7 @@ void initCPU() {
     cpu_running = 0;
     cycles      = 0;
     firstWrite  = 1;
+    locked      = 0;
 
     for (i = 0; i < 64; i++) {
         debAddr[i] = 0;
@@ -175,7 +176,13 @@ void initCPU() {
     }
     
     // ---
-    //breakpointsMax = 1; breakpoints[0] = 0xC240;
+    // breakpointsMax = 1; breakpoints[0] = 0xC240;
+    // breakpointsMax = 1; breakpoints[0] = 0xE380;
+}
+
+// Чтение слова из памяти
+unsigned int readW(int addr) {    
+    return sram[addr & 0xffff] + 256 * sram[(1 + addr) & 0xffff];
 }
 
 // Извлечение из стека
@@ -221,14 +228,12 @@ unsigned char readB(int addr) {
     return sram[ addr & 0xffff ];
 }
 
-// Чтение слова из памяти
-unsigned int readW(int addr) {
-    
-    return sram[addr & 0xffff] + 256 * sram[(1 + addr) & 0xffff];
-}
-
 // Запись байта в память
 void writeB(int addr, unsigned char data) {
+    
+    if (addr >= 0x8000) {
+        return;
+    }
     
     if (addr >= 0x2000 && addr <= 0x3FFF) {
         
@@ -318,25 +323,25 @@ unsigned int getEffectiveAddress(int addr) {
 
     int opcode, src, iaddr;
 
-    opcode  = readB(addr);
+    opcode  = sram[ addr ];
     INCRADDR;
 
     switch (operandTypes[ opcode ]) {
 
         /* Indirect, X (b8,X) */
-        case NDX: return readW( (readB(addr) + reg_X) & 0x00ff );
+        case NDX: return readW( (sram[ addr ] + reg_X) & 0x00ff );
 
         /* Indirect, Y (b8),Y */
-        case NDY: return (readW( readB(addr) ) + reg_Y) & 0xffff;
+        case NDY: return (readW( sram[ addr ] ) + reg_Y) & 0xffff;
 
         /* Zero Page */
-        case ZP:  return readB(addr);
+        case ZP:  return sram[ addr ];
 
         /* Zero Page, X */
-        case ZPX: return (readB(addr) + reg_X) & 0x00ff;
+        case ZPX: return (sram[ addr ] + reg_X) & 0x00ff;
 
         /* Zero Page, Y */
-        case ZPY: return (readB(addr) + reg_Y) & 0x00ff;
+        case ZPY: return (sram[ addr ] + reg_Y) & 0x00ff;
 
         /* Absolute */
         case ABS: return readW(addr);
@@ -353,7 +358,7 @@ unsigned int getEffectiveAddress(int addr) {
         /* Relative */
         case REL:
 
-            iaddr = readB(addr);
+            iaddr = sram[ addr ];
             return (iaddr + addr + 1 + (iaddr < 128 ? 0 : -256)) & 0xffff;
     }
 
@@ -778,12 +783,23 @@ void exec() {
             reg_A = (src);
             break;
         }
-
     }
+
+    // if (addr < 0x8000) { printf("%04x %04x %02x %02x %02x\n", addr, reg_PC, sram[ reg_PC ], sram[ reg_PC+1 ], sram[ reg_PC+2 ]); exit(2); }
 
     // Установка нового адреса
     reg_PC      = addr;
     deb_addr    = addr;
+
+    // ---- Отладка ---
+    /*
+    if (debugOldPC != reg_PC) {
+        FILE* ab = fopen("test.log", "a+");
+        fprintf(ab, "%04x | %02x %02x %02x\n", reg_PC, sram[ reg_PC ], sram[ reg_PC+1 ], sram[ reg_PC+2 ]);
+        fclose(ab);
+        debugOldPC = reg_PC;
+    }
+    */
 }
 
 // Декодирование линии, указанной по адресу
@@ -794,7 +810,7 @@ int decodeLine(int addr) {
     unsigned char op, type;
     char operand[32];
 
-    op   = readB(addr);
+    op   = sram[ addr ];
     addr = (addr + 1) & 0xffff;
 
     // Получение номера опкода
@@ -805,22 +821,22 @@ int decodeLine(int addr) {
     switch (op_oper_id) {
 
         /* IMMEDIATE VALUE */
-        case IMM: t = readB(addr); addr++; sprintf(operand, "#%02X", t); break;
+        case IMM: t = sram[ addr ]; addr++; sprintf(operand, "#%02X", t); break;
 
         /* INDIRECT X */
-        case NDX: t = readB(addr); addr++; sprintf(operand, "($%02X,X)", t); break;
+        case NDX: t = sram[ addr ]; addr++; sprintf(operand, "($%02X,X)", t); break;
 
         /* ZEROPAGE */
-        case ZP: t = readB(addr); addr++; sprintf(operand, "$%02X", t); break;
+        case ZP: t = sram[ addr ]; addr++; sprintf(operand, "$%02X", t); break;
 
         /* ABSOLUTE */
         case ABS: t = readW(addr); addr += 2; sprintf(operand, "$%04X", t); break;
 
         /* INDIRECT Y */
-        case NDY: t = readB(addr); addr++; sprintf(operand, "($%02X),Y", t); break;
+        case NDY: t = sram[ addr ]; addr++; sprintf(operand, "($%02X),Y", t); break;
 
         /* ZEROPAGE X */
-        case ZPX: t = readB(addr); addr++; sprintf(operand, "$%02X,X", t); break;
+        case ZPX: t = sram[ addr ]; addr++; sprintf(operand, "$%02X,X", t); break;
 
         /* ABSOLUTE Y */
         case ABY: t = readW(addr); addr += 2; sprintf(operand, "$%04X,Y", t); break;
@@ -829,13 +845,13 @@ int decodeLine(int addr) {
         case ABX: t = readW(addr); addr += 2; sprintf(operand, "$%04X,X", t); break;
 
         /* RELATIVE */
-        case REL: t = readB(addr); addr++; sprintf(operand, "$%04X", addr + (t < 128 ? t : t - 256));  break;
+        case REL: t = sram[ addr ]; addr++; sprintf(operand, "$%04X", addr + (t < 128 ? t : t - 256));  break;
 
         /* ACCUMULATOR */
         case ACC: sprintf(operand, "A"); break;
 
         /* ZEROPAGE Y */
-        case ZPY: t = readB(addr); addr++; sprintf(operand, "$%02X,Y", t); break;
+        case ZPY: t = sram[ addr ]; addr++; sprintf(operand, "$%02X,Y", t); break;
 
         /* INDIRECT ABS */
         case IND: t = readW(addr); addr += 2; sprintf(operand, "($%04X)", t);  break;
@@ -862,6 +878,11 @@ void disassembleAll() {
     // Проверить выход за нижнюю границу
     if (deb_bottom >= 0 && deb_addr > deb_bottom) {
         deb_top = deb_addr;
+    }
+    
+    // Выровнять если PC ушел
+    if (reg_PC < deb_top || reg_PC > deb_bottom) {
+        deb_top = reg_PC;
     }
 
     addr = deb_top;
@@ -902,7 +923,7 @@ void disassembleAll() {
 
         // Пропечать байты
         for (j = 0; j < bytes; j++) {
-            printHex(38 + 3*j, 1 + i, readB(addr + j), 2, 0xf0f000, current_bg);
+            printHex(38 + 3*j, 1 + i, sram[addr + j], 2, 0xf0f000, current_bg);
         }
 
         // Печатать саму строку
@@ -918,15 +939,17 @@ void disassembleAll() {
 }
 
 // Исполнение кванта инструкции по NMI (1/60)
-void nmi_exec() {
+void nmi_exec() {    
 
-    int i, j, l, frame_start = 0, iter;
-    unsigned char bt;
-    
     if (cpu_running) {
+
+
+        int i, j, l, frame_start = 0, iter;
+        unsigned char bt;    
         
+        locked = 1;
         cycles = 0;
-        iter = 0;
+        iter   = 0;        
         
         /* При старте рендеринга, использовать regHT, regVT от $2005 */
         coarse_x = regHT; fine_x = regFH;
@@ -935,11 +958,12 @@ void nmi_exec() {
         // 341 x 262 / 3 = 29167 циклов на 1 кадр
         while (cycles < EXEC_QUANT && iter < EXEC_QUANT) {
             
-            bt = readB(reg_PC);
             iter++;
-
+            bt = sram[ reg_PC ];
+ 
             // Программная точка останова (BRK и KIL)
-            if (bt == 0x00 || bt == 0x02) {
+            if (bt == 0x02 || bt == 0x00) {
+                
                 cpu_running = 0;
 
             } else {
@@ -949,42 +973,47 @@ void nmi_exec() {
 
                     if (breakpoints[ j ] == reg_PC) {
 
-                        deb_addr = reg_PC;
+                        deb_addr    = reg_PC;
                         cpu_running = 0;
                         break;
                     }
                 }
             }
             
-            // Установка VBlank
-            if (cycles > EXEC_QUANT/262*240 && frame_start == 0) {
-                
-                frame_start = 1;                
-                ppu_status |= 0b10000000;
-
-                /* NMI */
-                if ((ctrl0 & 0x80) && 1)  {
-                    
-                    PUSH((reg_PC >> 8) & 0xff);	     /* Вставка обратного адреса в стек */
-                    PUSH(reg_PC & 0xff);
-                    SET_BREAK(1);                    /* Установить BFlag перед вставкой */
-                    PUSH(reg_P);
-                    SET_INTERRUPT(1);
-                    reg_PC = readW(0xFFFA);                        
-                }
-                
-            // Сброс VBlank
-            } else if (cycles > EXEC_QUANT - 64 && frame_start == 1) {
-                
-                frame_start = 0;
-                ppu_status &= 0b01111111;
-            }
-
-            // Может быть отключено при точке останова
             if (cpu_running) {
-                exec();
-            }            
-        }
-    }
+            
+                // Установка VBlank
+                if ((cycles > 240*EXEC_QUANT/262) && frame_start == 0) {
+                    
+                    frame_start = 1;                
+                    ppu_status |= 0b10000000;
 
+                    /* NMI */
+                    if ((ctrl0 & 0x80) && 1)  {
+                        
+                        PUSH((reg_PC >> 8) & 0xff);	     /* Вставка обратного адреса в стек */
+                        PUSH(reg_PC & 0xff);
+                        SET_BREAK(1);                    /* Установить BFlag перед вставкой */
+                        PUSH(reg_P);
+                        SET_INTERRUPT(1);            
+                        reg_PC = readW(0xFFFA);                        
+                    }
+                    
+                // Сброс VBlank
+                } else if (cycles > EXEC_QUANT - 64 && frame_start == 1) {
+                    
+                    frame_start = 0;
+                    ppu_status &= 0b01111111;
+                }
+
+                // Может быть отключено при точке останова                
+                exec();
+            }    
+            else break;        
+
+        }
+        
+        locked = 0;
+    }
+    
 }

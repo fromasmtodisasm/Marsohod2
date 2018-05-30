@@ -29,9 +29,7 @@ void keyboard_func(int key, int x, int y) {
 
     // Выполнить 1 шаг
     if (key == GLUT_KEY_F7) {
-
         exec();
-        display();
     }
 
     // Переключение режима отладчика

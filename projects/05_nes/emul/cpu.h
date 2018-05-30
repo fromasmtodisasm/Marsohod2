@@ -94,15 +94,15 @@
 #define NOP     55
 #define SED     56
 
-// 64Кб общей + 16Кб CHR-ROM/VRAM
-unsigned char sram[ 128*1024 ]; // PRG-ROM (32k) + CHR-ROM (8k) + VRAM(4)
-
-unsigned char reg_A;
-unsigned char reg_X;
-unsigned char reg_Y;
-unsigned char reg_P;
-unsigned char reg_S;
+unsigned int  reg_A;
+unsigned int  reg_X;
+unsigned int  reg_Y;
+unsigned int  reg_P;
+unsigned int  reg_S;
 unsigned int  reg_PC;
+
+// 64Кб общей + 16Кб CHR-ROM/VRAM
+unsigned char sram[ 256*1024 ]; // PRG-ROM (32k) + CHR-ROM (8k) + VRAM(4)
 
 // Статус CPU, если 0 - остановлен для отладки
 int  cpu_running;
@@ -125,6 +125,8 @@ int breakpointsMax;     // Максимальная точка в массиве
 
 // Текущая линия отладчика
 int debCurrentLine;
+int debugOldPC;
+int locked;
 
 // Используемый маппер памяти
 int mapper;

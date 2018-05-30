@@ -38,7 +38,7 @@ int main(int argc, char* argv[]) {
         
         deb_top  = reg_PC;
         deb_addr = reg_PC;        
-    }
+    }    
     
     // http://grafika.me/node/130
     glutKeyboardFunc(& keyboard );
