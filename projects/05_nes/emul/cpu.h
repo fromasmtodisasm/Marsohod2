@@ -16,7 +16,7 @@
 #ifndef CPUH
 #define CPUH
 
-#define EXEC_QUANT      29167   // 25Mhz=416667, 1.75Mhz=29167 | Сколько инструкции выполнить за 1/60 с
+#define EXEC_QUANT      50000   // 25Mhz=416667, 1.75Mhz=29167 | Сколько инструкции выполнить за 1/60 с
 #define MAPPER_NES      1       // NES-маппер
 #define MAPPER_OWN      2       // Свой маппер
 
@@ -111,6 +111,7 @@ int  deb_top;
 int  deb_bottom;
 int  deb_addr;
 int  zp_base;
+int  cycles;
 
 // Декодированная линия в отладчике
 unsigned char debLine[32];

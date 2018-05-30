@@ -18,7 +18,7 @@ assign ADDR  = AS ? {8'h01, S} : (AM ? EA : PC);
 assign EAWR  = AS ? {8'h01, S} : EA;
 
 assign  DEBUG = EA[7:0];
-`define DEBUGPC 16'h0000 // 16'hC240
+`define DEBUGPC 16'h0000 // 16'hC240 16'hC247
 
 // ---------------------------------------------------------------------
 

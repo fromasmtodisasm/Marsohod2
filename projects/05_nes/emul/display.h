@@ -34,6 +34,17 @@ unsigned char   objvar;
 int             sprite[256];
 int             video_scroll;
 unsigned char   ppu_status;
+unsigned char   firstWrite;
+int             regFV, regVT, regV, regH, regFH, regHT,
+                ppu_address,
+                cntFV, cntV, cntH, cntVT, cntHT, b1, b2;
+                
+/* Параметры скроллинга */
+int             coarse_x, coarse_y, 
+                fine_x, fine_y;
+
+// Текущий видео адрес
+int VRAMAddress;
 
 // Прототипы 
 // ---------------------------------------------------------------------
