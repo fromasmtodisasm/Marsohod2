@@ -41,7 +41,8 @@ int             regFV, regVT, regV, regH, regFH, regHT,
                 
 /* Параметры скроллинга */
 int             coarse_x, coarse_y, 
-                fine_x, fine_y;
+                fine_x, fine_y,
+                addr_vt;
 
 // Текущий видео адрес
 int VRAMAddress;

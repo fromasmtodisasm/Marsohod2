@@ -656,7 +656,7 @@ void exec() {
 
         /* Стек */
         case PHA: PUSH(reg_A); break;
-        case PHP: PUSH(reg_P); break;
+        case PHP: PUSH(reg_P | 0x30); break;
         case PLP: reg_P = PULL(); break;
 
         /* Извлечение из стека в A */
@@ -953,7 +953,8 @@ void nmi_exec() {
         
         /* При старте рендеринга, использовать regHT, regVT от $2005 */
         coarse_x = regHT; fine_x = regFH;
-        coarse_y = regVT; fine_y = regFV;
+        coarse_y = cntVT; fine_y = regFV;        
+        //addr_vt  = cntVT;
         
         // 341 x 262 / 3 = 29167 циклов на 1 кадр
         while (cycles < EXEC_QUANT && iter < EXEC_QUANT) {
@@ -985,6 +986,9 @@ void nmi_exec() {
                 // Установка VBlank
                 if ((cycles > 240*EXEC_QUANT/262) && frame_start == 0) {
                     
+                    /* Сброс cntVT по завершению отрисовки фрейма */
+                    cntVT = 0;  
+
                     frame_start = 1;                
                     ppu_status |= 0b10000000;
 
@@ -1013,6 +1017,7 @@ void nmi_exec() {
 
         }
         
+
         locked = 0;
     }
     

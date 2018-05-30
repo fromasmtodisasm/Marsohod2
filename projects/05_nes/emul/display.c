@@ -151,7 +151,7 @@ void printScreen() {
             
             // -----------------------            
             /* Выполнить скроллинг Y */
-            int scroll_y  = (i + coarse_y);
+            int scroll_y  = (i - coarse_y); // - coarse_y
             int scroll_oy = scroll_y >= 0x20;   /* Переполнение X */
                 scroll_y  = scroll_y & 0x1F;    /* Сброс переполнения */
 
@@ -209,6 +209,7 @@ void printScreen() {
             }
         }
     }
+    
 }
 
 // Рисование линии (для проверки)
