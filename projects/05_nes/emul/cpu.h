@@ -12,10 +12,10 @@
 //  $C000 - $FFFF 32K PRG-ROM (0) 
 // $10000             Системная память для шрифтов
 
-
 #ifndef CPUH
 #define CPUH
 
+#define TRACER          1
 #define EXEC_QUANT      50000   // (50000) 25Mhz=416667, 1.75Mhz=29167 | Сколько инструкции выполнить за 1/60 с
 #define MAPPER_NES      1       // NES-маппер
 #define MAPPER_OWN      2       // Свой маппер
@@ -92,7 +92,14 @@
 #define INC     53
 #define INX     54
 #define NOP     55
+#define DOP     55
 #define SED     56
+#define AAC     57
+#define ASR     DOP
+#define ARR     DOP 
+#define XAA     DOP 
+#define ATX     DOP 
+#define AXS     DOP
 
 unsigned int  reg_A;
 unsigned int  reg_X;

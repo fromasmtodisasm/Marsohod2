@@ -23,21 +23,21 @@
 unsigned char operandTypes[256] = {
 
     /*       00   01   02   03   04   05   06   07   08   09   0A   0B   0C   0D   0E   0F */
-    /* 00 */ IMP, NDX, ___, ___, ___, ZP , ZP , ___, IMP, IMM, ACC, ___, ___, ABS, ABS, ___,
+    /* 00 */ IMP, NDX, ___, ___, ___, ZP , ZP , ___, IMP, IMM, ACC, IMM, ___, ABS, ABS, ___,
     /* 10 */ REL, NDY, ___, ___, ___, ZPX, ZPX, ___, IMP, ABY, ___, ___, ___, ABX, ABX, ___,
-    /* 20 */ ABS, NDX, ___, ___, ZP , ZP , ZP , ___, IMP, IMM, ACC, ___, ABS, ABS, ABS, ___,
+    /* 20 */ ABS, NDX, ___, ___, ZP , ZP , ZP , ___, IMP, IMM, ACC, IMM, ABS, ABS, ABS, ___,
     /* 30 */ REL, NDY, ___, ___, ___, ZPX, ZPX, ___, IMP, ABY, ___, ___, ___, ABX, ABX, ___,
-    /* 40 */ IMP, NDX, ___, ___, ___, ZP , ZP , ___, IMP, IMM, ACC, ___, ABS, ABS, ABS, ___,
+    /* 40 */ IMP, NDX, ___, ___, ___, ZP , ZP , ___, IMP, IMM, ACC, IMM, ABS, ABS, ABS, ___,
     /* 50 */ REL, NDY, ___, ___, ___, ZPX, ZPX, ___, IMP, ABY, ___, ___, ___, ABX, ABX, ___,
-    /* 60 */ IMP, NDX, ___, ___, ___, ZP , ZP , ___, IMP, IMM, ACC, ___, IND, ABS, ABS, ___,
+    /* 60 */ IMP, NDX, ___, ___, ___, ZP , ZP , ___, IMP, IMM, ACC, IMM, IND, ABS, ABS, ___,
     /* 70 */ REL, NDY, ___, ___, ___, ZPX, ZPX, ___, IMP, ABY, ___, ___, ___, ABX, ABX, ___,
-    /* 80 */ ___, NDX, ___, ___, ZP , ZP , ZP , ___, IMP, ___, IMP, ___, ABS, ABS, ABS, ___,
+    /* 80 */ IMM, NDX, IMM, ___, ZP , ZP , ZP , ___, IMP, IMM, IMP, IMM, ABS, ABS, ABS, ___,
     /* 90 */ REL, NDY, ___, ___, ZPX, ZPX, ZPY, ___, IMP, ABY, IMP, ___, ___, ABX, ___, ___,
-    /* A0 */ IMM, NDX, IMM, ___, ZP , ZP , ZP , ___, IMP, IMM, IMP, ___, ABS, ABS, ABS, ___,
+    /* A0 */ IMM, NDX, IMM, ___, ZP , ZP , ZP , ___, IMP, IMM, IMP, IMM, ABS, ABS, ABS, ___,
     /* B0 */ REL, NDY, ___, ___, ZPX, ZPX, ZPY, ___, IMP, ABY, IMP, ___, ABX, ABX, ABX, ___,
-    /* C0 */ IMM, NDX, ___, ___, ZP , ZP , ZP , ___, IMP, IMM, IMP, ___, ABS, ABS, ABS, ___,
+    /* C0 */ IMM, NDX, IMM, ___, ZP , ZP , ZP , ___, IMP, IMM, IMP, IMM, ABS, ABS, ABS, ___,
     /* D0 */ REL, NDY, ___, ___, ___, ZPX, ZPX, ___, IMP, ABY, ___, ___, ___, ABX, ABX, ___,
-    /* E0 */ IMM, NDX, ___, ___, ZP , ZP , ZP , ___, IMP, IMM, IMP, ___, ABS, ABS, ABS, ___,
+    /* E0 */ IMM, NDX, IMM, ___, ZP , ZP , ZP , ___, IMP, IMM, IMP, IMM, ABS, ABS, ABS, ___,
     /* F0 */ REL, NDY, ___, ___, ___, ZPX, ZPX, ___, IMP, ABY, ___, ___, ___, ABX, ABX, ___
 
 };
@@ -45,21 +45,21 @@ unsigned char operandTypes[256] = {
 int operandNames[256] = {
 
     /*        00  01   02   03   04   05   06   07   08   09   0A   0B   0C   0D   0E   0F */
-    /* 00 */ BRK, ORA, ___, ___, ___, ORA, ASL, ___, PHP, ORA, ASL, ___, ___, ORA, ASL, ___,
+    /* 00 */ BRK, ORA, ___, ___, ___, ORA, ASL, ___, PHP, ORA, ASL, DOP, ___, ORA, ASL, ___,
     /* 10 */ BPL, ORA, ___, ___, ___, ORA, ASL, ___, CLC, ORA, ___, ___, ___, ORA, ASL, ___,
-    /* 20 */ JSR, AND, ___, ___, BIT, AND, ROL, ___, PLP, AND, ROL, ___, BIT, AND, ROL, ___,
+    /* 20 */ JSR, AND, ___, ___, BIT, AND, ROL, ___, PLP, AND, ROL, AAC, BIT, AND, ROL, ___,
     /* 30 */ BMI, AND, ___, ___, ___, AND, ROL, ___, SEC, AND, ___, ___, ___, AND, ROL, ___,
-    /* 40 */ RTI, EOR, ___, ___, ___, EOR, LSR, ___, PHA, EOR, LSR, ___, JMP, EOR, LSR, ___,
+    /* 40 */ RTI, EOR, ___, ___, ___, EOR, LSR, ___, PHA, EOR, LSR, ASR, JMP, EOR, LSR, ___,
     /* 50 */ BVC, EOR, ___, ___, ___, EOR, LSR, ___, CLI, EOR, ___, ___, ___, EOR, LSR, ___,
-    /* 60 */ RTS, ADC, ___, ___, ___, ADC, ROR, ___, PLA, ADC, ROR, ___, JMP, ADC, ROR, ___,
+    /* 60 */ RTS, ADC, ___, ___, ___, ADC, ROR, ___, PLA, ADC, ROR, ARR, JMP, ADC, ROR, ___,
     /* 70 */ BVS, ADC, ___, ___, ___, ADC, ROR, ___, SEI, ADC, ___, ___, ___, ADC, ROR, ___,
-    /* 80 */ ___, STA, ___, ___, STY, STA, STX, ___, DEY, ___, TXA, ___, STY, STA, STX, ___,
+    /* 80 */ DOP, STA, DOP, ___, STY, STA, STX, ___, DEY, DOP, TXA, XAA, STY, STA, STX, ___,
     /* 90 */ BCC, STA, ___, ___, STY, STA, STX, ___, TYA, STA, TXS, ___, ___, STA, ___, ___,
-    /* A0 */ LDY, LDA, LDX, ___, LDY, LDA, LDX, ___, TAY, LDA, TAX, ___, LDY, LDA, LDX, ___,
+    /* A0 */ LDY, LDA, LDX, ___, LDY, LDA, LDX, ___, TAY, LDA, TAX, ATX, LDY, LDA, LDX, ___,
     /* B0 */ BCS, LDA, ___, ___, LDY, LDA, LDX, ___, CLV, LDA, TSX, ___, LDY, LDA, LDX, ___,
-    /* C0 */ CPY, CMP, ___, ___, CPY, CMP, DEC, ___, INY, CMP, DEX, ___, CPY, CMP, DEC, ___,
+    /* C0 */ CPY, CMP, DOP, ___, CPY, CMP, DEC, ___, INY, CMP, DEX, AXS, CPY, CMP, DEC, ___,
     /* D0 */ BNE, CMP, ___, ___, ___, CMP, DEC, ___, CLD, CMP, ___, ___, ___, CMP, DEC, ___,
-    /* E0 */ CPX, SBC, ___, ___, CPX, SBC, INC, ___, INX, SBC, NOP, ___, CPX, SBC, INC, ___,
+    /* E0 */ CPX, SBC, DOP, ___, CPX, SBC, INC, ___, INX, SBC, NOP, SBC, CPX, SBC, INC, ___,
     /* F0 */ BEQ, SBC, ___, ___, ___, SBC, INC, ___, SED, SBC, ___, ___, ___, SBC, INC, ___,
 
 };
@@ -175,9 +175,16 @@ void initCPU() {
         breakpoints[i] = -1;
     }
     
+    if (TRACER) {
+        
+        FILE* f = fopen("trace.log", "w+");
+        fclose(f);
+        
+    }
+    
     // ---
     // breakpointsMax = 1; breakpoints[0] = 0xC240;
-    // breakpointsMax = 1; breakpoints[0] = 0xE380;
+    //breakpointsMax = 1; breakpoints[0] = 0x03A0; //  0xE390
 }
 
 // Чтение слова из памяти
@@ -353,7 +360,11 @@ unsigned int getEffectiveAddress(int addr) {
         case ABY: return (readW(addr) + reg_Y) & 0xffff;
 
         /* Indirect */
-        case IND: return readW( readW(addr) );
+        case IND: 
+        
+            addr  = readW(addr);        
+            iaddr = readB(addr) + 256*readB((addr & 0xFF00) + ((addr + 1) & 0x00FF));        
+            return iaddr;        
 
         /* Relative */
         case REL:
@@ -405,6 +416,7 @@ void exec() {
 
             INCRADDR;
             INCRADDR;
+                        
             if (ppurd) src = readB( iaddr );
             break;
 
@@ -496,10 +508,11 @@ void exec() {
         /* Программное прерывание */
         case BRK: {
 
-            reg_PC = (reg_PC + 1) & 0xffff;
+            reg_PC = (reg_PC + 2) & 0xffff;
             PUSH((reg_PC >> 8) & 0xff);	     /* Вставка обратного адреса в стек */
             PUSH(reg_PC & 0xff);
             SET_BREAK(1);                    /* Установить BFlag перед вставкой */
+            reg_P |= 0b00100000;             /* 1 */
             PUSH(reg_P);
             SET_INTERRUPT(1);
             addr = readW(0xFFFE);
@@ -783,6 +796,17 @@ void exec() {
             reg_A = (src);
             break;
         }
+        
+        case AAC: {
+            
+            src &= reg_A;
+            SET_SIGN(src);
+            SET_ZERO(src);
+            SET_CARRY(src & 0x80);
+            reg_A = src;
+            break;
+            
+        }
     }
 
     // if (addr < 0x8000) { printf("%04x %04x %02x %02x %02x\n", addr, reg_PC, sram[ reg_PC ], sram[ reg_PC+1 ], sram[ reg_PC+2 ]); exit(2); }
@@ -792,14 +816,17 @@ void exec() {
     deb_addr    = addr;
 
     // ---- Отладка ---
-    /*
-    if (debugOldPC != reg_PC) {
-        FILE* ab = fopen("test.log", "a+");
-        fprintf(ab, "%04x | %02x %02x %02x\n", reg_PC, sram[ reg_PC ], sram[ reg_PC+1 ], sram[ reg_PC+2 ]);
+    if (TRACER && debugOldPC != reg_PC) {
+        
+        FILE* ab = fopen("trace.log", "a+");        
+        
+        decodeLine(reg_PC);
+        int AE = getEffectiveAddress(reg_PC);
+        
+        fprintf(ab, "%04X | %02X %02X %02X | %04X: %02X | %s\n", reg_PC, sram[ reg_PC ], sram[ reg_PC+1 ], sram[ reg_PC+2 ], AE & 0xFFFF, sram[AE], debLine);
         fclose(ab);
         debugOldPC = reg_PC;
-    }
-    */
+    }    
 }
 
 // Декодирование линии, указанной по адресу
@@ -943,7 +970,6 @@ void nmi_exec() {
 
     if (cpu_running) {
 
-
         int i, j, l, frame_start = 0, iter;
         unsigned char bt;    
         
@@ -953,8 +979,7 @@ void nmi_exec() {
         
         /* При старте рендеринга, использовать regHT, regVT от $2005 */
         coarse_x = regHT; fine_x = regFH;
-        coarse_y = cntVT; fine_y = regFV;        
-        //addr_vt  = cntVT;
+        coarse_y = cntVT; fine_y = regFV;
         
         // 341 x 262 / 3 = 29167 циклов на 1 кадр
         while (cycles < EXEC_QUANT && iter < EXEC_QUANT) {
@@ -963,7 +988,7 @@ void nmi_exec() {
             bt = sram[ reg_PC ];
  
             // Программная точка останова (BRK и KIL)
-            if (bt == 0x02 || bt == 0x00) {
+            if (bt == 0x02 /* || bt == 0x00 */) {
                 
                 cpu_running = 0;
 
