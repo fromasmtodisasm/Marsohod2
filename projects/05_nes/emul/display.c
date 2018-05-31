@@ -211,10 +211,10 @@ void printScreen() {
                               256*globalPalette[ color ].g +
                                   globalPalette[ color ].b;
 
-                    yp = 8*i + a - fine_y;
                     xp = 8*j + b - fine_x;
+                    yp = 8*i + a + fine_y;
                     yp = yp > 239 ? 239 : yp;
-
+                    
                     setPixel(2*(xp & 255), 2*yp, color, 2);
                 }
             }
@@ -261,9 +261,8 @@ void printScreen() {
                                       256*globalPalette[ color ].g +
                                           globalPalette[ color ].b;
                             
-                            // + prior, opaque
-                            
-                            if (y < 240) {
+                            // + prior, opaque                            
+                            if (y < 240 && ((ctrl1 & 0b100) || ((ctrl1 & 0b100) == 0 && x >= 8))) {
                                 setPixel(2*(x & 255), 2*(y & 255), color, 2);
                             }
                         }
@@ -277,7 +276,7 @@ void printScreen() {
     }
 
     /* Сброс cntVT по завершению отрисовки фрейма */
-    cntVT = 0;
+    // cntVT = 0;
 }
 
 // Рисование линии (для проверки)
@@ -317,38 +316,46 @@ void display() {
 
     // Очистка буфера. В том числе и Z-буфера
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
     
-    if (locked == 0) {
-        nmi_exec();
-    }
+    // Исполнить один фрейм
+    nmi_exec();
     
-    /* В зависимости от того, запущен процессор или нет */
-    int Wx = WIDTH, He = HEIGHT, Hs = 0;
-    
-    if (cpu_running) {
-        Wx = 512;
-        Hs = 768;
-        He = 240;
-    }
-    
-    // Очистка экрана    
-    for (i = Hs; i < He; i++) {
-    for (j = 0; j < Wx; j++) {
-        frame[i][j].r = 0;
-        frame[i][j].g = 0;
-        frame[i][j].b = 0;
-    } }
-
-    /* Вывод экрана */
-    printScreen();
-
-    // Знакогенератор встроенный
+    // Отладка
     if (cpu_running == 0) {
+
+        /* Полная очистка в зависимости от того, запущен процессор или нет */
+        for (i = 0; i < HEIGHT; i++) {
+        for (j = 0; j < WIDTH; j++) {
+            frame[i][j].r = 0;
+            frame[i][j].g = 0;
+            frame[i][j].b = 0;
+        } }
         
         printRegisters();
         disassembleAll();
+        
+        justRedrawAll = 1;
     }
+    
+    /* Сделать Disabled области отладки */
+    else {
+        
+        // Только единожды сбросит
+        if (justRedrawAll) {
+            
+            for (i = 0; i < HEIGHT; i++) {
+                for (j = i % 2; j < WIDTH; j += 2) {
+                    frame[i][j].r = 0;
+                    frame[i][j].g = 0;
+                    frame[i][j].b = 0;
+                } }
+        }
+        
+        justRedrawAll = 0;        
+    }
+
+    /* Вывод экрана всегда */
+    printScreen();
 
     // Обновление экрана
     glDrawPixels(WIDTH, HEIGHT, GL_RGB, GL_UNSIGNED_BYTE, (void*)& frame);

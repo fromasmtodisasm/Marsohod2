@@ -66,6 +66,7 @@ int operandNames[ 256 ] = {
 
 char* operandNamesString[70] = {
 
+    // Документированные
     "???",   //  0
     "BRK",   //  1
     "ORA",   //  2
@@ -123,7 +124,7 @@ char* operandNamesString[70] = {
     "INX",   // 54
     "NOP",   // 55
     "SED",   // 56    
-    
+    // Недокументированные
     "AAC",   // 57
     "SLO",   // 58
     "RLA",   // 59
@@ -179,7 +180,6 @@ void initCPU() {
     cpu_running = 0;
     cycles      = 0;
     firstWrite  = 1;
-    locked      = 0;
     
     /* Джойстики */
     Joy1        = 0; Joy2        = 0;
@@ -1243,7 +1243,6 @@ void nmi_exec() {
         int i, j, l, frame_start = 0, iter;
         unsigned char bt;
 
-        locked = 1;
         cycles = 0;
         iter   = 0;
         int    sprHitLocal = 0;
@@ -1251,8 +1250,10 @@ void nmi_exec() {
         int lppu_cycles = 0;
 
         /* При старте рендеринга, использовать regHT, regVT от $2005 */
-        coarse_x = regHT; fine_x = regFH;
-        coarse_y = cntVT; fine_y = regFV;
+        fine_x = regFH;
+        fine_y = regFV;
+        coarse_x = regHT; 
+        coarse_y = regVT; // cntVT ?
 
         // 341 x 262 / 3 = 29167 циклов на 1 кадр
         while (cycles < EXEC_QUANT && iter < EXEC_QUANT) {
@@ -1264,7 +1265,7 @@ void nmi_exec() {
             lppu_cycles = (262 * cycles) / EXEC_QUANT;
 
             // Достигнут Sprite0Hit
-            if (spriteRam[ 0 ] < lppu_cycles && sprHitLocal == 0) {
+            if (spriteRam[ 0 ] < (lppu_cycles + 20) && sprHitLocal == 0) {
 
                 ppu_status |= 0b01000000;
                 sprHitLocal = 1;
@@ -1312,7 +1313,7 @@ void nmi_exec() {
                     }
 
                 // Сброс VBlank при кадровом синхроимульсе
-                } else if (cycles > EXEC_QUANT - 64 && frame_start == 1) {
+                } else if (cycles > EXEC_QUANT - 32 && frame_start == 1) {
 
                     ppu_status &= 0b00111111;
                     frame_start = 2;
@@ -1323,9 +1324,9 @@ void nmi_exec() {
 
         }
 
+        cntVT = 0;
         ppu_status &= 0b00111111;
         frame_start = 0;
-        locked = 0;
     }
 
 }

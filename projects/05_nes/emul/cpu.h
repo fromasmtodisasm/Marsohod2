@@ -151,7 +151,6 @@ int breakpointsMax;     // Максимальная точка в массиве
 // Текущая линия отладчика
 int debCurrentLine;
 int debugOldPC;
-int locked;
 
 int Joy1Strobe, Joy1Latch, Joy1;
 int Joy2Strobe, Joy2Latch, Joy2;
