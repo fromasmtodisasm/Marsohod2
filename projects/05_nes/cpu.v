@@ -50,7 +50,7 @@ assign  DEBUG = Y[7:0];
 `define REL     5'h17
 `define REL1    5'h18
 `define REL2    5'h19
-`define LATX    5'h1A
+`define REL3    5'h1A
 
 // 5h1B, 5h1C - Unused yet
 
@@ -191,15 +191,15 @@ always @(posedge CLK) begin
 
         /* Indirect, X */
         // -------------------------------------------------------------
-        4'h1: begin MS <= MSINC; EA <= XDin[7:0]; AM <= 1'b1; Cout <= XDin[8]; end
-        4'h2: begin MS <= MSINC; EA <= EAINC;     TR <= DIN;  end
-        4'h3: begin MS <= `LATX; EA <= EADIN;     RD <= ENARD; end
+        4'h1: begin MS <= MSINC; EA <= XDin[7:0];  AM <= 1'b1; end
+        4'h2: begin MS <= MSINC; EA <= EAINC[7:0]; TR <= DIN;  end
+        4'h3: begin MS <= `LAT1; EA <= EADIN;      RD <= ENARD; end
 
         /* Indirect, Y */
         // -------------------------------------------------------------
-        4'h4: begin MS <= MSINC; EA <= DIN;   AM <= 1'b1; end
-        4'h5: begin MS <= MSINC; EA <= EAINC; TR <= YDin[7:0]; Cout <= YDin[8]; end
-        4'h6: begin MS <= LATAD; EA <= EADIH; RD <= ENARD; end
+        4'h4: begin MS <= MSINC; EA <= DIN;        AM <= 1'b1; end
+        4'h5: begin MS <= MSINC; EA <= EAINC[7:0]; TR <= YDin[7:0]; Cout <= YDin[8]; end
+        4'h6: begin MS <= LATAD; EA <= EADIH;      RD <= ENARD; end
 
         /* ZP */
         // -------------------------------------------------------------
@@ -237,9 +237,6 @@ always @(posedge CLK) begin
 
         /* Отложенный такт (для адресации) */
         `LAT1: MS <= `EXEC;
-
-        /* Для (I,X) если X превысил границу ZP */
-        `LATX: if (Cout) MS <= `LAT1; else MS <= `EXEC;
 
         /* Исполнение инструкции */
         // -------------------------------------------------------------

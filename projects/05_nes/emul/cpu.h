@@ -94,12 +94,26 @@
 #define NOP     55
 #define DOP     55
 #define SED     56
+
+// Расширенные инструкции
+// --------------------------
 #define AAC     57
 #define ASR     DOP
 #define ARR     DOP 
 #define XAA     DOP 
 #define ATX     DOP 
 #define AXS     DOP
+#define SLO     DOP
+#define RLA     DOP
+#define SRE     DOP
+#define RRA     DOP
+#define AAX     DOP
+#define AXA     DOP
+#define LAX     DOP
+#define DCP     DOP
+#define ISC     DOP
+#define SYA     DOP
+#define SXA     DOP
 
 unsigned int  reg_A;
 unsigned int  reg_X;

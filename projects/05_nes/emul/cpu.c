@@ -23,44 +23,44 @@
 unsigned char operandTypes[256] = {
 
     /*       00   01   02   03   04   05   06   07   08   09   0A   0B   0C   0D   0E   0F */
-    /* 00 */ IMP, NDX, ___, ___, ___, ZP , ZP , ___, IMP, IMM, ACC, IMM, ___, ABS, ABS, ___,
-    /* 10 */ REL, NDY, ___, ___, ___, ZPX, ZPX, ___, IMP, ABY, ___, ___, ___, ABX, ABX, ___,
-    /* 20 */ ABS, NDX, ___, ___, ZP , ZP , ZP , ___, IMP, IMM, ACC, IMM, ABS, ABS, ABS, ___,
-    /* 30 */ REL, NDY, ___, ___, ___, ZPX, ZPX, ___, IMP, ABY, ___, ___, ___, ABX, ABX, ___,
-    /* 40 */ IMP, NDX, ___, ___, ___, ZP , ZP , ___, IMP, IMM, ACC, IMM, ABS, ABS, ABS, ___,
-    /* 50 */ REL, NDY, ___, ___, ___, ZPX, ZPX, ___, IMP, ABY, ___, ___, ___, ABX, ABX, ___,
-    /* 60 */ IMP, NDX, ___, ___, ___, ZP , ZP , ___, IMP, IMM, ACC, IMM, IND, ABS, ABS, ___,
-    /* 70 */ REL, NDY, ___, ___, ___, ZPX, ZPX, ___, IMP, ABY, ___, ___, ___, ABX, ABX, ___,
-    /* 80 */ IMM, NDX, IMM, ___, ZP , ZP , ZP , ___, IMP, IMM, IMP, IMM, ABS, ABS, ABS, ___,
-    /* 90 */ REL, NDY, ___, ___, ZPX, ZPX, ZPY, ___, IMP, ABY, IMP, ___, ___, ABX, ___, ___,
-    /* A0 */ IMM, NDX, IMM, ___, ZP , ZP , ZP , ___, IMP, IMM, IMP, IMM, ABS, ABS, ABS, ___,
-    /* B0 */ REL, NDY, ___, ___, ZPX, ZPX, ZPY, ___, IMP, ABY, IMP, ___, ABX, ABX, ABX, ___,
-    /* C0 */ IMM, NDX, IMM, ___, ZP , ZP , ZP , ___, IMP, IMM, IMP, IMM, ABS, ABS, ABS, ___,
-    /* D0 */ REL, NDY, ___, ___, ___, ZPX, ZPX, ___, IMP, ABY, ___, ___, ___, ABX, ABX, ___,
-    /* E0 */ IMM, NDX, IMM, ___, ZP , ZP , ZP , ___, IMP, IMM, IMP, IMM, ABS, ABS, ABS, ___,
-    /* F0 */ REL, NDY, ___, ___, ___, ZPX, ZPX, ___, IMP, ABY, ___, ___, ___, ABX, ABX, ___
+    /* 00 */ IMP, NDX, ___, NDX, ZP , ZP , ZP , ZP , IMP, IMM, ACC, IMM, ABS, ABS, ABS, ABS,
+    /* 10 */ REL, NDY, ___, NDY, ZPX, ZPX, ZPX, ZPX, IMP, ABY, IMP, ABY, ABX, ABX, ABX, ABX,
+    /* 20 */ ABS, NDX, ___, NDX, ZP , ZP , ZP , ZP , IMP, IMM, ACC, IMM, ABS, ABS, ABS, ABS,
+    /* 30 */ REL, NDY, ___, NDY, ZPX, ZPX, ZPX, ZPX, IMP, ABY, IMP, ABY, ABX, ABX, ABX, ABX,
+    /* 40 */ IMP, NDX, ___, NDX, ZP , ZP , ZP , ZP , IMP, IMM, ACC, IMM, ABS, ABS, ABS, ABS,
+    /* 50 */ REL, NDY, ___, NDY, ZPX, ZPX, ZPX, ZPX, IMP, ABY, IMP, ABY, ABX, ABX, ABX, ABX,
+    /* 60 */ IMP, NDX, ___, NDX, ZP , ZP , ZP , ZP , IMP, IMM, ACC, IMM, IND, ABS, ABS, ABS,
+    /* 70 */ REL, NDY, ___, NDY, ZPX, ZPX, ZPX, ZPX, IMP, ABY, IMP, ABY, ABX, ABX, ABX, ABX,
+    /* 80 */ IMM, NDX, IMM, NDX, ZP , ZP , ZP , ZP , IMP, IMM, IMP, IMM, ABS, ABS, ABS, ABS,
+    /* 90 */ REL, NDY, ___, NDY, ZPX, ZPX, ZPY, ZPX, IMP, ABY, IMP, ABY, ABX, ABX, ABY, ABX,
+    /* A0 */ IMM, NDX, IMM, NDX, ZP , ZP , ZP , ZP , IMP, IMM, IMP, IMM, ABS, ABS, ABS, ABS,
+    /* B0 */ REL, NDY, ___, NDY, ZPX, ZPX, ZPY, ZPX, IMP, ABY, IMP, ABY, ABX, ABX, ABY, ABX,
+    /* C0 */ IMM, NDX, IMM, NDX, ZP , ZP , ZP , ZP , IMP, IMM, IMP, IMM, ABS, ABS, ABS, ABS,
+    /* D0 */ REL, NDY, ___, NDY, ZPX, ZPX, ZPX, ZPX, IMP, ABY, IMP, ABY, ABX, ABX, ABX, ABX,
+    /* E0 */ IMM, NDX, IMM, NDX, ZP , ZP , ZP , ZP , IMP, IMM, IMP, IMM, ABS, ABS, ABS, ABS,
+    /* F0 */ REL, NDY, ___, NDY, ZPX, ZPX, ZPX, ZPX, IMP, ABY, IMP, ABY, ABX, ABX, ABX, ABX
 
 };
 
 int operandNames[256] = {
 
     /*        00  01   02   03   04   05   06   07   08   09   0A   0B   0C   0D   0E   0F */
-    /* 00 */ BRK, ORA, ___, ___, ___, ORA, ASL, ___, PHP, ORA, ASL, DOP, ___, ORA, ASL, ___,
-    /* 10 */ BPL, ORA, ___, ___, ___, ORA, ASL, ___, CLC, ORA, ___, ___, ___, ORA, ASL, ___,
-    /* 20 */ JSR, AND, ___, ___, BIT, AND, ROL, ___, PLP, AND, ROL, AAC, BIT, AND, ROL, ___,
-    /* 30 */ BMI, AND, ___, ___, ___, AND, ROL, ___, SEC, AND, ___, ___, ___, AND, ROL, ___,
-    /* 40 */ RTI, EOR, ___, ___, ___, EOR, LSR, ___, PHA, EOR, LSR, ASR, JMP, EOR, LSR, ___,
-    /* 50 */ BVC, EOR, ___, ___, ___, EOR, LSR, ___, CLI, EOR, ___, ___, ___, EOR, LSR, ___,
-    /* 60 */ RTS, ADC, ___, ___, ___, ADC, ROR, ___, PLA, ADC, ROR, ARR, JMP, ADC, ROR, ___,
-    /* 70 */ BVS, ADC, ___, ___, ___, ADC, ROR, ___, SEI, ADC, ___, ___, ___, ADC, ROR, ___,
-    /* 80 */ DOP, STA, DOP, ___, STY, STA, STX, ___, DEY, DOP, TXA, XAA, STY, STA, STX, ___,
-    /* 90 */ BCC, STA, ___, ___, STY, STA, STX, ___, TYA, STA, TXS, ___, ___, STA, ___, ___,
-    /* A0 */ LDY, LDA, LDX, ___, LDY, LDA, LDX, ___, TAY, LDA, TAX, ATX, LDY, LDA, LDX, ___,
-    /* B0 */ BCS, LDA, ___, ___, LDY, LDA, LDX, ___, CLV, LDA, TSX, ___, LDY, LDA, LDX, ___,
-    /* C0 */ CPY, CMP, DOP, ___, CPY, CMP, DEC, ___, INY, CMP, DEX, AXS, CPY, CMP, DEC, ___,
-    /* D0 */ BNE, CMP, ___, ___, ___, CMP, DEC, ___, CLD, CMP, ___, ___, ___, CMP, DEC, ___,
-    /* E0 */ CPX, SBC, DOP, ___, CPX, SBC, INC, ___, INX, SBC, NOP, SBC, CPX, SBC, INC, ___,
-    /* F0 */ BEQ, SBC, ___, ___, ___, SBC, INC, ___, SED, SBC, ___, ___, ___, SBC, INC, ___,
+    /* 00 */ BRK, ORA, ___, SLO, DOP, ORA, ASL, SLO, PHP, ORA, ASL, AAC, DOP, ORA, ASL, SLO,
+    /* 10 */ BPL, ORA, ___, SLO, DOP, ORA, ASL, SLO, CLC, ORA, NOP, SLO, DOP, ORA, ASL, SLO,
+    /* 20 */ JSR, AND, ___, RLA, BIT, AND, ROL, RLA, PLP, AND, ROL, AAC, BIT, AND, ROL, RLA,
+    /* 30 */ BMI, AND, ___, RLA, DOP, AND, ROL, RLA, SEC, AND, NOP, RLA, DOP, AND, ROL, RLA,
+    /* 40 */ RTI, EOR, ___, SRE, DOP, EOR, LSR, SRE, PHA, EOR, LSR, ASR, JMP, EOR, LSR, SRE,
+    /* 50 */ BVC, EOR, ___, SRE, DOP, EOR, LSR, SRE, CLI, EOR, NOP, SRE, DOP, EOR, LSR, SRE,
+    /* 60 */ RTS, ADC, ___, RRA, DOP, ADC, ROR, RRA, PLA, ADC, ROR, ARR, JMP, ADC, ROR, RRA,
+    /* 70 */ BVS, ADC, ___, RRA, DOP, ADC, ROR, RRA, SEI, ADC, NOP, RRA, DOP, ADC, ROR, RRA,
+    /* 80 */ DOP, STA, DOP, AAX, STY, STA, STX, AAX, DEY, DOP, TXA, XAA, STY, STA, STX, AAX,
+    /* 90 */ BCC, STA, ___, AXA, STY, STA, STX, AAX, TYA, STA, TXS, AAX, SYA, STA, SXA, AAX,
+    /* A0 */ LDY, LDA, LDX, LAX, LDY, LDA, LDX, LAX, TAY, LDA, TAX, ATX, LDY, LDA, LDX, LAX,
+    /* B0 */ BCS, LDA, ___, LAX, LDY, LDA, LDX, LAX, CLV, LDA, TSX, LAX, LDY, LDA, LDX, LAX,
+    /* C0 */ CPY, CMP, DOP, DCP, CPY, CMP, DEC, DCP, INY, CMP, DEX, AXS, CPY, CMP, DEC, DCP,
+    /* D0 */ BNE, CMP, ___, DCP, DOP, CMP, DEC, DCP, CLD, CMP, NOP, DCP, DOP, CMP, DEC, DCP,
+    /* E0 */ CPX, SBC, DOP, ISC, CPX, SBC, INC, ISC, INX, SBC, NOP, SBC, CPX, SBC, INC, ISC,
+    /* F0 */ BEQ, SBC, ___, ISC, DOP, SBC, INC, ISC, SED, SBC, NOP, ISC, DOP, SBC, INC, ISC,
 
 };
 
@@ -220,10 +220,10 @@ unsigned char readB(int addr) {
                 firstWrite = 1;
 
                 return tmp;
-            
+
             /* Читать спрайт */
-            case 4: 
-            
+            case 4:
+
                 tmp = spriteRam[ spraddr ];
                 spraddr = (spraddr + 1) & 0xff;
                 return tmp;
@@ -250,15 +250,15 @@ void writeB(int addr, unsigned char data) {
 
     /* Обновление спрайтов */
     if (addr == 0x4014) {
-        
+
         int i;
-        int baseaddr = 0x100 * data;                    
+        int baseaddr = 0x100 * data;
         for (i = 0; i < 256; i++) {
             spriteRam[i] = sram[baseaddr + i];
-        }             
-        return;                
-    }    
-        
+        }
+        return;
+    }
+
     if (addr >= 0x2000 && addr <= 0x3FFF) {
 
         switch (addr & 7) {
@@ -328,9 +328,9 @@ void writeB(int addr, unsigned char data) {
                 break;
 
             case 7: // Запись данных в видеопамять
-                                
+
                 sram[ 0x10000 + VRAMAddress ] = data;
-                VRAMAddress += (ctrl0 & 0x04 ? 32 : 1);                                
+                VRAMAddress += (ctrl0 & 0x04 ? 32 : 1);
                 break;
         }
 
@@ -343,6 +343,7 @@ void writeB(int addr, unsigned char data) {
 unsigned int getEffectiveAddress(int addr) {
 
     int opcode, src, iaddr;
+    int tmp, rt;
 
     opcode  = sram[ addr ];
     INCRADDR;
@@ -350,10 +351,20 @@ unsigned int getEffectiveAddress(int addr) {
     switch (operandTypes[ opcode ]) {
 
         /* Indirect, X (b8,X) */
-        case NDX: return readW( (sram[ addr ] + reg_X) & 0x00ff );
+        case NDX:
+        
+        	// PEEK( PEEK( (arg + X) % 256) + PEEK((arg + X + 1) % 256) * 256                    
+            tmp     = sram[ addr ];
+            tmp     = (tmp + reg_X) & 0xff;
+            return sram[ tmp ] + ((sram[(1 + tmp) & 0xff] << 8));
 
         /* Indirect, Y (b8),Y */
-        case NDY: return (readW( sram[ addr ] ) + reg_Y) & 0xffff;
+        case NDY: 
+        
+            tmp = sram[ addr ];            
+            rt  = sram[ 0xff & tmp ];
+            rt |= sram[ 0xff & (tmp + 1) ] << 8;
+            return (rt + reg_Y) & 0xffff;
 
         /* Zero Page */
         case ZP:  return sram[ addr ];
@@ -413,6 +424,7 @@ int exec() {
     // Тип операнда
     switch (optype) {
 
+        case ___: printf("Opcode %02x error at %04x\n", opcode, reg_PC); exit(0); 
         case NDX: /* Indirect X (b8,X) */
         case NDY: /* Indirect, Y */
         case ZP:  /* Zero Page */
@@ -842,7 +854,7 @@ int exec() {
         fclose(ab);
         debugOldPC = reg_PC;
     }
-    
+
     return cycles_per_instr;
 }
 
@@ -994,7 +1006,7 @@ void nmi_exec() {
         cycles = 0;
         iter   = 0;
         int    sprHitLocal = 0;
-        
+
         int lppu_cycles = 0;
 
         /* При старте рендеринга, использовать regHT, regVT от $2005 */
@@ -1006,13 +1018,13 @@ void nmi_exec() {
 
             iter++;
             bt = sram[ reg_PC ];
-            
+
             // Примерно где находится линия для Sprite0Hit
             lppu_cycles = (262 * cycles) / EXEC_QUANT;
-            
+
             // Достигнут Sprite0Hit
             if (spriteRam[ 0 ] < lppu_cycles && sprHitLocal == 0) {
-                
+
                 ppu_status |= 0b01000000;
                 sprHitLocal = 1;
             }
