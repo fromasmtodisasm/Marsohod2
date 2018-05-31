@@ -98,22 +98,26 @@
 // Расширенные инструкции
 // --------------------------
 #define AAC     57
-#define ASR     DOP
-#define ARR     DOP 
+#define SLO     58
+#define RLA     59
+#define RRA     60
+#define SRE     61
+#define DCP     62
+#define ISC     63
+// ??
+#define LAX     65
+#define AAX     66
+#define ASR     67
+#define ARR     68
+#define ATX     69 
+#define AXS     70
+
+// --------- 
 #define XAA     DOP 
-#define ATX     DOP 
-#define AXS     DOP
-#define SLO     DOP
-#define RLA     DOP
-#define SRE     DOP
-#define RRA     DOP
-#define AAX     DOP
 #define AXA     DOP
-#define LAX     DOP
-#define DCP     DOP
-#define ISC     DOP
 #define SYA     DOP
 #define SXA     DOP
+// ---------
 
 unsigned int  reg_A;
 unsigned int  reg_X;

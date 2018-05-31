@@ -32,9 +32,9 @@ unsigned char operandTypes[256] = {
     /* 60 */ IMP, NDX, ___, NDX, ZP , ZP , ZP , ZP , IMP, IMM, ACC, IMM, IND, ABS, ABS, ABS,
     /* 70 */ REL, NDY, ___, NDY, ZPX, ZPX, ZPX, ZPX, IMP, ABY, IMP, ABY, ABX, ABX, ABX, ABX,
     /* 80 */ IMM, NDX, IMM, NDX, ZP , ZP , ZP , ZP , IMP, IMM, IMP, IMM, ABS, ABS, ABS, ABS,
-    /* 90 */ REL, NDY, ___, NDY, ZPX, ZPX, ZPY, ZPX, IMP, ABY, IMP, ABY, ABX, ABX, ABY, ABX,
+    /* 90 */ REL, NDY, ___, NDY, ZPX, ZPX, ZPY, ZPY, IMP, ABY, IMP, ABY, ABX, ABX, ABY, ABX,
     /* A0 */ IMM, NDX, IMM, NDX, ZP , ZP , ZP , ZP , IMP, IMM, IMP, IMM, ABS, ABS, ABS, ABS,
-    /* B0 */ REL, NDY, ___, NDY, ZPX, ZPX, ZPY, ZPX, IMP, ABY, IMP, ABY, ABX, ABX, ABY, ABX,
+    /* B0 */ REL, NDY, ___, NDY, ZPX, ZPX, ZPY, ZPY, IMP, ABY, IMP, ABY, ABX, ABX, ABY, ABY,
     /* C0 */ IMM, NDX, IMM, NDX, ZP , ZP , ZP , ZP , IMP, IMM, IMP, IMM, ABS, ABS, ABS, ABS,
     /* D0 */ REL, NDY, ___, NDY, ZPX, ZPX, ZPX, ZPX, IMP, ABY, IMP, ABY, ABX, ABX, ABX, ABX,
     /* E0 */ IMM, NDX, IMM, NDX, ZP , ZP , ZP , ZP , IMP, IMM, IMP, IMM, ABS, ABS, ABS, ABS,
@@ -42,7 +42,7 @@ unsigned char operandTypes[256] = {
 
 };
 
-int operandNames[256] = {
+int operandNames[ 256 ] = {
 
     /*        00  01   02   03   04   05   06   07   08   09   0A   0B   0C   0D   0E   0F */
     /* 00 */ BRK, ORA, ___, SLO, DOP, ORA, ASL, SLO, PHP, ORA, ASL, AAC, DOP, ORA, ASL, SLO,
@@ -60,7 +60,7 @@ int operandNames[256] = {
     /* C0 */ CPY, CMP, DOP, DCP, CPY, CMP, DEC, DCP, INY, CMP, DEX, AXS, CPY, CMP, DEC, DCP,
     /* D0 */ BNE, CMP, ___, DCP, DOP, CMP, DEC, DCP, CLD, CMP, NOP, DCP, DOP, CMP, DEC, DCP,
     /* E0 */ CPX, SBC, DOP, ISC, CPX, SBC, INC, ISC, INX, SBC, NOP, SBC, CPX, SBC, INC, ISC,
-    /* F0 */ BEQ, SBC, ___, ISC, DOP, SBC, INC, ISC, SED, SBC, NOP, ISC, DOP, SBC, INC, ISC,
+    /* F0 */ BEQ, SBC, ___, ISC, DOP, SBC, INC, ISC, SED, SBC, NOP, ISC, DOP, SBC, INC, ISC
 
 };
 
@@ -824,15 +824,209 @@ int exec() {
             break;
         }
 
-        case AAC: {
+        /* Недокументированные инструкции */
+        // -------------------------------------------------------------
+        
+        case SLO: {        
+            
+            /* ASL */
+            SET_CARRY(src & 0x80);
+            src <<= 1;
+            src &= 0xff;
+            SET_SIGN(src);
+            SET_ZERO(src);
 
+            if (optype == ACC) reg_A = src; 
+            else writeB(iaddr, src);
+            
+            /* ORA */
+            src |= reg_A;
+            SET_SIGN(src);
+            SET_ZERO(src);
+            reg_A = src;
+            break;
+        }
+
+        case RLA: {
+            
+            /* ROL */
+            src <<= 1;
+            if (IF_CARRY) src |= 0x1;
+            SET_CARRY(src > 0xff);
+            src &= 0xff;
+            SET_SIGN(src);
+            SET_ZERO(src);
+            if (optype == ACC) reg_A = src; else writeB(iaddr, src);
+            
+            /* AND */
             src &= reg_A;
             SET_SIGN(src);
             SET_ZERO(src);
-            SET_CARRY(src & 0x80);
-            reg_A = src;
+            reg_A = src;            
             break;
+        }
+        
+        case RRA: {        
+            
+            /* ROR */
+            if (IF_CARRY) src |= 0x100;
+            SET_CARRY(src & 0x01);
+            src >>= 1;
+            SET_SIGN(src);
+            SET_ZERO(src);
+            if (optype == ACC) reg_A = src; else writeB(iaddr, src);
+            
+            /* ADC */
+            temp = src + reg_A + (reg_P & 1);
+            SET_ZERO(temp & 0xff);
+            SET_SIGN(temp);
+            SET_OVERFLOW(((reg_A ^ src ^ 0x80) & 0x80) && ((reg_A ^ temp) & 0x80) );
+            SET_CARRY(temp > 0xff);
+            reg_A = temp & 0xff;
+            break;
+            
+        }
+        
+        case SRE: {            
+            
+            /* LSR */
+            SET_CARRY(src & 0x01);
+            src >>= 1;
+            SET_SIGN(src);
+            SET_ZERO(src);
+            if (optype == ACC) reg_A = src; else writeB(iaddr, src);
+            
+            /* EOR */
+            src ^= reg_A;
+            SET_SIGN(src);
+            SET_ZERO(src);
+            reg_A = src;
+            
+            break;            
+        }
+        
+        case DCP: {
+                        
+            /* DEC */
+            src = (src - 1) & 0xff;
+            SET_SIGN(src);
+            SET_ZERO(src);
+            writeB(iaddr, src);
+            
+            /* CMP */
+            src = reg_A - src;
+            SET_CARRY(src >= 0);
+            SET_SIGN(src);
+            SET_ZERO(src & 0xff);
+            break;            
+        }
+        
+        /* Увеличить на +1 и вычесть из A полученное значение */
+        case ISC: {            
+            
+            /* INC */
+            src = (src + 1) & 0xff;
+            SET_SIGN(src);
+            SET_ZERO(src);
+            writeB(iaddr, src);
+            
+            /* SBC */
+            temp = reg_A - src - (IF_CARRY ? 0 : 1);
 
+            SET_SIGN(temp);
+            SET_ZERO(temp & 0xff);
+            SET_OVERFLOW(((reg_A ^ temp) & 0x80) && ((reg_A ^ src) & 0x80));
+            SET_CARRY(temp >= 0);
+            reg_A = (temp & 0xff);            
+            break;            
+        }
+        
+        /* A,X = src */
+        case LAX: {
+            
+            reg_A = (src);
+            SET_SIGN(src);
+            SET_ZERO(src);
+            reg_X = (src);
+            break;
+        }
+                
+        case AAX: writeB(iaddr, reg_A & reg_X); break;
+        
+        /* AND + Carry */
+        case AAC: {
+            
+            /* AND */
+            src &= reg_A;
+            SET_SIGN(src);
+            SET_ZERO(src);
+            reg_A = src;
+            
+            /* Carry */
+            SET_CARRY(reg_A & 0x80);            
+            break;
+        }
+        
+        case ASR: {
+                        
+            /* AND */
+            src &= reg_A;
+            SET_SIGN(src);
+            SET_ZERO(src);
+            reg_A = src;
+            
+            /* LSR A */
+            SET_CARRY(reg_A & 0x01);
+            reg_A >>= 1;
+            SET_SIGN(reg_A);
+            SET_ZERO(reg_A);
+            break;            
+        }
+        
+        case ARR: {
+            
+            /* AND */
+            src &= reg_A;
+            SET_SIGN(src);
+            SET_ZERO(src);
+            reg_A = src;
+
+            /* P[6] = A[6] ^ A[7]: Переполнение */
+            SET_OVERFLOW((reg_A ^ (reg_A >> 1)) & 0x40);
+                     
+            temp = (reg_A >> 7) & 1;
+            reg_A >>= 1;            
+            reg_A |= (reg_P & 1) << 7;
+            
+            SET_CARRY(temp);  
+            SET_SIGN(reg_A);
+            SET_ZERO(reg_A);
+            break;            
+        }
+        
+        case ATX: {
+            
+            reg_A |= 0xFF;
+            
+            /* AND */
+            src &= reg_A;
+            SET_SIGN(src);
+            SET_ZERO(src);
+            reg_A = src;
+
+            reg_X = reg_A;
+            break;
+                        
+        }
+        
+        case AXS: {
+            
+            temp = (reg_A & reg_X) - src;
+            SET_SIGN(temp);
+            SET_ZERO(temp);        
+            SET_CARRY(((temp >> 8) & 1) ^ 1);            
+            reg_X = temp;
+            break;            
         }
     }
 
