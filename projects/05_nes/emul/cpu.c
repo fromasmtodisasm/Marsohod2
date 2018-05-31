@@ -220,6 +220,13 @@ unsigned char readB(int addr) {
                 firstWrite = 1;
 
                 return tmp;
+            
+            /* Читать спрайт */
+            case 4: 
+            
+                tmp = spriteRam[ spraddr ];
+                spraddr = (spraddr + 1) & 0xff;
+                return tmp;
 
             /* Чтение из видеопамяти (кроме STA) */
             case 7:
@@ -227,7 +234,6 @@ unsigned char readB(int addr) {
                 olddat = objvar;
                 objvar = sram[ 0x10000 + VRAMAddress ];
                 VRAMAddress += (ctrl0 & 0x04 ? 32 : 1);
-
                 return olddat;
         }
     }
@@ -251,7 +257,7 @@ void writeB(int addr, unsigned char data) {
             spriteRam[i] = sram[baseaddr + i];
         }             
         return;                
-    }
+    }    
         
     if (addr >= 0x2000 && addr <= 0x3FFF) {
 
@@ -259,7 +265,6 @@ void writeB(int addr, unsigned char data) {
 
             case 0: ctrl0 = data; break;
             case 1: ctrl1 = data; break;
-            // 2
             case 3: spraddr = data; break;
             case 4: spriteRam[ spraddr ] = data; spraddr = (spraddr + 1) & 0xff; break;
 
@@ -329,7 +334,6 @@ void writeB(int addr, unsigned char data) {
                 break;
         }
 
-
     } else {
         sram[ addr & 0xffff ] = data;
     }
@@ -387,10 +391,11 @@ unsigned int getEffectiveAddress(int addr) {
 }
 
 // Исполнение инструкции
-void exec() {
+int exec() {
 
     int temp, optype, opname, ppurd = 1;
     int addr = reg_PC, opcode, src;
+    int cycles_per_instr = 2;
 
     // Определение эффективного адреса
     int iaddr = getEffectiveAddress(addr);
@@ -442,7 +447,7 @@ void exec() {
             break;
     }
 
-    cycles += cycles_basic[ opcode ];
+    cycles_per_instr = cycles_basic[ opcode ];
 
     /* Разбор инструкции и исполнение */
     switch (opname) {
@@ -837,6 +842,8 @@ void exec() {
         fclose(ab);
         debugOldPC = reg_PC;
     }
+    
+    return cycles_per_instr;
 }
 
 // Декодирование линии, указанной по адресу
@@ -986,6 +993,9 @@ void nmi_exec() {
         locked = 1;
         cycles = 0;
         iter   = 0;
+        int    sprHitLocal = 0;
+        
+        int lppu_cycles = 0;
 
         /* При старте рендеринга, использовать regHT, regVT от $2005 */
         coarse_x = regHT; fine_x = regFH;
@@ -996,9 +1006,19 @@ void nmi_exec() {
 
             iter++;
             bt = sram[ reg_PC ];
+            
+            // Примерно где находится линия для Sprite0Hit
+            lppu_cycles = (262 * cycles) / EXEC_QUANT;
+            
+            // Достигнут Sprite0Hit
+            if (spriteRam[ 0 ] < lppu_cycles && sprHitLocal == 0) {
+                
+                ppu_status |= 0b01000000;
+                sprHitLocal = 1;
+            }
 
-            // Программная точка останова (BRK и KIL)
-            if (bt == 0x02 /* || bt == 0x00 */) {
+            // Программная точка останова (KIL)
+            if (bt == 0x02) {
 
                 cpu_running = 0;
 
@@ -1019,7 +1039,7 @@ void nmi_exec() {
             if (cpu_running) {
 
                 // Может быть отключено при точке останова
-                exec();
+                cycles += exec();
 
                 // Установка VBlank
                 if ((cycles > 241*EXEC_QUANT/262) && frame_start == 0) {
@@ -1038,10 +1058,11 @@ void nmi_exec() {
                         reg_PC = readW(0xFFFA);
                     }
 
-                // Сброс VBlank
+                // Сброс VBlank при кадровом синхроимульсе
                 } else if (cycles > EXEC_QUANT - 64 && frame_start == 1) {
 
-                    ppu_status &= 0b01111111;
+                    ppu_status &= 0b00111111;
+                    frame_start = 2;
                 }
 
             }
@@ -1049,6 +1070,7 @@ void nmi_exec() {
 
         }
 
+        ppu_status &= 0b00111111;
         frame_start = 0;
         locked = 0;
     }

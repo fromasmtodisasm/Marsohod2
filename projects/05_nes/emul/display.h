@@ -21,7 +21,8 @@ struct sRGB {
 struct sRGB globalPalette[ 64 ];
 
 // RGB x ScanlineY x ScanlineX
-struct sRGB frame[ HEIGHT ][ WIDTH ];
+struct   sRGB frame [ HEIGHT ][ WIDTH ];
+unsigned char opaque[ HEIGHT ][ WIDTH ];
 
 // Режим отображения дампа памяти
 char dump_mode;

@@ -110,7 +110,7 @@ unsigned int  reg_PC;
 
 // 64Кб общей + 16Кб CHR-ROM/VRAM
 unsigned char sram[ 256*1024 ]; // PRG-ROM (32k) + CHR-ROM (8k) + VRAM(4)
-unsigned char spriteRam[ 256];  // Память спрайтов
+unsigned char spriteRam[ 256 ]; // Память спрайтов
 
 // Статус CPU, если 0 - остановлен для отладки
 int  cpu_running;
@@ -143,7 +143,7 @@ void initCPU();
 int decodeLine(int);
 void disassembleAll();
 unsigned int getEffectiveAddress(int);
-void exec();
+int exec();
 unsigned char readB(int);
 unsigned int readW(int);
 void writeB(int, unsigned char);

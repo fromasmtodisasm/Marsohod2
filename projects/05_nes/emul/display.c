@@ -90,11 +90,11 @@ void setPixel(int x, int y, int color, int scale) {
     for (i = 0; i < scale; i++) {
 
         for (j = 0; j < scale; j++) {
-            
+
             int TX = x + j;
             int TY = HEIGHT - 1 - y - i;
 
-            if (TX >= 0 && TX < WIDTH && TY >= 0 && TY < HEIGHT) {                
+            if (TX >= 0 && TX < WIDTH && TY >= 0 && TY < HEIGHT) {
                 frame[ HEIGHT - 1 - y - i ][ x + j ].b =  color & 0xff;
                 frame[ HEIGHT - 1 - y - i ][ x + j ].g = (color >> 8) & 0xff;
                 frame[ HEIGHT - 1 - y - i ][ x + j ].r = (color >> 16) & 0xff;
@@ -141,15 +141,15 @@ void printScreen() {
     int active_chr = (ctrl0 & 0x10) ? 0x1000 : 0x0;
 
     int xp, yp;
-    int i, j, a, b, ch, fol, foh, at, color, bn;    
+    int i, j, a, b, ch, fol, foh, at, color, bn;
     int ADDRNT, ADDRPG, ADDRAT;
 
     // Обновление символов
     for (i = 0; i < 30; i++) {
 
         for (j = 0; j < 32; j++) {
-            
-            // -----------------------            
+
+            // -----------------------
             /* Выполнить скроллинг Y */
             int scroll_y  = (i - coarse_y); // - coarse_y
             int scroll_oy = scroll_y >= 0x20;   /* Переполнение X */
@@ -160,23 +160,23 @@ void printScreen() {
             int scroll_ox = scroll_x >= 0x20;   /* Переполнение X */
                 scroll_x  = scroll_x & 0x1F;    /* Сброс переполнения */
             // -----------------------
-                
+
             // Активная страница либо 0, либо 1, в зависимости от переполнения еще
             ADDRNT = 0x12000 + (screen_id ^ scroll_ox ^ scroll_oy ? 0x400 : 0x0);
-            
+
             // Расcчитать позицию на этой странице
-            ADDRPG = (0x20*scroll_y + scroll_x);            
+            ADDRPG = (0x20*scroll_y + scroll_x);
             ADDRAT = (scroll_y >> 2)*8 + (scroll_x >> 2);
-             
+
             ch = sram[ ADDRNT + 0x000 + ADDRPG ];
             at = sram[ ADDRNT + 0x3C0 + ADDRAT ];
 
-            // 0 1 Тайлы 4x4 
+            // 0 1 Тайлы 4x4
             // 2 3 Каждый 2x2
 
             // Номер тайлов 2x2: 0,1,2,3
             bn = ((scroll_y & 2) << 1) + (scroll_x & 2);
-            
+
             // Извлекаем атрибуты
             at = (at >> bn) & 3;
 
@@ -189,42 +189,95 @@ void printScreen() {
 
                     int s = 1 << (7 - b);
 
-                    // Получение 4-х битов
+                    /* Получение 4-х битов фона */
                     color = (fol & s ? 1 : 0) | (foh & s ? 2 : 0);
                     color = (4*at) | color;
+                    
+                    /* Отображается ли фон? */
+                    color = ctrl1 & 0x08 ? color : 0;
 
                     if (color & 3) {
+                        
                         color = sram[ 0x13F00 + color ]; // 16 цветов палитры фона
+                        opaque[8*i + a][8*j + b] = 0;
+                        
                     } else {
+                        
                         color = sram[ 0x13F00 ]; // "Прозрачный" цвет фона
+                        opaque[8*i + a][8*j + b] = 1;
                     }
 
                     color = 65536*globalPalette[ color ].r +
                               256*globalPalette[ color ].g +
                                   globalPalette[ color ].b;
-                    
+
                     yp = 8*i + a - fine_y;
                     xp = 8*j + b - fine_x;
-                    yp = yp > 239 ? 239 : yp;                
-                    
+                    yp = yp > 239 ? 239 : yp;
+
                     setPixel(2*(xp & 255), 2*yp, color, 2);
                 }
             }
         }
     }
-   
-    // Рисование спрайтов
-    for (i = 0; i < 256; i += 4) {
-        
-        int sprite_x = spriteRam[i + 0];
-        int sprite_y = spriteRam[i + 3];
-        int icon_src = spriteRam[i + 1];
-        int attr_spr = spriteRam[i + 2];
-        
-    }
     
+    // Рисование спрайтов (4-й бит)
+    if (ctrl1 & 0x10) {
+
+        int h;
+        for (i = 0; i < 256; i += 4) {
+
+            int sprite_y = spriteRam[i + 0]; // По вертикали
+            int sprite_x = spriteRam[i + 3]; // По горизонтали
+            int icon     = spriteRam[i + 1];
+            int attr_spr = spriteRam[i + 2];
+            int at       = attr_spr & 3; // Атрибут
+            
+            // Выбор знакогенератора спрайтов
+            int chrsrc = (ctrl0 & 0x20) ? 0x1000 : 0x0000;
+            
+            // 1x1 или 1x2 спрайты
+            for (h = 0; h < 1; h++) {
+                
+                for (b = 0; b < 8; b++) { // Y
+                    for (a = 0; a < 8; a++) { // X
+                                        
+                        // Получение битов цвета
+                        fol = sram[ 0x10000 + chrsrc + (icon + h)*16 + (h*16 + b) + 0 ]; // low
+                        foh = sram[ 0x10000 + chrsrc + (icon + h)*16 + (h*16 + b) + 8 ]; // high bits
+
+                        int s = 1 << (7 - a);
+                        int x = sprite_x + (attr_spr & 0x40 ? 8 - a : a);
+                        int y = sprite_y + (attr_spr & 0x80 ? 8 - b : b) + h*16 + 1; // Буферная линия
+
+                        // Вычислить 2 бита цвета спрайта
+                        color = (fol & s ? 1 : 0) | (foh & s ? 2 : 0);
+                        
+                        if (color) {
+                            
+                            color = (4*at) | color;
+                            color = sram[ 0x13F10 + color ];
+                            color = 65536*globalPalette[ color ].r +
+                                      256*globalPalette[ color ].g +
+                                          globalPalette[ color ].b;
+                            
+                            // + prior, opaque
+                            
+                            if (y < 240) {
+                                setPixel(2*(x & 255), 2*(y & 255), color, 2);
+                            }
+                        }
+                        
+                        // todo opaque
+                    }
+                }
+            }
+
+        }
+    }
+
     /* Сброс cntVT по завершению отрисовки фрейма */
-    cntVT = 0;    
+    cntVT = 0;
 }
 
 // Рисование линии (для проверки)
@@ -401,14 +454,14 @@ void printRegisters() {
     printString(1,  baseline + 21, "F3", 0xC0A000, 0);
     printString(16, baseline + 21, "F6", 0xC0A000, 0);
     printString(23, baseline + 21, "F7", 0xC0A000, 0);
-    
+
     // PPU
     printString(33, baseline + 21, "ADDR 0000  CTL 00 00 0000", 0x808080, 0);
     printHex(38, baseline + 21, VRAMAddress, 4, 0xffffff, 0);
     printHex(48, baseline + 21, ctrl0, 2, 0xffffff, 0);
     printHex(51, baseline + 21, ctrl1, 2, 0xffffff, 0);
     printHex(54, baseline + 21, video_scroll, 4, 0xffff00, 0);
-    
+
     if (cpu_running) {
         printString(9, baseline + 21, "F5 RUN",  0x80FF00, 0);
     } else {

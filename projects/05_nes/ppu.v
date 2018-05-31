@@ -20,7 +20,7 @@ module ppu(
     /* Интерфейс для чтения и записи в видеопамять */
     input   wire [7:0]  VIN,
     output  reg         WVREQ,
-    output  wire [12:0] WADDR,
+    output  reg  [12:0] WADDR,
     output  reg  [7:0]  WDATA,
 
     // --- чтение и запись из памяти (2-х портовая)
@@ -40,7 +40,7 @@ module ppu(
     input   wire        RD,         /* Действие чтения из памяти */
     input   wire        WREQ,       /* Запрос на запись в PPU */
     output  reg  [ 7:0] DOUT,       /* Выход данных из PPU */
-    
+
     /* NMI сигнал */
     output  reg         NMI,         /* Выход NMI */
     output  wire [ 7:0] DEBUG
@@ -49,9 +49,6 @@ module ppu(
 
 /* Валидный тайминг PPU (~5 Мгц) */
 assign CLKPPU = !DE2Y & DE2P;
-
-/* Роутинг на выход */
-assign WADDR  = ADDR[10:0];
 
 assign DEBUG = ADDR[7:0];
 
@@ -121,9 +118,10 @@ initial begin
 
     CLKCPU = 1'b0;
     DOUT   = 8'h00;
-    WVREQ  = 1'b0;    
+    WVREQ  = 1'b0;
     NMI    = 1'b0;
-    
+    WADDR  = 16'h0000;
+
     /* 0 */  PALBG[0]  = 6'h38; // 12
     /* 1 */  PALBG[1]  = 6'h30; // 16
     /* 2 */  PALBG[2]  = 6'h16; // 30
@@ -222,7 +220,7 @@ always @(posedge DE2P) begin
     /* Сброс некоторых значений */
     if (RESET) begin
 
-        ADDR  <= 1'b0;        
+        ADDR  <= 1'b0;
 
     end
     else case (div)
@@ -248,7 +246,7 @@ always @(posedge DE2P) begin
                     (PPUY > 9'd239),    /* Разрешение записи в видеопамять */
                     4'b0000             /* Не используется */
                 };
-                
+
                 /* Если был 1, перевести в 0, иначе оставить как 0 */
                 VBlank <= VBlank ^ VBlankS;
 
@@ -268,35 +266,38 @@ always @(posedge DE2P) begin
 
             /* r/w Запись/чтение данных */
             16'h2007: begin
-            
+
                 /* Увеличить на 1 или 32 после чтения или записи */
-                INCADDR <= RD | WREQ;                
-                
+                INCADDR <= RD | WREQ;
+
                 /* Записать данные в память */
                 if (WREQ) begin
 
                     /* Писать можно только в VRAM (исключая палитру) */
-                    if (ADDR >= 16'h2000 && ADDR < 16'h3F00) begin                    
-                        WDATA <= din;                    
+                    if (ADDR >= 16'h2000 && ADDR < 16'h3F00) begin
+
+                        WDATA <= din;
+                        WADDR <= ADDR;
+
                     end
-                    
+
                     /* Палитра фона */
                     else if (ADDR >= 16'h3F00 && ADDR < 16'h3F10) begin
-                        PALBG[ ADDR[3:0] ] <= din[5:0];                        
+                        PALBG[ ADDR[3:0] ] <= din[5:0];
                     end
 
                     /* Палитра спрайтов */
                     else if (ADDR >= 16'h3F10 && ADDR < 16'h3F20) begin
-                        PALSP[ ADDR[3:0] ] <= din[5:0];    
+                        PALSP[ ADDR[3:0] ] <= din[5:0];
 
                     end
-                        
+
                 /* Прочитать из памяти */
                 end else if (RD) begin
 
                     DOUT <= DBUF; /* Используется операционный буфер */
                     DBUF <= (ADDR >= 14'h2000 ? VIN : FIN);
-                    
+
                     // @todo READ PAL
                 end
 
@@ -322,30 +323,30 @@ always @(posedge DE2P) begin
 
     end
     endcase
-    
+
     // Установка NMI, VBlank
     // -----------------------------------------------------------------
 
     if (!DE2Y) begin
 
         /* Установка VBlank=1 */
-        if (PPUY == 9'd241 && PPUX == 1'b1) begin 
-        
+        if (PPUY == 9'd241 && PPUX == 1'b1) begin
+
             NMI     <= CTRL0[7]; /* Разрешен импульс NMI? */
             VBlankT <= VBlankT ^ VBlankS ^ 1'b1;
 
         end
-        
+
         /* Установка VBlank=0 */
-        else if (PPUY == 9'd261 && PPUX == 1'b1) begin                
+        else if (PPUY == 9'd261 && PPUX == 1'b1) begin
 
             NMI     <= 1'b0;
             VBlankT <= VBlankT ^ VBlankS ^ 1'b0;
-            
+
         end
-    
+
     end
-        
+
     // -----------------------------------------------------------------
 
     /* Выключен рендеринг */
@@ -356,8 +357,8 @@ always @(posedge DE2P) begin
         colormap <= 16'h0000;
 
     end
-    
-    /* При рендеринге, vaddr / faddr заняты */    
+
+    /* При рендеринге, vaddr / faddr заняты */
     else begin
 
         /* Прорисовка фона */
@@ -409,7 +410,7 @@ always @(posedge DE2P) begin
 
         /* Второй сканлайн НЕ учитывается. При достижении 261-го, сбросить до 0 */
         if (DE2Y) PPUY <= PPUY + 1'b1;
-    
+
     end else begin
 
         PPUX <= PPUX + 1'b1;

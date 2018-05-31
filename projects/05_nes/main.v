@@ -27,12 +27,15 @@ wire        NMI;
 wire [7:0]  DEBUG;
 wire [7:0]  DEBUGPPU;
 wire        reset = 1'b0;
+reg         DVRAM;
 
 // Внутрисхемная память
 // ---------------------------------------------------------------------
 reg [ 7:0] sram[65536]; 
 reg [ 7:0] vram[2048]; /* Видеопамять */
 reg [ 7:0] crom[8192]; /* CHR-ROM */
+
+wire VWREN = {DVRAM, vwreq} == 2'b01;
 
 always @(posedge clk) begin
 
@@ -41,7 +44,7 @@ always @(posedge clk) begin
     i_data  <= sram[ address ];
     
     /* VRAM */
-    if (vwreq) vram[ waddr ] <= wdata;
+    if (VWREN) vram[ waddr ] <= wdata;
     vin     <= vram[ waddr ];
     fin     <= crom[ waddr ];
 
@@ -65,6 +68,8 @@ initial begin
     // sram[ 16'hFFFD ] = 8'h80; 
     
 end
+
+always @(posedge clk) DVRAM <= vwreq;
 
 // Центральный процессор
 // ---------------------------------------------------------------------
