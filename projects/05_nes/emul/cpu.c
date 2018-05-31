@@ -180,6 +180,7 @@ void initCPU() {
     cpu_running = 0;
     cycles      = 0;
     firstWrite  = 1;
+    redrawDump  = 1;
     
     /* Джойстики */
     Joy1        = 0; Joy2        = 0;

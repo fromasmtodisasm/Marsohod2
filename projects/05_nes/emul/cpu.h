@@ -16,7 +16,7 @@
 #define CPUH
 
 #define TRACER          0
-#define EXEC_QUANT      29167   // 25Mhz=416667, 1.75Mhz=29167 | Сколько инструкции выполнить за 1/60 с
+#define EXEC_QUANT      27167   // 25Mhz=416667, 1.75Mhz=29167 | Сколько инструкции выполнить за 1/60 с
 #define MAPPER_NES      1       // NES-маппер
 #define MAPPER_OWN      2       // Свой маппер
 

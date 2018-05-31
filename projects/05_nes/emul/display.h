@@ -27,6 +27,7 @@ unsigned char opaque[ HEIGHT ][ WIDTH ];
 // Режим отображения дампа памяти
 char dump_mode;
 int  justRedrawAll;
+int  redrawDump;
 
 // Спрайты
 unsigned char   ctrl0;

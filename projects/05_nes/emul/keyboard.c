@@ -37,6 +37,8 @@ void keyboard_func(int key, int x, int y) {
     usleep(100);    
 
     int i, current_id = 0, debugOn = 0;    
+    
+    redrawDump = 1;
 
     // Посмотреть, в какой позиции сейчас стоит deb_addr
     for (i = 0; i < 64; i++) {

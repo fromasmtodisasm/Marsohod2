@@ -192,17 +192,17 @@ void printScreen() {
                     /* Получение 4-х битов фона */
                     color = (fol & s ? 1 : 0) | (foh & s ? 2 : 0);
                     color = (4*at) | color;
-                    
+
                     /* Отображается ли фон? */
                     color = ctrl1 & 0x08 ? color : 0;
 
                     if (color & 3) {
-                        
+
                         color = sram[ 0x13F00 + color ]; // 16 цветов палитры фона
                         opaque[8*i + a][8*j + b] = 0;
-                        
+
                     } else {
-                        
+
                         color = sram[ 0x13F00 ]; // "Прозрачный" цвет фона
                         opaque[8*i + a][8*j + b] = 1;
                     }
@@ -214,13 +214,13 @@ void printScreen() {
                     xp = 8*j + b - fine_x;
                     yp = 8*i + a + fine_y;
                     yp = yp > 239 ? 239 : yp;
-                    
+
                     setPixel(2*(xp & 255), 2*yp, color, 2);
                 }
             }
         }
     }
-    
+
     // Рисование спрайтов (4-й бит)
     if (ctrl1 & 0x10) {
 
@@ -232,16 +232,16 @@ void printScreen() {
             int icon     = spriteRam[i + 1];
             int attr_spr = spriteRam[i + 2];
             int at       = attr_spr & 3; // Атрибут
-            
+
             // Выбор знакогенератора спрайтов
             int chrsrc = (ctrl0 & 0x20) ? 0x1000 : 0x0000;
-            
+
             // 1x1 или 1x2 спрайты
             for (h = 0; h < 1; h++) {
-                
+
                 for (b = 0; b < 8; b++) { // Y
                     for (a = 0; a < 8; a++) { // X
-                                        
+
                         // Получение битов цвета
                         fol = sram[ 0x10000 + chrsrc + (icon + h)*16 + (h*16 + b) + 0 ]; // low
                         foh = sram[ 0x10000 + chrsrc + (icon + h)*16 + (h*16 + b) + 8 ]; // high bits
@@ -252,21 +252,21 @@ void printScreen() {
 
                         // Вычислить 2 бита цвета спрайта
                         color = (fol & s ? 1 : 0) | (foh & s ? 2 : 0);
-                        
+
                         if (color) {
-                            
+
                             color = (4*at) | color;
                             color = sram[ 0x13F10 + color ];
                             color = 65536*globalPalette[ color ].r +
                                       256*globalPalette[ color ].g +
                                           globalPalette[ color ].b;
-                            
-                            // + prior, opaque                            
+
+                            // + prior, opaque
                             if (y < 240 && ((ctrl1 & 0b100) || ((ctrl1 & 0b100) == 0 && x >= 8))) {
                                 setPixel(2*(x & 255), 2*(y & 255), color, 2);
                             }
                         }
-                        
+
                         // todo opaque
                     }
                 }
@@ -316,33 +316,38 @@ void display() {
 
     // Очистка буфера. В том числе и Z-буфера
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    
+
     // Исполнить один фрейм
     nmi_exec();
-    
+
     // Отладка
     if (cpu_running == 0) {
 
-        /* Полная очистка в зависимости от того, запущен процессор или нет */
-        for (i = 0; i < HEIGHT; i++) {
-        for (j = 0; j < WIDTH; j++) {
-            frame[i][j].r = 0;
-            frame[i][j].g = 0;
-            frame[i][j].b = 0;
-        } }
-        
-        printRegisters();
-        disassembleAll();
-        
+        if (redrawDump) {
+    
+            /* Полная очистка в зависимости от того, запущен процессор или нет */
+            for (i = 0; i < HEIGHT; i++) {
+            for (j = 0; j < WIDTH; j++) {
+                frame[i][j].r = 0;
+                frame[i][j].g = 0;
+                frame[i][j].b = 0;
+            } }
+
+            printRegisters();
+            disassembleAll();
+            
+        }
+
+        redrawDump = 1;
         justRedrawAll = 1;
     }
-    
+
     /* Сделать Disabled области отладки */
     else {
-        
+
         // Только единожды сбросит
         if (justRedrawAll) {
-            
+
             for (i = 0; i < HEIGHT; i++) {
                 for (j = i % 2; j < WIDTH; j += 2) {
                     frame[i][j].r = 0;
@@ -350,8 +355,8 @@ void display() {
                     frame[i][j].b = 0;
                 } }
         }
-        
-        justRedrawAll = 0;        
+
+        justRedrawAll = 0;
     }
 
     /* Вывод экрана всегда */
@@ -363,6 +368,8 @@ void display() {
     // Перерисовать
     glutReshapeWindow(WIDTH, HEIGHT);
     glutSwapBuffers();
+    
+    glutPostRedisplay();
 }
 
 // Печать hex-значений
