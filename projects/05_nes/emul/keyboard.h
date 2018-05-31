@@ -24,4 +24,7 @@
 */
 
 void keyboard(unsigned char, int, int);
+void keyboard_up(unsigned char, int, int);
+
 void keyboard_func(int, int, int);
+void keyboard_func_up(int key, int x, int y);

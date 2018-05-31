@@ -16,7 +16,7 @@
 #define CPUH
 
 #define TRACER          0
-#define EXEC_QUANT      50000   // (50000) 25Mhz=416667, 1.75Mhz=29167 | Сколько инструкции выполнить за 1/60 с
+#define EXEC_QUANT      29167   // 25Mhz=416667, 1.75Mhz=29167 | Сколько инструкции выполнить за 1/60 с
 #define MAPPER_NES      1       // NES-маппер
 #define MAPPER_OWN      2       // Свой маппер
 
@@ -104,13 +104,12 @@
 #define SRE     61
 #define DCP     62
 #define ISC     63
-// ??
-#define LAX     65
-#define AAX     66
-#define ASR     67
-#define ARR     68
-#define ATX     69 
-#define AXS     70
+#define LAX     64
+#define AAX     65
+#define ASR     66
+#define ARR     67
+#define ATX     68 
+#define AXS     69
 
 // --------- 
 #define XAA     DOP 
@@ -153,6 +152,9 @@ int breakpointsMax;     // Максимальная точка в массиве
 int debCurrentLine;
 int debugOldPC;
 int locked;
+
+int Joy1Strobe, Joy1Latch, Joy1;
+int Joy2Strobe, Joy2Latch, Joy2;
 
 // Используемый маппер памяти
 int mapper;

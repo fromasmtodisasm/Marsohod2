@@ -42,7 +42,10 @@ int main(int argc, char* argv[]) {
     
     // http://grafika.me/node/130
     glutKeyboardFunc(& keyboard );
+    glutKeyboardUpFunc(& keyboard_up );
+    
     glutSpecialFunc(& keyboard_func );
+    glutSpecialUpFunc(& keyboard_func_up );
 
     glutDisplayFunc(& display);
     glutMainLoop();

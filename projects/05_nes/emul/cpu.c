@@ -64,7 +64,7 @@ int operandNames[ 256 ] = {
 
 };
 
-char* operandNamesString[57] = {
+char* operandNamesString[70] = {
 
     "???",   //  0
     "BRK",   //  1
@@ -122,7 +122,22 @@ char* operandNamesString[57] = {
     "INC",   // 53
     "INX",   // 54
     "NOP",   // 55
-    "SED",   // 56
+    "SED",   // 56    
+    
+    "AAC",   // 57
+    "SLO",   // 58
+    "RLA",   // 59
+    "RRA",   // 60
+    "SRE",   // 61
+    "DCP",   // 62
+    "ISC",   // 63
+    "LAX",   // 64
+    "AAX",   // 65
+    "ASR",   // 66
+    "ARR",   // 67
+    "ATX",   // 68
+    "AXS",   // 69
+    
 };
 
 int cycles_basic[256] = {
@@ -165,6 +180,10 @@ void initCPU() {
     cycles      = 0;
     firstWrite  = 1;
     locked      = 0;
+    
+    /* Джойстики */
+    Joy1        = 0; Joy2        = 0;
+    Joy1Strobe  = 0; Joy2Strobe  = 0;
 
     for (i = 0; i < 64; i++) {
         debAddr[i] = 0;
@@ -203,6 +222,19 @@ unsigned char PULL() {
 unsigned char readB(int addr) {
 
     int tmp, olddat;
+    
+    // Джойстик 1
+    if (addr == 0x4016) {
+                
+        tmp = (Joy1Latch & 1) | 0x40;
+        Joy1Latch >>= 1;        
+        return tmp;
+    }
+    
+    // Джойстик 2
+    if (addr == 0x4017) {
+        return 0;
+    }
 
     if (addr >= 0x2000 && addr < 0x3F00) {
 
@@ -256,6 +288,23 @@ void writeB(int addr, unsigned char data) {
         for (i = 0; i < 256; i++) {
             spriteRam[i] = sram[baseaddr + i];
         }
+        return;
+    }
+    
+    // Геймпад 1
+    if (addr == 0x4016) {
+        
+        // Защелка: получение данных из Joy1
+        if ((Joy1Strobe & 1) == 1 && ((data & 1) == 0)) {            
+            Joy1Latch = Joy1 | (1 << 19);
+        }
+        
+        Joy1Strobe = data & 1;
+        return;
+    }
+    
+    // Геймпад 2: Пока не используется
+    if (addr == 0x4017) {        
         return;
     }
 
@@ -411,7 +460,7 @@ int exec() {
     // Определение эффективного адреса
     int iaddr = getEffectiveAddress(addr);
 
-    opcode = readB(addr);
+    opcode = readB(addr) & 0xff;
     optype = operandTypes[ opcode ];
     opname = operandNames[ opcode ];
 
@@ -1029,9 +1078,7 @@ int exec() {
             break;            
         }
     }
-
-    // if (addr < 0x8000) { printf("%04x %04x %02x %02x %02x\n", addr, reg_PC, sram[ reg_PC ], sram[ reg_PC+1 ], sram[ reg_PC+2 ]); exit(2); }
-
+    
     // Установка нового адреса
     reg_PC      = addr;
     deb_addr    = addr;

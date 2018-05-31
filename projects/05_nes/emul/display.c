@@ -318,22 +318,37 @@ void display() {
     // Очистка буфера. В том числе и Z-буфера
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    // Очистка экрана
-    for (i = 0; i < HEIGHT; i++) {
-    for (j = 0; j < WIDTH; j++) {
+    
+    if (locked == 0) {
+        nmi_exec();
+    }
+    
+    /* В зависимости от того, запущен процессор или нет */
+    int Wx = WIDTH, He = HEIGHT, Hs = 0;
+    
+    if (cpu_running) {
+        Wx = 512;
+        Hs = 768;
+        He = 240;
+    }
+    
+    // Очистка экрана    
+    for (i = Hs; i < He; i++) {
+    for (j = 0; j < Wx; j++) {
         frame[i][j].r = 0;
         frame[i][j].g = 0;
         frame[i][j].b = 0;
     } }
 
-    if (locked == 0) {
-        nmi_exec();
-    }
+    /* Вывод экрана */
+    printScreen();
 
     // Знакогенератор встроенный
-    printScreen();
-    printRegisters();
-    disassembleAll();
+    if (cpu_running == 0) {
+        
+        printRegisters();
+        disassembleAll();
+    }
 
     // Обновление экрана
     glDrawPixels(WIDTH, HEIGHT, GL_RGB, GL_UNSIGNED_BYTE, (void*)& frame);

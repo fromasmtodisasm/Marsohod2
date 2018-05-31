@@ -12,13 +12,31 @@ void keyboard(unsigned char key, int x, int y) {
     if (key == 27) {
         exit(0);
     }
+    
+    usleep(25);
+        
+    if (key == 'x' || key == 'x') Joy1 |= 0b00000001; // A
+    if (key == 'z' || key == 'Z') Joy1 |= 0b00000010; // B
+    if (key == 'c' || key == 'C') Joy1 |= 0b00000100; // SELECT
+    if (key == 'v' || key == 'V') Joy1 |= 0b00001000; // START
+    
+}
+
+void keyboard_up(unsigned char key, int x, int y) {
+    
+    usleep(25);
+
+    if (key == 'x' || key == 'X') Joy1 &= 0b11111110; // A
+    if (key == 'z' || key == 'Z') Joy1 &= 0b11111101; // B
+    if (key == 'c' || key == 'C') Joy1 &= 0b11111011; // SELECT
+    if (key == 'v' || key == 'V') Joy1 &= 0b11110111; // START
 }
 
 void keyboard_func(int key, int x, int y) {
 
-    usleep(100);
+    usleep(100);    
 
-    int i, current_id = 0, debugOn = 0;
+    int i, current_id = 0, debugOn = 0;    
 
     // Посмотреть, в какой позиции сейчас стоит deb_addr
     for (i = 0; i < 64; i++) {
@@ -88,6 +106,20 @@ void keyboard_func(int key, int x, int y) {
         zp_base = getEffectiveAddress(deb_addr) & 0xffff;
         display();
     }
+    
+    // -----------------------------------------------------------------
+    
+    if (cpu_running) {
+
+        if (key == 101) Joy1 |= 0b00010000; // UP
+        if (key == 103) Joy1 |= 0b00100000; // DOWN
+        if (key == 100) Joy1 |= 0b01000000; // LEFT
+        if (key == 102) Joy1 |= 0b10000000; // RIGHT
+        
+        return;
+    }
+    
+    // -----------------------------------------------------------------
 
     // Кнопка "вверх"
     if (key == GLUT_KEY_UP) {
@@ -106,6 +138,8 @@ void keyboard_func(int key, int x, int y) {
             deb_addr = debAddr[ current_id + 1 ];
         }
     }
+    
+    // -----------------------------------------------------------------
 
     // Постраничник вниз
     if (key == GLUT_KEY_PAGE_DOWN) {
@@ -119,4 +153,17 @@ void keyboard_func(int key, int x, int y) {
         deb_addr = deb_addr > 0 ? deb_addr : 0;
     }
 
+}
+
+void keyboard_func_up(int key, int x, int y) {
+    
+    if (cpu_running) {
+
+        if (key == 101) Joy1 &= ~0b00010000; // UP
+        if (key == 103) Joy1 &= ~0b00100000; // DOWN
+        if (key == 100) Joy1 &= ~0b01000000; // LEFT
+        if (key == 102) Joy1 &= ~0b10000000; // RIGHT        
+        return;
+    }
+    
 }
