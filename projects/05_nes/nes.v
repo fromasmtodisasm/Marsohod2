@@ -58,7 +58,6 @@ module nes(
 // --------------------------------------------------------------------------
 wire [7:0] DEBUGCPU;
 wire [7:0] DEBUGPPU;
-// wire [7:0] DEBUG = DEBUGCPU;
 reg [31:0] Timer;
 
 always @(posedge clk) 
@@ -76,7 +75,7 @@ wire        NMI;
 wire [7:0]  Dram;
 wire [7:0]  Drom;
 wire [7:0]  Dppu;
-reg  [1:0]  DVRAM = 2'b00;     /* Отложенная запись в VRAM */
+reg         DVRAM = 1'b0;     /* Отложенная запись в VRAM */
 reg         DSRAM = 1'b0;     /* ... в SRAM */
 reg         prg_led;
 
@@ -90,7 +89,7 @@ wire [7:0]  din = sram_route ? Dram :               /* 0000-07FF SRAM */
                   srom_route ? Drom : 8'h00;        /* 8000-FFFF ROM */
 
 always @(posedge clk) DSRAM <= CLKCPU;
-always @(posedge clk) DVRAM <= {DVRAM[0], WVREQ};
+always @(posedge clk) DVRAM <= div[1];
                   
 // --------------------------------------------------------------------------
 
@@ -106,7 +105,7 @@ cpu C6502(
     .WREQ   ( wreq ),           // =1 Запись в память по адресу EA
     .RD     ( RD ),             // =1 Чтение из PPU
     .NMI    ( NMI ),
-    .DEBUG  ( DEBUG )           // Отладочный
+    .DEBUG  ( DEBUGCPU )        // Отладочный
 );
 
 // --------------------------------------------------------------------------
@@ -240,7 +239,7 @@ vram VRAM(
     /* Для записи из PPU */
     .addr_wr (WADDR[10:0]),
     .data_wr (WDATA),
-    .wren    (DVRAM == 2'b01),
+    .wren    (WVREQ), // {DVRAM, div[1]} == 2'b10 && ),
     .qw      (VIN),
 
 );

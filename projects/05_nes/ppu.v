@@ -85,7 +85,7 @@ reg [9:0]   y = 1'b0;
 /* Параметры видеоадаптера */
 reg  [ 5:0] PALBG[16];          /* Палитра фона в регистрах PPU */
 reg  [ 5:0] PALSP[16];          /* Палитра спрайтов в регистрах PPU */
-reg  [13:0] ADDR = 1'b0;        /* Адрес внутри PPU */
+reg  [13:0] ADDR = 16'h2000;   /* Адрес внутри PPU */
 reg  [ 1:0] div = 2'b00;        /* Формирование PPU/CPU clock */
 reg  [15:0] rgb;                /* Данные из стандартной палитры PPL */
 
@@ -216,11 +216,13 @@ end
 /* ~ 5,3675 Mhz: PPUX=[0..340], PPUY=[0..261] */
 always @(posedge DE2P) begin
 
+    /* Запись в память только на разрешенных */
+    WVREQ  <= (ADDR >= 16'h2000 && ADDR < 16'h3F00 && WREQ) && (ea == 16'h2007) && (div == 2'b01);
+
     /* Сброс некоторых значений */
     if (RESET) begin
 
-        ADDR  <= 1'b0;
-        WVREQ <= 1'b0;
+        ADDR  <= 1'b0;        
 
     end
     else case (div)
@@ -268,26 +270,26 @@ always @(posedge DE2P) begin
             16'h2007: begin
             
                 /* Увеличить на 1 или 32 после чтения или записи */
-                INCADDR <= RD | WREQ;
-
+                INCADDR <= RD | WREQ;                
+                
                 /* Записать данные в память */
                 if (WREQ) begin
 
                     /* Писать можно только в VRAM (исключая палитру) */
-                    if (ADDR >= 16'h2000 && ADDR < 16'h3F00) begin
-                    
-                        WVREQ <= 1'b1;
-                        WDATA <= din;
-                    
+                    if (ADDR >= 16'h2000 && ADDR < 16'h3F00) begin                    
+                        WDATA <= din;                    
                     end
                     
                     /* Палитра фона */
-                    else if (ADDR >= 16'h3F00 && ADDR < 16'h3F10)
-                        PALBG[ ADDR[3:0] ] <= din[5:0];
+                    else if (ADDR >= 16'h3F00 && ADDR < 16'h3F10) begin
+                        PALBG[ ADDR[3:0] ] <= din[5:0];                        
+                    end
 
                     /* Палитра спрайтов */
-                    else if (ADDR >= 16'h3F10 && ADDR < 16'h3F20)
+                    else if (ADDR >= 16'h3F10 && ADDR < 16'h3F20) begin
                         PALSP[ ADDR[3:0] ] <= din[5:0];    
+
+                    end
                         
                 /* Прочитать из памяти */
                 end else if (RD) begin
@@ -296,7 +298,6 @@ always @(posedge DE2P) begin
                     DBUF <= (ADDR >= 14'h2000 ? VIN : FIN);
                     
                     // @todo READ PAL
-
                 end
 
             end
@@ -313,8 +314,7 @@ always @(posedge DE2P) begin
             // +1/+32 (INCADDR)
             16'h2007: if (INCADDR) begin
 
-                ADDR  <= ADDR + (CTRL0[2] ? 6'h20 : 1'b1);
-                WVREQ <= 1'b0;
+                ADDR <= ADDR + (CTRL0[2] ? 6'h20 : 1'b1);
 
             end
 

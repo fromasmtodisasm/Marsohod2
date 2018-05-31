@@ -32,7 +32,7 @@ always @* begin
     case (ALU)
 
         /* ORA */ 4'b0000: R = A | B;
-        /* AND */ 4'b0001,
+        /* AND */ 4'b0001: R = A & B;
         /* EOR */ 4'b0010: R = A ^ B;
         /* ADC */ 4'b0011: R = A + B + Cin;
         /* STA */ 4'b0100: R = A;

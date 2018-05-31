@@ -17,8 +17,8 @@ module cpu(
 assign ADDR  = AS ? {8'h01, S} : (AM ? EA : PC);
 assign EAWR  = AS ? {8'h01, S} : EA;
 
-assign  DEBUG = EA[7:0];
-`define DEBUGPC 16'h0000 // 16'hC240 16'hC247
+assign  DEBUG = Y[7:0];
+`define DEBUGPC 16'h0000 // DD6A C2CC! DEDF C291 C3BF C3AF C286  C240
 
 // ---------------------------------------------------------------------
 
@@ -142,7 +142,7 @@ always @(posedge CLK) begin
                 end
                 
                 /* Восходящий фронт NMI */
-                if (NMI_status && NMI) begin
+                if (NMI_status && NMI && 0) begin // -- по отключить
                 
                     IRQ    <= 2'b01; // $FFFA
                     opcode <= 8'h00; // BRK
@@ -405,7 +405,7 @@ always @* begin
         /* CMP */
         8'b110_xxx_01: FW = opcode[6];
 
-        /* ADC, SBC, AND, ORA, EOR, LDA */
+        /* ORA, AND, EOR, ADC, STA, LDA, CMP, SBC */
         8'bxxx_xxx_01: {WR, FW} = 2'b11;
 
         /* ROL, ROR, ASL, LSR ACC */
