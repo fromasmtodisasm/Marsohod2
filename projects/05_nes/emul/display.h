@@ -49,6 +49,8 @@ int             coarse_x, coarse_y,
 
 // Текущий видео адрес
 int VRAMAddress;
+int HMirroring;     /* При X + ScrollX > 256 использовать второй экран */
+int VMirroring;     /* При Y + ScrollY > 256 использовать второй экран */
 
 // Прототипы
 // ---------------------------------------------------------------------
@@ -60,6 +62,7 @@ void drawLine(int, int, int, int, int);
 void printScreen();
 void printRegisters();
 void display();
+void swap();
 void fontsLoad();
 void initGlobalPal();
 void setPalette(int, int, int, int);

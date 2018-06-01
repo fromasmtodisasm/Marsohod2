@@ -181,6 +181,10 @@ void initCPU() {
     cpu_running = 0;
     firstWrite  = 1;
     redrawDump  = 1;
+    
+    /* Отражение экранных страниц. Зависит от картриджа */
+    HMirroring  = 1;
+    VMirroring  = 1;
 
     /* Джойстики */
     Joy1        = 0; Joy2        = 0;
@@ -406,6 +410,10 @@ void writeB(int addr, unsigned char data) {
                 break;
 
             case 7: // Запись данных в видеопамять
+            
+                if (VRAMAddress >= 0x3F00) {                    
+                    // printf("%04x %02x | %04x \n", VRAMAddress, data, reg_PC);
+                }
 
                 sram[ 0x10000 + vmirror(VRAMAddress) ] = data;
                 VRAMAddress += (ctrl0 & 0x04 ? 32 : 1);
@@ -1335,7 +1343,7 @@ void nmi_exec() {
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    int row = 0, cycles = 0, term = 0;
+    int row = 0, cycles = 0;
 
     // Выполнить 262 строк (1 кадр)
     for (row = 0; row < 262; row++) {
@@ -1343,7 +1351,7 @@ void nmi_exec() {
         /* Вызвать NMI на обратном синхроимпульсе */
         if (row == 241) {            
             request_NMI();
-        } 
+        }
         
         /* Достигнут Sprite0Hit */
         if (spriteRam[0] == row - 1) {
@@ -1355,17 +1363,18 @@ void nmi_exec() {
             
             if (!breakpoint_test()) {                    
                 cycles += exec();                
-            } else {
-                term = 1;
+            } else {                
+                cpu_running = 0;
+                break;
             }        
-        }        
+        }
 
         // "Кольцо вычета"
         if (cycles >= 115) {
             cycles -= 115;      
         }
         
-        if (term) {
+        if (!cpu_running) {
             break;
         }
 
@@ -1377,7 +1386,7 @@ void nmi_exec() {
             coarse_y = regVT;
             fine_x   = regFH;  
             fine_y   = regFV;
-                     
+
             drawTiles(row >> 3);
         }        
     }

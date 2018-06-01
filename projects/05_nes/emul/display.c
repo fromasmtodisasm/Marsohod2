@@ -10,6 +10,7 @@ void setPalette(int id, int r, int g, int b) {
     globalPalette[id].r = r;
     globalPalette[id].g = g;
     globalPalette[id].b = b;
+    //printf("%x %x|%x|%x\n", id, r, g, b);
 }
 
 void initGlobalPal() {
@@ -181,6 +182,11 @@ void drawSprites() {
                                       256*globalPalette[ color ].g +
                                           globalPalette[ color ].b;
 
+                            // Спрайт за фоном?
+                            if ((attr_spr & 0x20) == 0 && opaque[y][x] == 0) {
+                                // continue;
+                            }
+
                             // + prior, opaque
                             if (x < 256 && y < 240 && ((ctrl1 & 0b100) || ((ctrl1 & 0b100) == 0 && x >= 8))) {
                                 setPixel(2*x, 2*y, color, 2);
@@ -212,13 +218,13 @@ void drawTiles(int i) {
 
         // -----------------------
         /* Выполнить скроллинг Y */
-        int scroll_y  = (i - coarse_y);
-        int scroll_oy = (scroll_y >= 0x20); /* Переполнение Y */
+        int scroll_y  = (i + coarse_y);
+        int scroll_oy = VMirroring ? (scroll_y >= 0x20) : 0;
             scroll_y  = scroll_y & 0x1F;    /* Сброс переполнения */
 
         /* Выполнить скроллинг X */
         int scroll_x  = (j + coarse_x);
-        int scroll_ox = scroll_x >= 0x20;   /* Переполнение X */
+        int scroll_ox = HMirroring ? scroll_x >= 0x20 : 0;
             scroll_x  = scroll_x & 0x1F;    /* Сброс переполнения */
         // -----------------------
 
@@ -273,7 +279,7 @@ void drawTiles(int i) {
                               globalPalette[ color ].b;
 
                 xp = 8*j + b - fine_x;
-                yp = 8*i + a + fine_y;
+                yp = 8*i + a - fine_y;
 
                 // Рисовать только в видимой области
                 if (xp < 256 && yp < 240) {
@@ -281,9 +287,8 @@ void drawTiles(int i) {
                 }
             }
         }
-    }
+    } 
 }
-
 
 // Обновление экрана
 void swap() {
@@ -390,8 +395,7 @@ void display() {
         /* Выполнить код фрейма */
         nmi_exec();
     }
-    
-    glutReshapeWindow(WIDTH, HEIGHT);
+        
     glutPostRedisplay();
 }
 
