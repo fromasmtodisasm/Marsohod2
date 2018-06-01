@@ -18,7 +18,7 @@ int is_nes_file(char* file) {
 
 void load_nes_file(char* file) {
     
-    int size, rdsize;
+    int size;
     FILE* f = fopen(file, "rb");
     
     if (f == NULL) {
@@ -58,7 +58,6 @@ void load_nes_file(char* file) {
 // Загрузка собственного файла
 void load_own_file(char* file) {
     
-    int rdsize;
     FILE* f = fopen(file, "rb");
     
     if (f == NULL) {

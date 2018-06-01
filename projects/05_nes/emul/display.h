@@ -61,7 +61,7 @@ void printScreen();
 void printRegisters();
 void display();
 void fontsLoad();
-int initGlobalPal();
+void initGlobalPal();
 void setPalette(int, int, int, int);
 
 #endif

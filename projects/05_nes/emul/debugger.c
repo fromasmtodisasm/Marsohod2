@@ -9,6 +9,8 @@
 #include <stdio.h>
 #include <GL/freeglut.h>
 
+int rdsize;
+
 // Заголовки
 #include "display.h"
 #include "keyboard.h"

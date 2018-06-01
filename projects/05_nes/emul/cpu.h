@@ -139,7 +139,7 @@ int  zp_base;
 int  cycles;
 
 // Декодированная линия в отладчике
-unsigned char debLine[32];
+char debLine[32];
 
 // Адреса по каждой линии
 int debAddr[64];

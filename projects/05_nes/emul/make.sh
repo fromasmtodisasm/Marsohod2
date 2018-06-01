@@ -1,5 +1,5 @@
 # Компиляция 
-if (gcc debugger.c -Os -lglut -lGL -o d6502)
+if (gcc debugger.c -Os -lglut -lGL -Wall -o d6502)
 then        
     cp d6502 /usr/local/bin
     

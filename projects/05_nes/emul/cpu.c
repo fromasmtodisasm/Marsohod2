@@ -18,7 +18,7 @@
 #define IF_OVERFLOW         (reg_P & 0x40 ? 1 : 0)
 #define IF_SIGN             (reg_P & 0x80 ? 1 : 0)
 
-#define PUSH(x)             writeB(0x100 + reg_S, x & 0xff); reg_S = (reg_S - 1) & 0xff
+#define PUSH(x)             writeB(0x100 + reg_S, x & 0xff); reg_S = ((reg_S - 1) & 0xff)
 
 // Типы операндов для каждого опкода
 unsigned char operandTypes[256] = {
@@ -65,10 +65,10 @@ int operandNames[ 256 ] = {
 
 };
 
-char* operandNamesString[70] = {
+const char* operandNamesString[70] = {
 
     // Документированные
-    "???",   //  0
+    "KIL",   //  0 Ошибочные инструкции
     "BRK",   //  1
     "ORA",   //  2
     "AND",   //  3
@@ -393,7 +393,7 @@ void writeB(int addr, unsigned char data) {
 // По адресу, определить эффективный адрес (если он есть)
 unsigned int getEffectiveAddress(int addr) {
 
-    int opcode, src, iaddr;
+    int opcode, iaddr;
     int tmp, rt;
 
     opcode  = sram[ addr ];
@@ -455,8 +455,8 @@ unsigned int getEffectiveAddress(int addr) {
 // Исполнение инструкции
 int exec() {
 
-    int temp, optype, opname, ppurd = 1;
-    int addr = reg_PC, opcode, src;
+    int temp, optype, opname, ppurd = 1, src;
+    int addr = reg_PC, opcode;
     int cycles_per_instr = 2;
 
     // Определение эффективного адреса
@@ -747,7 +747,7 @@ int exec() {
 
         /* Стек */
         case PHA: PUSH(reg_A); break;
-        case PHP: PUSH(reg_P | 0x30); break;
+        case PHP: PUSH((reg_P | 0x30)); break;
         case PLP: reg_P = PULL(); break;
 
         /* Извлечение из стека в A */
@@ -1106,7 +1106,7 @@ int decodeLine(int addr) {
 
     int t;
     int regpc = addr;
-    unsigned char op, type;
+    unsigned char op;
     char operand[32];
 
     op   = sram[ addr ];
@@ -1160,7 +1160,7 @@ int decodeLine(int addr) {
     }
 
     addr &= 0xffff;
-    sprintf(debLine, "%s %s", operandNamesString[ op_name_id ], operand);
+    sprintf((char*)debLine, "%s %s", operandNamesString[ op_name_id ], operand);
     return addr - regpc;
 }
 
@@ -1242,7 +1242,7 @@ void nmi_exec() {
 
     if (cpu_running) {
 
-        int i, j, l, frame_start = 0, iter;
+        int j, frame_start = 0, iter;
         unsigned char bt;
 
         cycles = 0;

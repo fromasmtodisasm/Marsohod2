@@ -12,7 +12,7 @@ void setPalette(int id, int r, int g, int b) {
     globalPalette[id].b = b;
 }
 
-int initGlobalPal() {
+void initGlobalPal() {
 
     setPalette(0x00, 117, 117, 117);
     setPalette(0x01, 39,  27,  143);
@@ -81,7 +81,7 @@ int initGlobalPal() {
     setPalette(0x3D, 0,   0,   0);
     setPalette(0x3E, 0,   0,   0);
     setPalette(0x3F, 0,   0,   0);
-}
+};
 
 // Пиксель
 void setPixel(int x, int y, int color, int scale) {
@@ -107,7 +107,7 @@ void setPixel(int x, int y, int color, int scale) {
 // Печать строки
 void printString(int x, int y, char* string, int fr, int bg) {
 
-    int a, b, i, j, color, fo;
+    int a, b, color, fo;
     int scale = 2;
 
     x *= scale * 8;
@@ -428,8 +428,7 @@ void printRegisters() {
 
     int  baseline = 31;
     char s[2]; s[1] = 0;
-    int  i, j;
-    int  color;
+    int  i, j;    
     char sym[16] = "nv_bdizcNV_BDIZC";
 
     // Болванка
@@ -525,10 +524,10 @@ void printRegisters() {
             zp = 0x0100 + reg_S + 1;
             for (i = 0; i < 8; i++) {
 
-                printHex(1, baseline + i + 12, ((zp + i*8) & 0xff | 0x100), 4, 0xffffff, 0);
+                printHex(1, baseline + i + 12, (((zp + i*8) & 0xff) | 0x100), 4, 0xffffff, 0);
                 for (j = 0; j < 8; j++) {
 
-                    sprintf(sym, "%02X", readB( (zp + i * 8 + j) & 0xff | 0x100 ));
+                    sprintf(sym, "%02X", readB( ((zp + i * 8 + j) & 0xff) | 0x100 ));
                     printString(6 + j*3, baseline + 12 + i, sym, 0xc0c0c0, 0);
                 }
             }
@@ -540,7 +539,6 @@ void printRegisters() {
 // Загрузка шрифта
 void fontsLoad() {
 
-    int rdsize;
     FILE* f = fopen("8x8cp1251.fnt", "rb");
 
     if (f == NULL) {
