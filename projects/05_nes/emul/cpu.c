@@ -455,7 +455,7 @@ unsigned int getEffectiveAddress(int addr) {
 // Исполнение инструкции
 int exec() {
 
-    int temp, optype, opname, ppurd = 1, src;
+    int temp, optype, opname, ppurd = 1, src = 0;
     int addr = reg_PC, opcode;
     int cycles_per_instr = 2;
 
