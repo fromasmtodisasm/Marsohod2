@@ -10,7 +10,6 @@ void setPalette(int id, int r, int g, int b) {
     globalPalette[id].r = r;
     globalPalette[id].g = g;
     globalPalette[id].b = b;
-    //printf("%x %x|%x|%x\n", id, r, g, b);
 }
 
 void initGlobalPal() {
@@ -188,7 +187,7 @@ void drawSprites() {
                             }
 
                             // + prior, opaque
-                            if (x < 256 && y < 240 && ((ctrl1 & 0b100) || ((ctrl1 & 0b100) == 0 && x >= 8))) {
+                            if (x < 256 && y < 232 && y > 8 && ((ctrl1 & 0b100) || ((ctrl1 & 0b100) == 0 && x >= 8))) {
                                 setPixel(2*x, 2*y, color, 2);
                             }
                         }
@@ -262,7 +261,13 @@ void drawTiles(int i) {
 
                 /* Отображается ли фон? */
                 color = (cpu_running == 0 || (ctrl1 & 0x08)) ? color : 0;
+                
+                xp = 8*j + b - fine_x;
+                yp = 8*i + a - fine_y;
 
+                /* Края не показывать */
+                if (yp < 8 || yp > 232) color = 0;
+                
                 if (color & 3) {
 
                     color = sram[ 0x13F00 + color ]; // 16 цветов палитры фона
@@ -278,8 +283,6 @@ void drawTiles(int i) {
                           256*globalPalette[ color ].g +
                               globalPalette[ color ].b;
 
-                xp = 8*j + b - fine_x;
-                yp = 8*i + a - fine_y;
 
                 // Рисовать только в видимой области
                 if (xp < 256 && yp < 240) {

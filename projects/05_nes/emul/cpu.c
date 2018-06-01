@@ -181,10 +181,10 @@ void initCPU() {
     cpu_running = 0;
     firstWrite  = 1;
     redrawDump  = 1;
-    
+
     /* Отражение экранных страниц. Зависит от картриджа */
     HMirroring  = 1;
-    VMirroring  = 1;
+    VMirroring  = 0;
 
     /* Джойстики */
     Joy1        = 0; Joy2        = 0;
@@ -208,8 +208,8 @@ void initCPU() {
 
     /* Точка прерывания */
     if (BREAKPOINT) {
-                
-        breakpointsMax = 1; 
+
+        breakpointsMax = 1;
         breakpoints[0] = BREAKPOINT;
     }
 }
@@ -228,26 +228,26 @@ unsigned char PULL() {
 
 /* Зеркала для видеопамяти */
 int vmirror(int addr) {
-        
+
     /* Зеркала палитры */
     if ((addr & 0x3F00) == 0x3F00) {
         return (addr & 0x1F) | 0x3F00;
-    } 
-    
+    }
+
     /* Зеркала nametable */
     else if (addr > 0x2800) {
         return (addr & 0x7FF) | 0x2000;
-    }        
-    
+    }
+
     return addr;
 }
 
 int rmirror(int addr) {
-    
+
     if (addr > 0x0800 && addr < 0x2000) {
         return (addr & 0x7FF);
     }
-    
+
     return addr & 0xffff;
 }
 
@@ -296,9 +296,18 @@ unsigned char readB(int addr) {
             /* Чтение из видеопамяти (кроме STA) */
             case 7:
 
-                olddat = objvar;
-                objvar = sram[ 0x10000 + vmirror(VRAMAddress) ];
-                VRAMAddress += (ctrl0 & 0x04 ? 32 : 1);
+                // Читать из регистров палитры
+                if (VRAMAddress >= 0x3F00) {
+                    olddat = sram[ 0x10000 + vmirror(VRAMAddress) ];
+                    
+                } else {
+                    
+                    // Читать с задержкой буфера
+                    olddat = objvar;
+                    objvar = sram[ 0x10000 + vmirror(VRAMAddress) ];
+                } 
+
+                VRAMAddress += (ctrl0 & 0x04 ? 32 : 1);                
                 return olddat;
         }
     }
@@ -308,7 +317,7 @@ unsigned char readB(int addr) {
 
 // Запись байта в память
 void writeB(int addr, unsigned char data) {
-    
+
     if (addr >= 0x8000) {
         return;
     }
@@ -410,8 +419,8 @@ void writeB(int addr, unsigned char data) {
                 break;
 
             case 7: // Запись данных в видеопамять
-            
-                if (VRAMAddress >= 0x3F00) {                    
+
+                if (VRAMAddress >= 0x3F00) {
                     // printf("%04x %02x | %04x \n", VRAMAddress, data, reg_PC);
                 }
 
@@ -468,21 +477,21 @@ unsigned int getEffectiveAddress(int addr) {
         case ABS: return readW(addr);
 
         /* Absolute, X */
-        case ABX: 
-                        
+        case ABX:
+
             pt = readW(addr);
             rt = pt + reg_X;
             if  ((pt & 0xff00) != (rt & 0xff00)) cycles_ext++;
             return rt & 0xffff;
 
         /* Absolute, Y */
-        case ABY: 
-        
+        case ABY:
+
             pt = readW(addr);
             rt = pt + reg_Y;
             if  ((pt & 0xff00) != (rt & 0xff00)) cycles_ext++;
             return rt & 0xffff;
-        
+
         /* Indirect */
         case IND:
 
@@ -506,7 +515,7 @@ int exec() {
     int temp, optype, opname, ppurd = 1, src = 0;
     int addr = reg_PC, opcode;
     int cycles_per_instr = 2;
-    
+
     /* Доп. циклы разбора адреса */
     cycles_ext = 0;
 
@@ -1292,17 +1301,17 @@ void disassembleAll() {
 
 // Поиск точек останова
 int breakpoint_test() {
-    
+
     int bt = sram[ reg_PC ], j;
-    
+
     // Программная точка останова (KIL)
     if (bt == 0x02) {
-        
+
         cpu_running = 0;
         return 1;
-    }     
+    }
     else {
-        
+
         for (j = 0; j < breakpointsMax; j++) {
 
             if (breakpoints[ j ] == reg_PC) {
@@ -1313,13 +1322,13 @@ int breakpoint_test() {
             }
         }
     }
-    
+
     return 0;
 }
 
 /* Запрос NMI */
 void request_NMI() {
-    
+
     /* Установить счетчик = 0 */
     cntVT = 0;
 
@@ -1347,12 +1356,12 @@ void nmi_exec() {
 
     // Выполнить 262 строк (1 кадр)
     for (row = 0; row < 262; row++) {
-                
+
         /* Вызвать NMI на обратном синхроимпульсе */
-        if (row == 241) {            
+        if (row == 241) {
             request_NMI();
         }
-        
+
         /* Достигнут Sprite0Hit */
         if (spriteRam[0] == row - 1) {
             ppu_status |= 0b01000000;
@@ -1360,44 +1369,44 @@ void nmi_exec() {
 
         // Выполнить 1 строку
         while (cycles < 115) {
-            
-            if (!breakpoint_test()) {                    
-                cycles += exec();                
-            } else {                
+
+            if (!breakpoint_test()) {
+                cycles += exec();
+            } else {
                 cpu_running = 0;
                 break;
-            }        
+            }
         }
 
         // "Кольцо вычета"
         if (cycles >= 115) {
-            cycles -= 115;      
+            cycles -= 115;
         }
-        
+
         if (!cpu_running) {
             break;
         }
 
         /* Отрисовка линии с тайлами */
-        if ((row % 8) == 0 && row < 240) {                    
-            
+        if ((row % 8) == 0 && row < 248) {
+
             /* Использовать regHT, regVT от $2005 */
-            coarse_x = regHT;  
+            coarse_x = regHT;
             coarse_y = regVT;
-            fine_x   = regFH;  
+            fine_x   = regFH;
             fine_y   = regFV;
 
             drawTiles(row >> 3);
-        }        
+        }
     }
-            
+
     /* Обновить счетчики */
     // cntVT = 0;
     // cntFV = regFV; cntV = regV;  cntH  = regH; cntHT = regHT;
-    
+
     /* Нарисовать спрайты */
     drawSprites();
-        
+
     /* Сбросить VBLank и Sprite0Hit */
     ppu_status &= 0b00111111;
 
