@@ -61,7 +61,7 @@ wire [7:0] DEBUGPPU;
 reg [31:0] Timer;
 
 always @(posedge clk) 
-begin Timer <= (Timer == 50000000) ? 0 : Timer + 1; led <= Timer > 25000000 ? DEBUGPPU[3:0] : DEBUGPPU[7:4]; end
+begin Timer <= (Timer == 50000000) ? 0 : Timer + 1; led <= Timer > 25000000 ? DEBUGCPU[3:0] : DEBUGCPU[7:4]; end
 
 // --------------------------------------------------------------------------
 
@@ -89,7 +89,7 @@ wire [7:0]  din = sram_route ? Dram :               /* 0000-07FF SRAM */
                   srom_route ? Drom : 8'h00;        /* 8000-FFFF ROM */
 
 always @(posedge clk) DSRAM <= CLKCPU;
-always @(posedge div[1]) DVRAM <= WVREQ;
+always @(posedge clk) DVRAM <= CLKPPU;
                   
 // --------------------------------------------------------------------------
 
@@ -105,7 +105,8 @@ cpu C6502(
     .WREQ   ( wreq ),           // =1 Запись в память по адресу EA
     .RD     ( RD ),             // =1 Чтение из PPU
     .NMI    ( NMI ),
-    .DEBUG  ( DEBUGCPU )        // Отладочный
+    .DEBUG  ( DEBUGCPU ),       // Отладочный
+    .DKEY   ( keys[1:0] )
 );
 
 // --------------------------------------------------------------------------
@@ -188,13 +189,12 @@ uart UART(
     .rx_ready   (rx_ready),
 );
 
-parameter  prg_len = 16384;
-
-reg [7:0]  prg_idata   = 1'b0; /* Данные для записи */
-reg [13:0] prg_addr    = 1'b0; /* Адрес (16Kb) */
-reg        prg_wren    = 1'b0; /* Производится запись в память */
-reg        prg_enable  = 1'b0; /* Программирование включено */
-reg [1:0]  prg_negedge = 2'b00;
+parameter  prg_len      = 16384;
+reg [7:0]  prg_idata    = 1'b0; /* Данные для записи */
+reg [13:0] prg_addr     = 1'b0; /* Адрес (16Kb) */
+reg        prg_wren     = 1'b0; /* Производится запись в память */
+reg        prg_enable   = 1'b0; /* Программирование включено */
+reg [1:0]  prg_negedge  = 2'b00;
 
 /* Регистрация negedge rx_ready */
 always @(posedge clk) prg_negedge <= {prg_negedge[0], rx_ready};
@@ -267,7 +267,7 @@ vram VRAM(
     /* Для записи из PPU */
     .addr_wr (WADDR[10:0]),
     .data_wr (WDATA),
-    .wren    ({DVRAM, WVREQ} == 2'b10),
+    .wren    ({DVRAM, CLKPPU} == 2'b10 && WVREQ),
     .qw      (VIN),
 
 );
