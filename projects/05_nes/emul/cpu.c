@@ -239,6 +239,15 @@ int vmirror(int addr) {
     return addr;
 }
 
+int rmirror(int addr) {
+    
+    if (addr > 0x0800 && addr < 0x2000) {
+        return (addr & 0x7FF);
+    }
+    
+    return addr & 0xffff;
+}
+
 // Чтение байта из памяти
 unsigned char readB(int addr) {
 
@@ -257,7 +266,7 @@ unsigned char readB(int addr) {
         return 0;
     }
 
-    if (addr >= 0x2000 && addr < 0x3F00) {
+    if (addr >= 0x2000 && addr <= 0x3FFF) {
 
         switch (addr & 7) {
 
@@ -291,7 +300,7 @@ unsigned char readB(int addr) {
         }
     }
 
-    return sram[ addr & 0xffff ];
+    return sram[ rmirror(addr) ];
 }
 
 // Запись байта в память
@@ -405,7 +414,7 @@ void writeB(int addr, unsigned char data) {
         }
 
     } else {
-        sram[ addr & 0xffff ] = data;
+        sram[ rmirror(addr) ] = data;
     }
 }
 
