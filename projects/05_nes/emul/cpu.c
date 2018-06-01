@@ -204,7 +204,7 @@ void initCPU() {
 
     // ---
     // breakpointsMax = 1; breakpoints[0] = 0xC240;
-    //breakpointsMax = 1; breakpoints[0] = 0x03A0; //  0xE390
+    //breakpointsMax = 1; breakpoints[0] = 0xDCCA; //  0xE390
 }
 
 // Чтение слова из памяти
@@ -1328,6 +1328,7 @@ void nmi_exec() {
         cntVT = 0;
         ppu_status &= 0b00111111;
         frame_start = 0;
+        redrawDump = 1;
     }
 
 }

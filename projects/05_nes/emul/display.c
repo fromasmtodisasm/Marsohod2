@@ -194,7 +194,7 @@ void printScreen() {
                     color = (4*at) | color;
 
                     /* Отображается ли фон? */
-                    color = ctrl1 & 0x08 ? color : 0;
+                    color = (cpu_running == 0 || (ctrl1 & 0x08)) ? color : 0;
 
                     if (color & 3) {
 
