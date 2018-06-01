@@ -1,1 +1,0 @@
-dd if=loderunnes.nes of=chr.rom bs=1 skip=16400 

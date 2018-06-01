@@ -10,15 +10,21 @@ module cpu(
     output reg         WREQ,    // =1 Запись в память по адресу EA
     output reg         RD,      // На нисходящем CLK при RD=1, защелка PPU
     input  wire        NMI,     // Синхроимпульс NMI
-    output wire [7:0]  DEBUG    // Отладочный
+    output wire [7:0]  DEBUG,   // Отладочный
+    input  wire [1:0]  DKEY     // Отладочные кнопки
 
 );
 
 assign ADDR  = AS ? {8'h01, S} : (AM ? EA : PC);
 assign EAWR  = AS ? {8'h01, S} : EA;
 
-assign  DEBUG = A[7:0];
-`define DEBUGPC 16'hDCCA // DD6A C2CC! DEDF C291 C3BF C3AF C286  C240
+// Отладочный 
+assign  DEBUG = DKEY == 2'b11 ? A[7:0] :  // Обе отжаты
+                DKEY == 2'b10 ? X[7:0] :  // Нажата 0-я
+                DKEY == 2'b01 ? Y[7:0] :  // Нажата 1-я
+                                P[7:0];   // Нажаты две
+
+`define DEBUGPC 0 // 16'hDD63 // hDD63
 
 // ---------------------------------------------------------------------
 
@@ -129,7 +135,7 @@ always @(posedge CLK) begin
         /* ИНИЦИАЛИЗАЦИЯ */
         4'h0: begin
         
-            if (PC == `DEBUGPC) begin
+            if (PC == `DEBUGPC || DIN == 8'h02 /* KIL */) begin 
             
                 // .. Останов процессора для отладки
                 AM <= 1'b1; AS <= 1'b0; EA <= 2;
@@ -405,6 +411,20 @@ always @* begin
         /* ORA, AND, EOR, ADC, STA, LDA, CMP, SBC */
         8'bxxx_xxx_01: {WR, FW} = 2'b11;
 
+        /* Transfer */
+        8'b100_010_00: {alu, RA, RB, WR, FW} = 10'b1110_10_10_11; /* DEY */
+        8'b110_010_10: {alu, RA, RB, WR, FW} = 10'b1110_01_01_11; /* DEX */
+        8'b110_010_00: {alu, RA, RB, WR, FW} = 10'b1111_10_10_11; /* INY */
+        8'b111_010_00: {alu, RA, RB, WR, FW} = 10'b1111_01_01_11; /* INX */
+
+        /* TAX, TAY */
+        8'b101_010_10: {alu, RB, RA, FW, WR, ACC} = 11'b0101_00_01_1_1_1; /* TAX */
+        8'b101_010_00: {alu, RB, RA, FW, WR, ACC} = 11'b0101_00_10_1_1_1; /* TAY */
+        8'b100_110_10: {alu, RB, SW}              = 8'b0101_01_1;         /* TXS */
+        8'b100_110_00: {alu, RB, FW, WR}          = 8'b0101_10_1_1;       /* TYA */
+        8'b100_010_10: {alu, RB, FW, WR}          = 8'b0101_01_1_1;       /* TXA */
+        8'b101_110_10: {alu, RB, RA, FW, WR}      = 10'b0101_11_01_11;    /* TSX */
+
         /* ROL, ROR, ASL, LSR ACC */
         8'b0xx_010_10: {alu, ACC, RB, RA, FW, WR} = {2'b10, opcode[6:5], 1'b1, 6'b00_00_11};
 
@@ -439,20 +459,6 @@ always @* begin
 
         /* BIT */
         8'b001_0x1_00: {alu, FW} = 5'b1101_1;
-
-        /* Transfer */
-        8'b100_010_00: {alu, RA, RB, WR, FW} = 10'b1110_10_10_11; /* DEY */
-        8'b110_010_10: {alu, RA, RB, WR, FW} = 10'b1110_01_01_11; /* DEX */
-        8'b110_010_00: {alu, RA, RB, WR, FW} = 10'b1111_10_10_11; /* INY */
-        8'b111_010_00: {alu, RA, RB, WR, FW} = 10'b1111_01_01_11; /* INX */
-
-        /* TAX, TAY */
-        8'b101_010_10: {alu, RB, RA, FW, WR, ACC} = 11'b0101_00_01_111;
-        8'b101_010_00: {alu, RB, RA, FW, WR, ACC} = 11'b0101_00_10_111;
-        8'b100_110_10: {alu, RB, SW}     = 8'b0101_01_1;  /* TXS */
-        8'b100_110_00: {alu, RB, FW, WR} = 8'b0101_10_11; /* TYA */
-        8'b100_010_10: {alu, RB, FW, WR} = 8'b0101_01_11; /* TXA */
-        8'b101_110_10: {alu, RB, RA, FW, WR} = 10'b0101_11_01_11; /* TSX */
 
         /* RTS, RTI, PLP, PLA */
         8'b01x_000_00,

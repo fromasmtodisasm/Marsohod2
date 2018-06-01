@@ -26,6 +26,7 @@ wire        cpuclk;
 wire        NMI;
 wire [7:0]  DEBUG;
 wire [7:0]  DEBUGPPU;
+wire [1:0]  KEYS;
 wire        reset = 1'b0;
 reg         DVRAM;
 
@@ -74,7 +75,7 @@ always @(posedge clk) DVRAM <= vwreq;
 // Центральный процессор
 // ---------------------------------------------------------------------
 
-cpu CPU( reset, cpuclk, 1'b1, address, din, dout, ea, wreq, rd, NMI, DEBUG); 
+cpu CPU( reset, cpuclk, 1'b1, address, din, dout, ea, wreq, rd, NMI, DEBUG, KEYS); 
 
 // Графический процессор
 // ---------------------------------------------------------------------

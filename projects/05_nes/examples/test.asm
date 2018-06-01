@@ -10,10 +10,14 @@
         lda #$00
         sta $2006
         
+        ldy #$41
+        
+        sty $2007
+        
         ldx #$05
 AC        
         ldy #$C0
-AB        
+AB       
         lda #$40
         sta $2007
         dey

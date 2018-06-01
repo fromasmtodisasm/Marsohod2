@@ -61,7 +61,7 @@ wire [7:0] DEBUGPPU;
 reg [31:0] Timer;
 
 always @(posedge clk) 
-begin Timer <= (Timer == 50000000) ? 0 : Timer + 1; led <= Timer > 25000000 ? DEBUGPPU[3:0] : DEBUGPPU[7:4]; end
+begin Timer <= (Timer == 50000000) ? 0 : Timer + 1; led <= Timer > 25000000 ? DEBUGCPU[3:0] : DEBUGCPU[7:4]; end
 
 // --------------------------------------------------------------------------
 
@@ -105,7 +105,8 @@ cpu C6502(
     .WREQ   ( wreq ),           // =1 Запись в память по адресу EA
     .RD     ( RD ),             // =1 Чтение из PPU
     .NMI    ( NMI ),
-    .DEBUG  ( DEBUGCPU )        // Отладочный
+    .DEBUG  ( DEBUGCPU ),       // Отладочный
+    .DKEY   ( keys[1:0] )
 );
 
 // --------------------------------------------------------------------------
