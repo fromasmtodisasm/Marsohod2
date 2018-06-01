@@ -1249,12 +1249,15 @@ void nmi_exec() {
         int    sprHitLocal = 0;
 
         int lppu_cycles = 0;
+        
+        /* Обновить счетчики */
+        cntFV = regFV;
+        cntV  = regV;  cntH  = regH;
+        cntVT = regVT; cntHT = regHT;
 
         /* При старте рендеринга, использовать regHT, regVT от $2005 */
-        fine_x = regFH;
-        fine_y = regFV;
-        coarse_x = regHT;
-        coarse_y = regVT; // cntVT ?
+        coarse_x = regHT;  coarse_y = regVT;
+        fine_x   = regFH;  fine_y   = regFV;        
 
         // 341 x 262 / 3 = 29167 циклов на 1 кадр
         while (cycles < EXEC_QUANT && iter < EXEC_QUANT) {
@@ -1299,6 +1302,13 @@ void nmi_exec() {
                 // Установка VBlank
                 if ((cycles > 241*EXEC_QUANT/262) && frame_start == 0) {
 
+                    /* Обновить экран */
+                    printScreen();
+                    
+                    /* Установить счетчик = 0 */
+                    cntVT = 0;
+
+                    /* Вызвать NMI */
                     frame_start = 1;
                     ppu_status |= 0b10000000;
 
@@ -1323,12 +1333,12 @@ void nmi_exec() {
             }
             else break;
 
-        }
+        }    
 
-        cntVT = 0;
         ppu_status &= 0b00111111;
         frame_start = 0;
         redrawDump = 1;
+        
     }
 
 }

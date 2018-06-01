@@ -137,22 +137,26 @@ void printString(int x, int y, char* string, int fr, int bg) {
 // Печать экрана из памяти
 void printScreen() {
 
-    int screen_id  = (ctrl0 & 0x01);
+    int screen_id  = (ctrl0 & 0x01) ^ cntH ^ cntV;
     int active_chr = (ctrl0 & 0x10) ? 0x1000 : 0x0;
 
     int xp, yp;
     int i, j, a, b, ch, fol, foh, at, color, bn;
     int ADDRNT, ADDRPG, ADDRAT;
 
-    // Обновление символов
+    // -----------------------------------------------------------------
+    // Обновление символов фона
+    // -----------------------------------------------------------------
+    
     for (i = 0; i < 30; i++) {
 
-        for (j = 0; j < 32; j++) {
+        // 32+1 Нужно дополнительно рисовать 8 пикселей в случае превышения размера
+        for (j = 0; j < 33; j++) {
 
             // -----------------------
             /* Выполнить скроллинг Y */
-            int scroll_y  = (i - coarse_y); // - coarse_y
-            int scroll_oy = scroll_y >= 0x20;   /* Переполнение X */
+            int scroll_y  = (i - coarse_y);
+            int scroll_oy = (scroll_y >= 0x20); /* Переполнение Y */
                 scroll_y  = scroll_y & 0x1F;    /* Сброс переполнения */
 
             /* Выполнить скроллинг X */
@@ -213,15 +217,20 @@ void printScreen() {
 
                     xp = 8*j + b - fine_x;
                     yp = 8*i + a + fine_y;
-                    yp = yp > 239 ? 239 : yp;
 
-                    setPixel(2*(xp & 255), 2*yp, color, 2);
+                    // Рисовать только в видимой области
+                    if (xp < 256 && yp < 240) {
+                        setPixel(2*xp, 2*yp, color, 2);
+                    }
                 }
             }
         }
     }
 
-    // Рисование спрайтов (4-й бит)
+    // -----------------------------------------------------------------
+    // Рисование спрайтов
+    // -----------------------------------------------------------------
+
     if (ctrl1 & 0x10) {
 
         int h;
@@ -262,8 +271,8 @@ void printScreen() {
                                           globalPalette[ color ].b;
 
                             // + prior, opaque
-                            if (y < 240 && ((ctrl1 & 0b100) || ((ctrl1 & 0b100) == 0 && x >= 8))) {
-                                setPixel(2*(x & 255), 2*(y & 255), color, 2);
+                            if (x < 256 && y < 240 && ((ctrl1 & 0b100) || ((ctrl1 & 0b100) == 0 && x >= 8))) {
+                                setPixel(2*x, 2*y, color, 2);
                             }
                         }
 
@@ -335,17 +344,15 @@ void display() {
 
             printRegisters();
             disassembleAll();
-            
+            printScreen();
         }
 
         redrawDump = 1;
         justRedrawAll = 1;
-    }
-
-    /* Сделать Disabled области отладки */
+    }    
     else {
 
-        // Только единожды сбросит
+        /* Сделать Disabled области отладки */
         if (justRedrawAll) {
 
             for (i = 0; i < HEIGHT; i++) {
@@ -353,14 +360,11 @@ void display() {
                     frame[i][j].r = 0;
                     frame[i][j].g = 0;
                     frame[i][j].b = 0;
-                } }
+                } }                            
         }
 
         justRedrawAll = 0;
     }
-
-    /* Вывод экрана всегда */
-    printScreen();
 
     // Обновление экрана
     glDrawPixels(WIDTH, HEIGHT, GL_RGB, GL_UNSIGNED_BYTE, (void*)& frame);
