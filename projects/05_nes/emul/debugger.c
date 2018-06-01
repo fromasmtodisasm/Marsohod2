@@ -9,11 +9,16 @@
 #include <stdio.h>
 #include <GL/freeglut.h>
 
+// Заголовки
 #include "display.h"
 #include "keyboard.h"
 #include "cpu.h"
 
+// Модули
+#include "keyboard.c"
+#include "display.c"
 #include "load.c"
+#include "cpu.c"
 
 int main(int argc, char* argv[]) {
 

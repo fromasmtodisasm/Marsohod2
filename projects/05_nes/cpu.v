@@ -434,10 +434,6 @@ always @* begin
         /* DEC/INC */
         8'b11x_xx1_10: {alu, FW} = {3'b111, opcode[5], 1'b1};
 
-        /* STY, STX */
-        8'b100_xx1_00: {RA} = 2'b10; // Y
-        8'b100_xx1_10: {RA} = 2'b01; // X
-
         /* LDY */
         8'b101_xx1_00,
         8'b101_000_00: {WR, RA, FW} = 4'b1_10_1;

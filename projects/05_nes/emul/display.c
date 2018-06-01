@@ -540,6 +540,7 @@ void printRegisters() {
 // Загрузка шрифта
 void fontsLoad() {
 
+    int rdsize;
     FILE* f = fopen("8x8cp1251.fnt", "rb");
 
     if (f == NULL) {
@@ -550,7 +551,7 @@ void fontsLoad() {
 
     // Основные шрифты
     fseek(f, 0, SEEK_SET);
-    fread(sram + 0x14000, 1, 2048, f);
+    rdsize = fread(sram + 0x14000, 1, 2048, f);
 
     fclose(f);
 }

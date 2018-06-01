@@ -18,7 +18,7 @@ int is_nes_file(char* file) {
 
 void load_nes_file(char* file) {
     
-    int size;
+    int size, rdsize;
     FILE* f = fopen(file, "rb");
     
     if (f == NULL) {
@@ -33,19 +33,19 @@ void load_nes_file(char* file) {
     if (size == 0x6010) {
         
         fseek(f, 0x10, SEEK_SET);
-        fread(sram + 0xc000, 1, 0x4000, f);  // PRG-ROM(0)
+        rdsize = fread(sram + 0xc000, 1, 0x4000, f);  // PRG-ROM(0)
         fseek(f, 0x10, SEEK_SET);
-        fread(sram + 0x8000, 1, 0x4000, f);  // зеркало
+        rdsize = fread(sram + 0x8000, 1, 0x4000, f);  // зеркало
         
         fseek(f, 0x4010, SEEK_SET);
-        fread(sram + 0x10000, 1, 0x2000, f); // CHR-ROM (8 кб)        
+        rdsize = fread(sram + 0x10000, 1, 0x2000, f); // CHR-ROM (8 кб)        
         
     } else {
         
         fseek(f, 0x10, SEEK_SET);
-        fread(sram + 0x8000, 1, 0x8000, f);  // PRG-ROM(0,1)  
+        rdsize = fread(sram + 0x8000, 1, 0x8000, f);  // PRG-ROM(0,1)  
         fseek(f, 0x8010, SEEK_SET);
-        fread(sram + 0x10000, 1, 0x2000, f); // CHR-ROM (8 кб)    
+        rdsize = fread(sram + 0x10000, 1, 0x2000, f); // CHR-ROM (8 кб)    
     }
     
     // #RESET
@@ -58,6 +58,7 @@ void load_nes_file(char* file) {
 // Загрузка собственного файла
 void load_own_file(char* file) {
     
+    int rdsize;
     FILE* f = fopen(file, "rb");
     
     if (f == NULL) {
@@ -66,7 +67,7 @@ void load_own_file(char* file) {
     }
     
     // 16K PRG-ROM(1)/(0)
-    fread(sram + 0x8000, 1, 32*1024, f);
+    rdsize = fread(sram + 0x8000, 1, 32*1024, f);
     fclose(f);
     
     // Первичное заполнение

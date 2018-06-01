@@ -1,3 +1,5 @@
+#ifndef KEYBH
+#define KEYBH
 /*  Описание специальных клавиш
  * 
     GLUT_KEY_F1
@@ -28,3 +30,5 @@ void keyboard_up(unsigned char, int, int);
 
 void keyboard_func(int, int, int);
 void keyboard_func_up(int key, int x, int y);
+
+#endif
