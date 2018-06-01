@@ -17,8 +17,8 @@ module cpu(
 assign ADDR  = AS ? {8'h01, S} : (AM ? EA : PC);
 assign EAWR  = AS ? {8'h01, S} : EA;
 
-assign  DEBUG = Y[7:0];
-`define DEBUGPC 16'h0000 // DD6A C2CC! DEDF C291 C3BF C3AF C286  C240
+assign  DEBUG = A[7:0];
+`define DEBUGPC 16'hDCCA // DD6A C2CC! DEDF C291 C3BF C3AF C286  C240
 
 // ---------------------------------------------------------------------
 

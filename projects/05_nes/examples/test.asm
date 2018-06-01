@@ -12,7 +12,7 @@
         
         ldx #$05
 AC        
-        ldy #$BF
+        ldy #$C0
 AB        
         lda #$40
         sta $2007
