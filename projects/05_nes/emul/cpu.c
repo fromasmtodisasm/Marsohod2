@@ -254,7 +254,7 @@ int rmirror(int addr) {
 // Чтение байта из памяти
 unsigned char readB(int addr) {
 
-    int tmp, olddat;
+    int tmp, olddat, mirr;
 
     // Джойстик 1
     if (addr == 0x4016) {
@@ -295,16 +295,25 @@ unsigned char readB(int addr) {
 
             /* Чтение из видеопамяти (кроме STA) */
             case 7:
+            
+                mirr = vmirror(VRAMAddress);
 
                 // Читать из регистров палитры
                 if (VRAMAddress >= 0x3F00) {
-                    olddat = sram[ 0x10000 + vmirror(VRAMAddress) ];
                     
+                    // Чтение из любой палитры с индексом & 3 = 0 читает из BG
+                    if (mirr >= 0x3F00 && mirr < 0x3F20 && (mirr & 3) == 0) {
+                        mirr = 0x3F00;
+                    }                    
+                    
+                    olddat = sram[ 0x10000 + mirr ];
+                    
+                    
+                // Читать с задержкой буфера
                 } else {
-                    
-                    // Читать с задержкой буфера
+
                     olddat = objvar;
-                    objvar = sram[ 0x10000 + vmirror(VRAMAddress) ];
+                    objvar = sram[ 0x10000 + mirr ];
                 } 
 
                 VRAMAddress += (ctrl0 & 0x04 ? 32 : 1);                
@@ -318,6 +327,8 @@ unsigned char readB(int addr) {
 // Запись байта в память
 void writeB(int addr, unsigned char data) {
 
+    int mirr;
+    
     if (addr >= 0x8000) {
         return;
     }
@@ -418,13 +429,17 @@ void writeB(int addr, unsigned char data) {
                 VRAMAddress = ((b1 << 8) | b2) & 0x7fff;
                 break;
 
-            case 7: // Запись данных в видеопамять
+            // Запись данных в видеопамять
+            case 7: 
 
-                if (VRAMAddress >= 0x3F00) {
-                    // printf("%04x %02x | %04x \n", VRAMAddress, data, reg_PC);
+                mirr = vmirror(VRAMAddress);
+
+                /* Запись в 3F00 равнозначна 0x3F10 */
+                if (mirr == 0x3F00 || mirr == 0x3F10) {
+                    mirr = 0x3F00;
                 }
-
-                sram[ 0x10000 + vmirror(VRAMAddress) ] = data;
+                
+                sram[ 0x10000 + mirr ] = data;
                 VRAMAddress += (ctrl0 & 0x04 ? 32 : 1);
                 break;
         }

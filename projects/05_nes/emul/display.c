@@ -173,6 +173,11 @@ void drawSprites() {
                         // Вычислить 2 бита цвета спрайта
                         color = (fol & s ? 1 : 0) | (foh & s ? 2 : 0);
 
+                        // Если у спрайта задан 5-й бит, то, если фон не прозрачный, не рисуем спрайт
+                        if ((attr_spr & 0x20) == 0x20 && opaque[y][x] == 0) { 
+                            continue;
+                        }
+                        
                         if (color) {
 
                             color = (4*at) | color;
@@ -181,18 +186,13 @@ void drawSprites() {
                                       256*globalPalette[ color ].g +
                                           globalPalette[ color ].b;
 
-                            // Спрайт за фоном?
-                            if ((attr_spr & 0x20) == 0 && opaque[y][x] == 0) {
-                                // continue;
-                            }
+                            
 
                             // + prior, opaque
                             if (x < 256 && y < 232 && y > 8 && ((ctrl1 & 0b100) || ((ctrl1 & 0b100) == 0 && x >= 8))) {
                                 setPixel(2*x, 2*y, color, 2);
                             }
                         }
-
-                        // todo opaque
                     }
                 }
             }
@@ -205,7 +205,7 @@ void drawSprites() {
 // Отрисовать одну линию тайлов
 void drawTiles(int i) {
     
-    int screen_id  = (ctrl0 & 0x01) ^ cntH ^ cntV;
+    int screen_id  = (ctrl0 & 0x01); // ^ cntH; // ^ cntV;
     int active_chr = (ctrl0 & 0x10) ? 0x1000 : 0x0;
 
     int xp, yp;
@@ -271,21 +271,24 @@ void drawTiles(int i) {
                 if (color & 3) {
 
                     color = sram[ 0x13F00 + color ]; // 16 цветов палитры фона
-                    opaque[8*i + a][8*j + b] = 0;
+                    opaque[yp][xp] = 0;
 
                 } else {
 
                     color = sram[ 0x13F00 ]; // "Прозрачный" цвет фона
-                    opaque[8*i + a][8*j + b] = 1;
+                    opaque[yp][xp] = 1;
                 }
 
                 color = 65536*globalPalette[ color ].r +
                           256*globalPalette[ color ].g +
                               globalPalette[ color ].b;
 
-
+                // Закраска черным цветом одной линии
+                if (yp > 232) {
+                    setPixel(2*xp, 2*yp, 0, 2);
+                }
                 // Рисовать только в видимой области
-                if (xp < 256 && yp < 240) {
+                else if (xp < 256 && yp < 240) {
                     setPixel(2*xp, 2*yp, color, 2);
                 }
             }
