@@ -223,6 +223,22 @@ unsigned char PULL() {
     return readB(0x100 + reg_S);
 }
 
+/* Зеркала для видеопамяти */
+int vmirror(int addr) {
+        
+    /* Зеркала палитры */
+    if ((addr & 0x3F00) == 0x3F00) {
+        return (addr & 0x1F) | 0x3F00;
+    } 
+    
+    /* Зеркала nametable */
+    else if (addr > 0x2800) {
+        return (addr & 0x7FF) | 0x2000;
+    }        
+    
+    return addr;
+}
+
 // Чтение байта из памяти
 unsigned char readB(int addr) {
 
@@ -269,7 +285,7 @@ unsigned char readB(int addr) {
             case 7:
 
                 olddat = objvar;
-                objvar = sram[ 0x10000 + VRAMAddress ];
+                objvar = sram[ 0x10000 + vmirror(VRAMAddress) ];
                 VRAMAddress += (ctrl0 & 0x04 ? 32 : 1);
                 return olddat;
         }
@@ -280,7 +296,7 @@ unsigned char readB(int addr) {
 
 // Запись байта в память
 void writeB(int addr, unsigned char data) {
-
+    
     if (addr >= 0x8000) {
         return;
     }
@@ -382,8 +398,8 @@ void writeB(int addr, unsigned char data) {
                 break;
 
             case 7: // Запись данных в видеопамять
-
-                sram[ 0x10000 + VRAMAddress ] = data;
+    
+                sram[ 0x10000 + vmirror(VRAMAddress) ] = data;
                 VRAMAddress += (ctrl0 & 0x04 ? 32 : 1);
                 break;
         }

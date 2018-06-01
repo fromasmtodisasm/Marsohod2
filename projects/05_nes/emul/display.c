@@ -256,8 +256,8 @@ void printScreen() {
                         foh = sram[ 0x10000 + chrsrc + (icon + h)*16 + (h*16 + b) + 8 ]; // high bits
 
                         int s = 1 << (7 - a);
-                        int x = sprite_x + (attr_spr & 0x40 ? 8 - a : a);
-                        int y = sprite_y + (attr_spr & 0x80 ? 8 - b : b) + h*16 + 1; // Буферная линия
+                        int x = sprite_x + (attr_spr & 0x40 ? 7 - a : a);
+                        int y = sprite_y + (attr_spr & 0x80 ? 7 - b : b) + h*16 + 1; // Буферная линия
 
                         // Вычислить 2 бита цвета спрайта
                         color = (fol & s ? 1 : 0) | (foh & s ? 2 : 0);
