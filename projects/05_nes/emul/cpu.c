@@ -123,7 +123,7 @@ char* operandNamesString[70] = {
     "INC",   // 53
     "INX",   // 54
     "NOP",   // 55
-    "SED",   // 56    
+    "SED",   // 56
     // Недокументированные
     "AAC",   // 57
     "SLO",   // 58
@@ -138,7 +138,7 @@ char* operandNamesString[70] = {
     "ARR",   // 67
     "ATX",   // 68
     "AXS",   // 69
-    
+
 };
 
 int cycles_basic[256] = {
@@ -181,7 +181,7 @@ void initCPU() {
     cycles      = 0;
     firstWrite  = 1;
     redrawDump  = 1;
-    
+
     /* Джойстики */
     Joy1        = 0; Joy2        = 0;
     Joy1Strobe  = 0; Joy2Strobe  = 0;
@@ -204,7 +204,7 @@ void initCPU() {
 
     // ---
     // breakpointsMax = 1; breakpoints[0] = 0xC240;
-    //breakpointsMax = 1; breakpoints[0] = 0xDCCA; //  0xE390
+    breakpointsMax = 1; breakpoints[0] = 0xC02C; // 0xDD63; //  0xDCC3
 }
 
 // Чтение слова из памяти
@@ -223,15 +223,15 @@ unsigned char PULL() {
 unsigned char readB(int addr) {
 
     int tmp, olddat;
-    
+
     // Джойстик 1
     if (addr == 0x4016) {
-                
+
         tmp = (Joy1Latch & 1) | 0x40;
-        Joy1Latch >>= 1;        
+        Joy1Latch >>= 1;
         return tmp;
     }
-    
+
     // Джойстик 2
     if (addr == 0x4017) {
         return 0;
@@ -291,21 +291,21 @@ void writeB(int addr, unsigned char data) {
         }
         return;
     }
-    
+
     // Геймпад 1
     if (addr == 0x4016) {
-        
+
         // Защелка: получение данных из Joy1
-        if ((Joy1Strobe & 1) == 1 && ((data & 1) == 0)) {            
+        if ((Joy1Strobe & 1) == 1 && ((data & 1) == 0)) {
             Joy1Latch = Joy1 | (1 << 19);
         }
-        
+
         Joy1Strobe = data & 1;
         return;
     }
-    
+
     // Геймпад 2: Пока не используется
-    if (addr == 0x4017) {        
+    if (addr == 0x4017) {
         return;
     }
 
@@ -402,16 +402,16 @@ unsigned int getEffectiveAddress(int addr) {
 
         /* Indirect, X (b8,X) */
         case NDX:
-        
-        	// PEEK( PEEK( (arg + X) % 256) + PEEK((arg + X + 1) % 256) * 256                    
+
+        	// PEEK( PEEK( (arg + X) % 256) + PEEK((arg + X + 1) % 256) * 256
             tmp     = sram[ addr ];
             tmp     = (tmp + reg_X) & 0xff;
             return sram[ tmp ] + ((sram[(1 + tmp) & 0xff] << 8));
 
         /* Indirect, Y (b8),Y */
-        case NDY: 
-        
-            tmp = sram[ addr ];            
+        case NDY:
+
+            tmp = sram[ addr ];
             rt  = sram[ 0xff & tmp ];
             rt |= sram[ 0xff & (tmp + 1) ] << 8;
             return (rt + reg_Y) & 0xffff;
@@ -474,7 +474,7 @@ int exec() {
     // Тип операнда
     switch (optype) {
 
-        case ___: printf("Opcode %02x error at %04x\n", opcode, reg_PC); exit(0); 
+        case ___: printf("Opcode %02x error at %04x\n", opcode, reg_PC); exit(0);
         case NDX: /* Indirect X (b8,X) */
         case NDY: /* Indirect, Y */
         case ZP:  /* Zero Page */
@@ -876,9 +876,9 @@ int exec() {
 
         /* Недокументированные инструкции */
         // -------------------------------------------------------------
-        
-        case SLO: {        
-            
+
+        case SLO: {
+
             /* ASL */
             SET_CARRY(src & 0x80);
             src <<= 1;
@@ -886,9 +886,9 @@ int exec() {
             SET_SIGN(src);
             SET_ZERO(src);
 
-            if (optype == ACC) reg_A = src; 
+            if (optype == ACC) reg_A = src;
             else writeB(iaddr, src);
-            
+
             /* ORA */
             src |= reg_A;
             SET_SIGN(src);
@@ -898,7 +898,7 @@ int exec() {
         }
 
         case RLA: {
-            
+
             /* ROL */
             src <<= 1;
             if (IF_CARRY) src |= 0x1;
@@ -907,17 +907,17 @@ int exec() {
             SET_SIGN(src);
             SET_ZERO(src);
             if (optype == ACC) reg_A = src; else writeB(iaddr, src);
-            
+
             /* AND */
             src &= reg_A;
             SET_SIGN(src);
             SET_ZERO(src);
-            reg_A = src;            
+            reg_A = src;
             break;
         }
-        
-        case RRA: {        
-            
+
+        case RRA: {
+
             /* ROR */
             if (IF_CARRY) src |= 0x100;
             SET_CARRY(src & 0x01);
@@ -925,7 +925,7 @@ int exec() {
             SET_SIGN(src);
             SET_ZERO(src);
             if (optype == ACC) reg_A = src; else writeB(iaddr, src);
-            
+
             /* ADC */
             temp = src + reg_A + (reg_P & 1);
             SET_ZERO(temp & 0xff);
@@ -934,52 +934,52 @@ int exec() {
             SET_CARRY(temp > 0xff);
             reg_A = temp & 0xff;
             break;
-            
+
         }
-        
-        case SRE: {            
-            
+
+        case SRE: {
+
             /* LSR */
             SET_CARRY(src & 0x01);
             src >>= 1;
             SET_SIGN(src);
             SET_ZERO(src);
             if (optype == ACC) reg_A = src; else writeB(iaddr, src);
-            
+
             /* EOR */
             src ^= reg_A;
             SET_SIGN(src);
             SET_ZERO(src);
             reg_A = src;
-            
-            break;            
+
+            break;
         }
-        
+
         case DCP: {
-                        
+
             /* DEC */
             src = (src - 1) & 0xff;
             SET_SIGN(src);
             SET_ZERO(src);
             writeB(iaddr, src);
-            
+
             /* CMP */
             src = reg_A - src;
             SET_CARRY(src >= 0);
             SET_SIGN(src);
             SET_ZERO(src & 0xff);
-            break;            
+            break;
         }
-        
+
         /* Увеличить на +1 и вычесть из A полученное значение */
-        case ISC: {            
-            
+        case ISC: {
+
             /* INC */
             src = (src + 1) & 0xff;
             SET_SIGN(src);
             SET_ZERO(src);
             writeB(iaddr, src);
-            
+
             /* SBC */
             temp = reg_A - src - (IF_CARRY ? 0 : 1);
 
@@ -987,54 +987,54 @@ int exec() {
             SET_ZERO(temp & 0xff);
             SET_OVERFLOW(((reg_A ^ temp) & 0x80) && ((reg_A ^ src) & 0x80));
             SET_CARRY(temp >= 0);
-            reg_A = (temp & 0xff);            
-            break;            
+            reg_A = (temp & 0xff);
+            break;
         }
-        
+
         /* A,X = src */
         case LAX: {
-            
+
             reg_A = (src);
             SET_SIGN(src);
             SET_ZERO(src);
             reg_X = (src);
             break;
         }
-                
+
         case AAX: writeB(iaddr, reg_A & reg_X); break;
-        
+
         /* AND + Carry */
         case AAC: {
-            
+
             /* AND */
             src &= reg_A;
             SET_SIGN(src);
             SET_ZERO(src);
             reg_A = src;
-            
+
             /* Carry */
-            SET_CARRY(reg_A & 0x80);            
+            SET_CARRY(reg_A & 0x80);
             break;
         }
-        
+
         case ASR: {
-                        
+
             /* AND */
             src &= reg_A;
             SET_SIGN(src);
             SET_ZERO(src);
             reg_A = src;
-            
+
             /* LSR A */
             SET_CARRY(reg_A & 0x01);
             reg_A >>= 1;
             SET_SIGN(reg_A);
             SET_ZERO(reg_A);
-            break;            
+            break;
         }
-        
+
         case ARR: {
-            
+
             /* AND */
             src &= reg_A;
             SET_SIGN(src);
@@ -1043,21 +1043,21 @@ int exec() {
 
             /* P[6] = A[6] ^ A[7]: Переполнение */
             SET_OVERFLOW((reg_A ^ (reg_A >> 1)) & 0x40);
-                     
+
             temp = (reg_A >> 7) & 1;
-            reg_A >>= 1;            
+            reg_A >>= 1;
             reg_A |= (reg_P & 1) << 7;
-            
-            SET_CARRY(temp);  
+
+            SET_CARRY(temp);
             SET_SIGN(reg_A);
             SET_ZERO(reg_A);
-            break;            
+            break;
         }
-        
+
         case ATX: {
-            
+
             reg_A |= 0xFF;
-            
+
             /* AND */
             src &= reg_A;
             SET_SIGN(src);
@@ -1066,20 +1066,20 @@ int exec() {
 
             reg_X = reg_A;
             break;
-                        
+
         }
-        
+
         case AXS: {
-            
+
             temp = (reg_A & reg_X) - src;
             SET_SIGN(temp);
-            SET_ZERO(temp);        
-            SET_CARRY(((temp >> 8) & 1) ^ 1);            
+            SET_ZERO(temp);
+            SET_CARRY(((temp >> 8) & 1) ^ 1);
             reg_X = temp;
-            break;            
+            break;
         }
     }
-    
+
     // Установка нового адреса
     reg_PC      = addr;
     deb_addr    = addr;
@@ -1253,7 +1253,7 @@ void nmi_exec() {
         /* При старте рендеринга, использовать regHT, regVT от $2005 */
         fine_x = regFH;
         fine_y = regFV;
-        coarse_x = regHT; 
+        coarse_x = regHT;
         coarse_y = regVT; // cntVT ?
 
         // 341 x 262 / 3 = 29167 циклов на 1 кадр
