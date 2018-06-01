@@ -196,16 +196,19 @@ void initCPU() {
         breakpoints[i] = -1;
     }
 
+    /* Подробная отладка */
     if (TRACER) {
 
         FILE* f = fopen("trace.log", "w+");
         fclose(f);
-
     }
 
-    // ---
-    // breakpointsMax = 1; breakpoints[0] = 0xC240;
-    breakpointsMax = 1; breakpoints[0] = 0xC02C; // 0xDD63; //  0xDCC3
+    /* Точка прерывания */
+    if (BREAKPOINT) {
+                
+        breakpointsMax = 1; 
+        breakpoints[0] = BREAKPOINT;
+    }
 }
 
 // Чтение слова из памяти
@@ -394,7 +397,7 @@ void writeB(int addr, unsigned char data) {
 unsigned int getEffectiveAddress(int addr) {
 
     int opcode, iaddr;
-    int tmp, rt;
+    int tmp, rt, pt;
 
     opcode  = sram[ addr ];
     INCRADDR;
@@ -415,7 +418,10 @@ unsigned int getEffectiveAddress(int addr) {
             tmp = sram[ addr ];
             rt  = sram[ 0xff & tmp ];
             rt |= sram[ 0xff & (tmp + 1) ] << 8;
-            return (rt + reg_Y) & 0xffff;
+            pt  = rt;
+            rt  = (rt + reg_Y) & 0xffff;
+            if  ((pt & 0xff00) != (rt & 0xff00)) cycles_ext++;
+            return rt;
 
         /* Zero Page */
         case ZP:  return sram[ addr ];
@@ -430,11 +436,21 @@ unsigned int getEffectiveAddress(int addr) {
         case ABS: return readW(addr);
 
         /* Absolute, X */
-        case ABX: return (readW(addr) + reg_X) & 0xffff;
+        case ABX: 
+                        
+            pt = readW(addr);
+            rt = pt + reg_X;
+            if  ((pt & 0xff00) != (rt & 0xff00)) cycles_ext++;
+            return rt & 0xffff;
 
         /* Absolute, Y */
-        case ABY: return (readW(addr) + reg_Y) & 0xffff;
-
+        case ABY: 
+        
+            pt = readW(addr);
+            rt = pt + reg_Y;
+            if  ((pt & 0xff00) != (rt & 0xff00)) cycles_ext++;
+            return rt & 0xffff;
+        
         /* Indirect */
         case IND:
 
@@ -458,6 +474,9 @@ int exec() {
     int temp, optype, opname, ppurd = 1, src = 0;
     int addr = reg_PC, opcode;
     int cycles_per_instr = 2;
+    
+    /* Доп. циклы разбора адреса */
+    cycles_ext = 0;
 
     // Определение эффективного адреса
     int iaddr = getEffectiveAddress(addr);
@@ -471,6 +490,9 @@ int exec() {
     }
 
     INCRADDR;
+
+    /* Базовые циклы + доп. циклы */
+    cycles_per_instr = cycles_basic[ opcode ] + cycles_ext;
 
     // Тип операнда
     switch (optype) {
@@ -510,7 +532,6 @@ int exec() {
             break;
     }
 
-    cycles_per_instr = cycles_basic[ opcode ];
 
     /* Разбор инструкции и исполнение */
     switch (opname) {
@@ -551,28 +572,28 @@ int exec() {
         }
 
         /* Переход если CF=0 */
-        case BCC: if (!IF_CARRY) addr = iaddr; break;
+        case BCC: if (!IF_CARRY) BRANCH; break;
 
         /* Переход если CF=1 */
-        case BCS: if ( IF_CARRY) addr = iaddr; break;
+        case BCS: if ( IF_CARRY) BRANCH; break;
 
         /* Переход если ZF=0 */
-        case BNE: if (!IF_ZERO) addr = iaddr; break;
+        case BNE: if (!IF_ZERO) BRANCH; break;
 
         /* Переход если ZF=1 */
-        case BEQ: if ( IF_ZERO) addr = iaddr; break;
+        case BEQ: if ( IF_ZERO) BRANCH; break;
 
         /* Переход если NF=0 */
-        case BPL: if (!IF_SIGN) addr = iaddr; break;
+        case BPL: if (!IF_SIGN) BRANCH; break;
 
         /* Переход если NF=1 */
-        case BMI: if ( IF_SIGN) addr = iaddr; break;
+        case BMI: if ( IF_SIGN) BRANCH; break;
 
         /* Переход если NF=0 */
-        case BVC: if (!IF_OVERFLOW) addr = iaddr; break;
+        case BVC: if (!IF_OVERFLOW) BRANCH; break;
 
         /* Переход если NF=1 */
-        case BVS: if ( IF_OVERFLOW) addr = iaddr; break;
+        case BVS: if ( IF_OVERFLOW) BRANCH; break;
 
         /* Копированиь бит 6 в OVERFLOW флаг. */
         case BIT: {
@@ -1250,7 +1271,7 @@ void nmi_exec() {
         int    sprHitLocal = 0;
 
         int lppu_cycles = 0;
-        
+
         /* Обновить счетчики */
         cntFV = regFV;
         cntV  = regV;  cntH  = regH;
@@ -1258,7 +1279,7 @@ void nmi_exec() {
 
         /* При старте рендеринга, использовать regHT, regVT от $2005 */
         coarse_x = regHT;  coarse_y = regVT;
-        fine_x   = regFH;  fine_y   = regFV;        
+        fine_x   = regFH;  fine_y   = regFV;
 
         // 341 x 262 / 3 = 29167 циклов на 1 кадр
         while (cycles < EXEC_QUANT && iter < EXEC_QUANT) {
@@ -1305,7 +1326,7 @@ void nmi_exec() {
 
                     /* Обновить экран */
                     printScreen();
-                    
+
                     /* Установить счетчик = 0 */
                     cntVT = 0;
 
@@ -1334,12 +1355,12 @@ void nmi_exec() {
             }
             else break;
 
-        }    
+        }
 
         ppu_status &= 0b00111111;
         frame_start = 0;
         redrawDump = 1;
-        
+
     }
 
 }

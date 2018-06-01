@@ -1,7 +1,7 @@
 #ifndef KEYBH
 #define KEYBH
 /*  Описание специальных клавиш
- * 
+ *
     GLUT_KEY_F1
     GLUT_KEY_F2
     GLUT_KEY_F3

@@ -16,6 +16,8 @@
 #define CPUH
 
 #define TRACER          0
+#define BREAKPOINT      0x0000  // 0xC000
+
 #define EXEC_QUANT      27167   // 25Mhz=416667, 1.75Mhz=29167 | Сколько инструкции выполнить за 1/60 с
 #define MAPPER_NES      1       // NES-маппер
 #define MAPPER_OWN      2       // Свой маппер
@@ -118,6 +120,9 @@
 #define SXA     DOP
 // ---------
 
+/* Макрос для перехода к определенной метке с учетом +1/+2 цикла */
+#define BRANCH  { if ( (addr & 0xff00) != (iaddr & 0xff00)) cycles_per_instr++; addr = iaddr; cycles_per_instr++;  }
+
 unsigned int  reg_A;
 unsigned int  reg_X;
 unsigned int  reg_Y;
@@ -143,6 +148,7 @@ char debLine[32];
 
 // Адреса по каждой линии
 int debAddr[64];
+int cycles_ext;
 
 // Список точек останова
 int breakpoints[256];

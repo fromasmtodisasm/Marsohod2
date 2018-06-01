@@ -10,11 +10,11 @@
 
 // 1 пиксель на экране
 struct sRGB {
-    
+
     unsigned char r;
     unsigned char g;
     unsigned char b;
-    
+
 };
 
 // Глобальная палитра
@@ -41,16 +41,16 @@ unsigned char   firstWrite;
 int             regFV, regVT, regV, regH, regFH, regHT,
                 ppu_address,
                 cntFV, cntV, cntH, cntVT, cntHT, b1, b2;
-                
+
 /* Параметры скроллинга */
-int             coarse_x, coarse_y, 
+int             coarse_x, coarse_y,
                 fine_x, fine_y,
                 addr_vt;
 
 // Текущий видео адрес
 int VRAMAddress;
 
-// Прототипы 
+// Прототипы
 // ---------------------------------------------------------------------
 
 void setBigPixel(int, int, int);
