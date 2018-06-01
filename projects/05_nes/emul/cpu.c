@@ -179,7 +179,6 @@ void initCPU() {
     dump_mode   = DUMP_ZP;
     zp_base     = 0;
     cpu_running = 0;
-    cycles      = 0;
     firstWrite  = 1;
     redrawDump  = 1;
 
@@ -407,7 +406,7 @@ void writeB(int addr, unsigned char data) {
                 break;
 
             case 7: // Запись данных в видеопамять
-    
+
                 sram[ 0x10000 + vmirror(VRAMAddress) ] = data;
                 VRAMAddress += (ctrl0 & 0x04 ? 32 : 1);
                 break;
@@ -1283,109 +1282,116 @@ void disassembleAll() {
     }
 }
 
+// Поиск точек останова
+int breakpoint_test() {
+    
+    int bt = sram[ reg_PC ], j;
+    
+    // Программная точка останова (KIL)
+    if (bt == 0x02) {
+        
+        cpu_running = 0;
+        return 1;
+    }     
+    else {
+        
+        for (j = 0; j < breakpointsMax; j++) {
+
+            if (breakpoints[ j ] == reg_PC) {
+
+                deb_addr    = reg_PC;
+                cpu_running = 0;
+                return 1;
+            }
+        }
+    }
+    
+    return 0;
+}
+
+/* Запрос NMI */
+void request_NMI() {
+    
+    /* Установить счетчик = 0 */
+    cntVT = 0;
+
+    /* PPU генерирует обратный кадровый импульс (VBlank) */
+    ppu_status |= 0b10000000;
+
+    /* Вызвать NMI */
+    if ((ctrl0 & 0x80) && 1)  {
+
+        PUSH((reg_PC >> 8) & 0xff);	     /* Вставка обратного адреса в стек */
+        PUSH(reg_PC & 0xff);
+        SET_BREAK(1);                    /* Установить BFlag перед вставкой */
+        PUSH(reg_P);
+        SET_INTERRUPT(1);
+        reg_PC = readW(0xFFFA);
+    }
+}
+
 // Исполнение кванта инструкции по NMI (1/60)
 void nmi_exec() {
 
-    if (cpu_running) {
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        int j, frame_start = 0, iter;
-        unsigned char bt;
+    int row = 0, cycles = 0, term = 0;
 
-        cycles = 0;
-        iter   = 0;
-        int    sprHitLocal = 0;
-
-        int lppu_cycles = 0;
-
-        /* Обновить счетчики */
-        cntFV = regFV;
-        cntV  = regV;  cntH  = regH;
-        cntVT = regVT; cntHT = regHT;
-
-        /* При старте рендеринга, использовать regHT, regVT от $2005 */
-        coarse_x = regHT;  coarse_y = regVT;
-        fine_x   = regFH;  fine_y   = regFV;
-
-        // 341 x 262 / 3 = 29167 циклов на 1 кадр
-        while (cycles < EXEC_QUANT && iter < EXEC_QUANT) {
-
-            iter++;
-            bt = sram[ reg_PC ];
-
-            // Примерно где находится линия для Sprite0Hit
-            lppu_cycles = (262 * cycles) / EXEC_QUANT;
-
-            // Достигнут Sprite0Hit
-            if (spriteRam[ 0 ] < (lppu_cycles + 20) && sprHitLocal == 0) {
-
-                ppu_status |= 0b01000000;
-                sprHitLocal = 1;
-            }
-
-            // Программная точка останова (KIL)
-            if (bt == 0x02) {
-
-                cpu_running = 0;
-
-            } else {
-
-                // Поиск точек останова
-                for (j = 0; j < breakpointsMax; j++) {
-
-                    if (breakpoints[ j ] == reg_PC) {
-
-                        deb_addr    = reg_PC;
-                        cpu_running = 0;
-                        break;
-                    }
-                }
-            }
-
-            if (cpu_running) {
-
-                // Может быть отключено при точке останова
-                cycles += exec();
-
-                // Установка VBlank
-                if ((cycles > 241*EXEC_QUANT/262) && frame_start == 0) {
-
-                    /* Обновить экран */
-                    printScreen();
-
-                    /* Установить счетчик = 0 */
-                    cntVT = 0;
-
-                    /* Вызвать NMI */
-                    frame_start = 1;
-                    ppu_status |= 0b10000000;
-
-                    /* NMI */
-                    if ((ctrl0 & 0x80) && 1)  {
-
-                        PUSH((reg_PC >> 8) & 0xff);	     /* Вставка обратного адреса в стек */
-                        PUSH(reg_PC & 0xff);
-                        SET_BREAK(1);                    /* Установить BFlag перед вставкой */
-                        PUSH(reg_P);
-                        SET_INTERRUPT(1);
-                        reg_PC = readW(0xFFFA);
-                    }
-
-                // Сброс VBlank при кадровом синхроимульсе
-                } else if (cycles > EXEC_QUANT - 32 && frame_start == 1) {
-
-                    ppu_status &= 0b00111111;
-                    frame_start = 2;
-                }
-
-            }
-            else break;
-
+    // Выполнить 262 строк (1 кадр)
+    for (row = 0; row < 262; row++) {
+                
+        /* Вызвать NMI на обратном синхроимпульсе */
+        if (row == 241) {            
+            request_NMI();
+        } 
+        
+        /* Достигнут Sprite0Hit */
+        if (spriteRam[0] == row - 1) {
+            ppu_status |= 0b01000000;
         }
 
-        ppu_status &= 0b00111111;
-        frame_start = 0;
-        redrawDump = 1;
+        // Выполнить 1 строку
+        while (cycles < 115) {
+            
+            if (!breakpoint_test()) {                    
+                cycles += exec();                
+            } else {
+                term = 1;
+            }        
+        }        
 
+        // "Кольцо вычета"
+        if (cycles >= 115) {
+            cycles -= 115;      
+        }
+        
+        if (term) {
+            break;
+        }
+
+        /* Отрисовка линии с тайлами */
+        if ((row % 8) == 0 && row < 240) {                    
+            
+            /* Использовать regHT, regVT от $2005 */
+            coarse_x = regHT;  
+            coarse_y = regVT;
+            fine_x   = regFH;  
+            fine_y   = regFV;
+                     
+            drawTiles(row >> 3);
+        }        
     }
+            
+    /* Обновить счетчики */
+    // cntVT = 0;
+    // cntFV = regFV; cntV = regV;  cntH  = regH; cntHT = regHT;
+    
+    /* Нарисовать спрайты */
+    drawSprites();
+        
+    /* Сбросить VBLank и Sprite0Hit */
+    ppu_status &= 0b00111111;
 
+    /* Перерисовка дампа и прочей отладочной информации */
+    swap();
 }

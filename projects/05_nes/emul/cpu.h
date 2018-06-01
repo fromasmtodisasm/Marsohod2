@@ -141,7 +141,6 @@ int  deb_top;
 int  deb_bottom;
 int  deb_addr;
 int  zp_base;
-int  cycles;
 
 // Декодированная линия в отладчике
 char debLine[32];

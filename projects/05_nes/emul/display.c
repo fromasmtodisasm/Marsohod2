@@ -134,103 +134,14 @@ void printString(int x, int y, char* string, int fr, int bg) {
 
 }
 
-// Печать экрана из памяти
-void printScreen() {
+// -----------------------------------------------------------------
+// Рисование спрайтов
+// -----------------------------------------------------------------
 
-    int screen_id  = (ctrl0 & 0x01) ^ cntH ^ cntV;
-    int active_chr = (ctrl0 & 0x10) ? 0x1000 : 0x0;
-
-    int xp, yp;
-    int i, j, a, b, ch, fol, foh, at, color, bn;
-    int ADDRNT, ADDRPG, ADDRAT;
-
-    // -----------------------------------------------------------------
-    // Обновление символов фона
-    // -----------------------------------------------------------------
+void drawSprites() {
     
-    for (i = 0; i < 30; i++) {
-
-        // 32+1 Нужно дополнительно рисовать 8 пикселей в случае превышения размера
-        for (j = 0; j < 33; j++) {
-
-            // -----------------------
-            /* Выполнить скроллинг Y */
-            int scroll_y  = (i - coarse_y);
-            int scroll_oy = (scroll_y >= 0x20); /* Переполнение Y */
-                scroll_y  = scroll_y & 0x1F;    /* Сброс переполнения */
-
-            /* Выполнить скроллинг X */
-            int scroll_x  = (j + coarse_x);
-            int scroll_ox = scroll_x >= 0x20;   /* Переполнение X */
-                scroll_x  = scroll_x & 0x1F;    /* Сброс переполнения */
-            // -----------------------
-
-            // Активная страница либо 0, либо 1, в зависимости от переполнения еще
-            ADDRNT = 0x12000 + (screen_id ^ scroll_ox ^ scroll_oy ? 0x400 : 0x0);
-
-            // Расcчитать позицию на этой странице
-            ADDRPG = (0x20*scroll_y + scroll_x);
-            ADDRAT = (scroll_y >> 2)*8 + (scroll_x >> 2);
-
-            ch = sram[ ADDRNT + 0x000 + ADDRPG ];
-            at = sram[ ADDRNT + 0x3C0 + ADDRAT ];
-
-            // 0 1 Тайлы 4x4
-            // 2 3 Каждый 2x2
-
-            // Номер тайлов 2x2: 0,1,2,3
-            bn = ((scroll_y & 2) << 1) + (scroll_x & 2);
-
-            // Извлекаем атрибуты
-            at = (at >> bn) & 3;
-
-            for (a = 0; a < 8; a++) {
-
-                fol = sram[ 0x10000 + ch*16 + a + 0 + active_chr ]; // low
-                foh = sram[ 0x10000 + ch*16 + a + 8 + active_chr ]; // high bits
-
-                for (b = 0; b < 8; b++) {
-
-                    int s = 1 << (7 - b);
-
-                    /* Получение 4-х битов фона */
-                    color = (fol & s ? 1 : 0) | (foh & s ? 2 : 0);
-                    color = (4*at) | color;
-
-                    /* Отображается ли фон? */
-                    color = (cpu_running == 0 || (ctrl1 & 0x08)) ? color : 0;
-
-                    if (color & 3) {
-
-                        color = sram[ 0x13F00 + color ]; // 16 цветов палитры фона
-                        opaque[8*i + a][8*j + b] = 0;
-
-                    } else {
-
-                        color = sram[ 0x13F00 ]; // "Прозрачный" цвет фона
-                        opaque[8*i + a][8*j + b] = 1;
-                    }
-
-                    color = 65536*globalPalette[ color ].r +
-                              256*globalPalette[ color ].g +
-                                  globalPalette[ color ].b;
-
-                    xp = 8*j + b - fine_x;
-                    yp = 8*i + a + fine_y;
-
-                    // Рисовать только в видимой области
-                    if (xp < 256 && yp < 240) {
-                        setPixel(2*xp, 2*yp, color, 2);
-                    }
-                }
-            }
-        }
-    }
-
-    // -----------------------------------------------------------------
-    // Рисование спрайтов
-    // -----------------------------------------------------------------
-
+    int i, a, b, color, fol, foh;
+    
     if (ctrl1 & 0x10) {
 
         int h;
@@ -283,9 +194,120 @@ void printScreen() {
 
         }
     }
+    
+}
 
-    /* Сброс cntVT по завершению отрисовки фрейма */
-    // cntVT = 0;
+// Отрисовать одну линию тайлов
+void drawTiles(int i) {
+    
+    int screen_id  = (ctrl0 & 0x01) ^ cntH ^ cntV;
+    int active_chr = (ctrl0 & 0x10) ? 0x1000 : 0x0;
+
+    int xp, yp;
+    int j, a, b, ch, fol, foh, at, color, bn;
+    int ADDRNT, ADDRPG, ADDRAT;
+    
+    // 32+1 Нужно дополнительно рисовать 8 пикселей в случае превышения размера
+    for (j = 0; j < 33; j++) {
+
+        // -----------------------
+        /* Выполнить скроллинг Y */
+        int scroll_y  = (i - coarse_y);
+        int scroll_oy = (scroll_y >= 0x20); /* Переполнение Y */
+            scroll_y  = scroll_y & 0x1F;    /* Сброс переполнения */
+
+        /* Выполнить скроллинг X */
+        int scroll_x  = (j + coarse_x);
+        int scroll_ox = scroll_x >= 0x20;   /* Переполнение X */
+            scroll_x  = scroll_x & 0x1F;    /* Сброс переполнения */
+        // -----------------------
+
+        // Активная страница либо 0, либо 1, в зависимости от переполнения еще
+        ADDRNT = 0x12000 + (screen_id ^ scroll_ox ^ scroll_oy ? 0x400 : 0x0);
+
+        // Расcчитать позицию на этой странице
+        ADDRPG = (0x20*scroll_y + scroll_x);
+        ADDRAT = (scroll_y >> 2)*8 + (scroll_x >> 2);
+
+        ch = sram[ ADDRNT + 0x000 + ADDRPG ];
+        at = sram[ ADDRNT + 0x3C0 + ADDRAT ];
+
+        // 0 1 Тайлы 4x4
+        // 2 3 Каждый 2x2
+
+        // Номер тайлов 2x2: 0,1,2,3
+        bn = ((scroll_y & 2) << 1) + (scroll_x & 2);
+
+        // Извлекаем атрибуты
+        at = (at >> bn) & 3;
+
+        for (a = 0; a < 8; a++) {
+
+            fol = sram[ 0x10000 + ch*16 + a + 0 + active_chr ]; // low
+            foh = sram[ 0x10000 + ch*16 + a + 8 + active_chr ]; // high bits
+
+            for (b = 0; b < 8; b++) {
+
+                int s = 1 << (7 - b);
+
+                /* Получение 4-х битов фона */
+                color = (fol & s ? 1 : 0) | (foh & s ? 2 : 0);
+                color = (4*at) | color;
+
+                /* Отображается ли фон? */
+                color = (cpu_running == 0 || (ctrl1 & 0x08)) ? color : 0;
+
+                if (color & 3) {
+
+                    color = sram[ 0x13F00 + color ]; // 16 цветов палитры фона
+                    opaque[8*i + a][8*j + b] = 0;
+
+                } else {
+
+                    color = sram[ 0x13F00 ]; // "Прозрачный" цвет фона
+                    opaque[8*i + a][8*j + b] = 1;
+                }
+
+                color = 65536*globalPalette[ color ].r +
+                          256*globalPalette[ color ].g +
+                              globalPalette[ color ].b;
+
+                xp = 8*j + b - fine_x;
+                yp = 8*i + a + fine_y;
+
+                // Рисовать только в видимой области
+                if (xp < 256 && yp < 240) {
+                    setPixel(2*xp, 2*yp, color, 2);
+                }
+            }
+        }
+    }
+}
+
+
+// Обновление экрана
+void swap() {
+
+    // Очистка буфера. В том числе и Z-буфера
+    glDrawPixels(WIDTH, HEIGHT, GL_RGB, GL_UNSIGNED_BYTE, (void*)& frame);
+    glutSwapBuffers();
+}
+
+// -----------------------------------------------------------------
+// Обновление символов фона
+// -----------------------------------------------------------------
+
+void printScreen() {
+
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    int i;
+    for (i = 0; i < 30; i++) {
+        drawTiles(i);        
+    }
+
+    drawSprites();
+    swap();
 }
 
 // Рисование линии (для проверки)
@@ -318,16 +340,11 @@ void drawLine(int x1, int y1, int x2, int y2, int color) {
 
 }
 
+
 // Постоянное отображение информации на дисплее из буфера
 void display() {
 
     int i, j;
-
-    // Очистка буфера. В том числе и Z-буфера
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    // Исполнить один фрейм
-    nmi_exec();
 
     // Отладка
     if (cpu_running == 0) {
@@ -347,32 +364,34 @@ void display() {
             printScreen();
         }
 
-        redrawDump = 1;
+        redrawDump    = 0;
         justRedrawAll = 1;
-    }    
+    }
     else {
 
         /* Сделать Disabled области отладки */
         if (justRedrawAll) {
+
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
             for (i = 0; i < HEIGHT; i++) {
                 for (j = i % 2; j < WIDTH; j += 2) {
                     frame[i][j].r = 0;
                     frame[i][j].g = 0;
                     frame[i][j].b = 0;
-                } }                            
+                } }       
+                
+            swap();
         }
 
+        redrawDump    = 1;
         justRedrawAll = 0;
+
+        /* Выполнить код фрейма */
+        nmi_exec();
     }
-
-    // Обновление экрана
-    glDrawPixels(WIDTH, HEIGHT, GL_RGB, GL_UNSIGNED_BYTE, (void*)& frame);
-
-    // Перерисовать
-    glutReshapeWindow(WIDTH, HEIGHT);
-    glutSwapBuffers();
     
+    glutReshapeWindow(WIDTH, HEIGHT);
     glutPostRedisplay();
 }
 
