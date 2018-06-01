@@ -148,7 +148,7 @@ always @(posedge CLK) begin
                 end
                 
                 /* Восходящий фронт NMI */
-                if (NMI_status && NMI && 0) begin // -- по отключить
+                if (NMI_status && NMI && 1) begin // -- по отключить
                 
                     IRQ    <= 2'b01; // $FFFA
                     opcode <= 8'h00; // BRK
