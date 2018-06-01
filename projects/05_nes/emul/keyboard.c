@@ -1,6 +1,5 @@
 #include <stdlib.h>
 #include <stdio.h>
-#include <unistd.h>
 #include <GL/glut.h>
 
 #include "keyboard.h"
@@ -12,9 +11,7 @@ void keyboard(unsigned char key, int x, int y) {
     if (key == 27) {
         exit(0);
     }
-    
-    usleep(25);
-        
+            
     if (key == 'x' || key == 'x') Joy1 |= 0b00000001; // A
     if (key == 'z' || key == 'Z') Joy1 |= 0b00000010; // B
     if (key == 'c' || key == 'C') Joy1 |= 0b00000100; // SELECT
@@ -24,8 +21,6 @@ void keyboard(unsigned char key, int x, int y) {
 
 void keyboard_up(unsigned char key, int x, int y) {
     
-    usleep(25);
-
     if (key == 'x' || key == 'X') Joy1 &= 0b11111110; // A
     if (key == 'z' || key == 'Z') Joy1 &= 0b11111101; // B
     if (key == 'c' || key == 'C') Joy1 &= 0b11111011; // SELECT
@@ -33,8 +28,6 @@ void keyboard_up(unsigned char key, int x, int y) {
 }
 
 void keyboard_func(int key, int x, int y) {
-
-    usleep(100);    
 
     int i, current_id = 0, debugOn = 0;    
     
