@@ -13,6 +13,7 @@ timing
 *.qws
 *.vcd
 *.qqq
+*.sav
 qqq
 undo_redo.txt
 PLLJ_PLLSPE_INFO.txt

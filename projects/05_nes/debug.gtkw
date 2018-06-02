@@ -1,0 +1,36 @@
+[*]
+[*] GTKWave Analyzer v3.3.82 (w)1999-2017 BSI
+[*] Sat Jun  2 14:03:02 2018
+[*]
+[dumpfile] "/home/fox/Marsohod2/projects/05_nes/nes.vcd"
+[dumpfile_mtime] "Sat Jun  2 13:44:41 2018"
+[dumpfile_size] 239891
+[savefile] "/home/fox/Marsohod2/projects/05_nes/debug.gtkw"
+[timestart] 261
+[size] 1920 926
+[pos] -1 -1
+*-6.000000 493 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] main.
+[treeopen] main.CPU.
+[sst_width] 217
+[signals_width] 185
+[sst_expanded] 1
+[sst_vpaned_height] 271
+@28
+[color] 2
+main.clk
+[color] 2
+main.ppuclk
+[color] 2
+main.cpuclk
+@22
+main.CPU.ADDR[15:0]
+main.CPU.DIN[7:0]
+@23
+main.CPU.DOUT[7:0]
+@22
+main.CPU.MS[4:0]
+@28
+main.CPU.WREQ
+[pattern_trace] 1
+[pattern_trace] 0
