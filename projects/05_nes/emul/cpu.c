@@ -1348,9 +1348,9 @@ void request_NMI() {
     ppu_status |= 0b10000000;
 
     /* Обновить счетчики */
-    cntVT = 0; // Вертикальный тайл
-    cntH  = 0; 
-    cntV  = 0; 
+    cntVT = 0;
+    cntH  = 0; regH = 0;
+    cntV  = 0; regV  = 0; 
 
     /* Вызвать NMI */
     if ((ctrl0 & 0x80) && 1)  {
@@ -1384,9 +1384,14 @@ void nmi_exec() {
         if (row == 241) {
             request_NMI();
         }
+        
+        /* Сбросить VBLank и Sprite0Hit */
+        if (row == 261) {
+            ppu_status &= 0b00111111;        
+        }
 
         /* Достигнут Sprite0Hit */
-        if (spriteRam[0] == row - 1) {
+        if (spriteRam[0] + 1 == row) {
             ppu_status |= 0b01000000;
         }
 
@@ -1417,9 +1422,6 @@ void nmi_exec() {
 
     /* Нарисовать спрайты */
     drawSprites();
-
-    /* Сбросить VBLank и Sprite0Hit */
-    ppu_status &= 0b00111111;
 
     /* Перерисовка дампа и прочей отладочной информации */
     swap();
