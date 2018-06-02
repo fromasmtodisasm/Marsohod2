@@ -1370,6 +1370,9 @@ void nmi_exec() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     int row = 0, cycles = 0;
+    
+    /* Сброс активной экранной страницы на старте фрейма */
+    ctrl0 &= 0b11111100;
 
     // Выполнить 262 строк (1 кадр)
     for (row = 0; row < 262; row++) {
@@ -1418,7 +1421,7 @@ void nmi_exec() {
         if ((row % 8) == 0 && row < 248) {        
             drawTiles(row >> 3);
         }
-    }
+    }    
 
     /* Нарисовать спрайты */
     drawSprites();
