@@ -18,7 +18,7 @@ module cpu(
 assign ADDR  = AS ? {8'h01, S} : (AM ? EA : PC);
 assign EAWR  = AS ? {8'h01, S} : EA;
 
-// Отладочный 
+// Отладочный
 assign  DEBUG = DKEY == 2'b11 ? A[7:0] :  // Обе отжаты
                 DKEY == 2'b10 ? X[7:0] :  // Нажата 0-я
                 DKEY == 2'b01 ? Y[7:0] :  // Нажата 1-я
@@ -115,7 +115,7 @@ wire        INCDEC  = ({opcode[7:6], opcode[2:0]} == 5'b11_1_10) ||
                       ({opcode[7],   opcode[2:0]} == 4'b0__1_10);
 
 /* Текущий статус NMI */
-wire        NMI_status = NMI_trigger ^ NMI; 
+wire        NMI_status = NMI_trigger ^ NMI;
 
 /* Исполнение микрокода */
 always @(posedge CLK) begin
@@ -134,22 +134,22 @@ always @(posedge CLK) begin
 
         /* ИНИЦИАЛИЗАЦИЯ */
         4'h0: begin
-        
-            if (PC == `DEBUGPC || DIN == 8'h02 /* KIL */) begin 
-            
+
+            if (PC == `DEBUGPC || DIN == 8'h02 /* KIL */) begin
+
                 // .. Останов процессора для отладки
                 AM <= 1'b1; AS <= 1'b0; EA <= 2;
-            
+
             end else begin
-                    
+
                 /* Получено изменение NMI. Переброска статуса. */
-                if (NMI_status) begin            
+                if (NMI_status) begin
                     NMI_trigger <= NMI_trigger ^ 1'b1;
                 end
-                
+
                 /* Восходящий фронт NMI */
                 if (NMI_status && NMI && 1) begin // -- по отключить
-                
+
                     IRQ    <= 2'b01; // $FFFA
                     opcode <= 8'h00; // BRK
                     MS     <= `IMP;
@@ -161,7 +161,7 @@ always @(posedge CLK) begin
                     opcode <= DIN;   /* Принять новый опкод */
                     PC     <= PCINC; /* PC++ */
                     IRQ    <= 2'b11; /* Для BRK -> $FFFE */
-                    
+
                     casex (DIN)
 
                         8'bxxx_000_x1: begin MS <= `NDX; HOP <= 1'b1; end // Indirect, X
@@ -181,14 +181,14 @@ always @(posedge CLK) begin
                         default:       begin MS <= `IMP; HOP <= 1'b0; end
 
                     endcase
-                
-                end                
+
+                end
 
                 /* Нормализовать указатели */
                 AS      <= 1'b0;  /* Указатель стека */
                 RD      <= 1'b0;  /* Для PPU */
                 WREQ    <= 1'b0;  /* Отключение записи в память EA */
-                
+
             end
 
         end
@@ -401,7 +401,7 @@ always @* begin
 
         /* STX */
         8'b100_xx1_10: RA <= {2'b01};
-        
+
         /* STY */
         8'b100_xx1_00: RA <= {2'b10};
 
@@ -485,10 +485,10 @@ always @* begin
 
     /* BRK */
     `EXEC4: casex (opcode)
-    
+
         /* BRK */ 8'b000_000_00: {alu, RB, SW, SEI} = 8'b1110_11_11;
         /* RTI */ 8'b010_000_00: {alu, RB, SW}      = 8'b1111_11_1_;
-        
+
     endcase
 
     endcase

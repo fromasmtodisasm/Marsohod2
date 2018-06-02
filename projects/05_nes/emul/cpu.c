@@ -1350,7 +1350,7 @@ void request_NMI() {
     /* Обновить счетчики */
     cntVT = 0;
     cntH  = 0; regH = 0;
-    cntV  = 0; regV  = 0; 
+    cntV  = 0; regV  = 0;
 
     /* Вызвать NMI */
     if ((ctrl0 & 0x80) && 1)  {
@@ -1370,7 +1370,7 @@ void nmi_exec() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     int row = 0, cycles = 0;
-    
+
     /* Сброс активной экранной страницы на старте фрейма */
     ctrl0 &= 0b11111100;
 
@@ -1387,10 +1387,10 @@ void nmi_exec() {
         if (row == 241) {
             request_NMI();
         }
-        
+
         /* Сбросить VBLank и Sprite0Hit */
         if (row == 261) {
-            ppu_status &= 0b00111111;        
+            ppu_status &= 0b00111111;
         }
 
         /* Достигнут Sprite0Hit */
@@ -1418,10 +1418,10 @@ void nmi_exec() {
         }
 
         /* Отрисовка линии с тайлами */
-        if ((row % 8) == 0 && row < 248) {        
+        if ((row % 8) == 0 && row < 248) {
             drawTiles(row >> 3);
         }
-    }    
+    }
 
     /* Нарисовать спрайты */
     drawSprites();
