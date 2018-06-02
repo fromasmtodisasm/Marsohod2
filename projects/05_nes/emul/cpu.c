@@ -1358,6 +1358,7 @@ void request_NMI() {
         PUSH((reg_PC >> 8) & 0xff);	     /* Вставка обратного адреса в стек */
         PUSH(reg_PC & 0xff);
         SET_BREAK(1);                    /* Установить BFlag перед вставкой */
+        reg_P |= 0b00100000;             /* 1 */        
         PUSH(reg_P);
         SET_INTERRUPT(1);
         reg_PC = readW(0xFFFA);

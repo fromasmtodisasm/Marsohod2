@@ -80,6 +80,7 @@ reg  [4:0]  MS     = `RST;      /* Исполняемый цикл */
 reg         AS     = 1'b0;      /* 0=PC/AM, 1=S Указатель стека (приоритет) */
 reg         AM     = 1'b0;      /* 0=PC, 1=EA */
 reg  [1:0]  IRQ    = 2'b11;     /* BRK, $FFFE по умолчанию */
+reg         ISBRK  = 1'b0;      /* Является BRK */
 reg         Cout   = 1'b0;      /* Переносы при вычислении адреса */
 reg         HOP    = 1'b0;      /* =1 Операнду требуется PC++ */
 reg  [7:0]  PCL    = 8'h00;     /* Для JSR */
@@ -135,7 +136,7 @@ always @(posedge CLK) begin
         /* ИНИЦИАЛИЗАЦИЯ */
         4'h0: begin
 
-            if (PC == `DEBUGPC || DIN == 8'h02 /* KIL */) begin
+            if (DIN == 8'h02 /* KIL */) begin
 
                 // .. Останов процессора для отладки
                 AM <= 1'b1; AS <= 1'b0; EA <= 2;
@@ -148,10 +149,11 @@ always @(posedge CLK) begin
                 end
 
                 /* Восходящий фронт NMI */
-                if (NMI_status && NMI && 1) begin // -- по отключить
+                if (1 || NMI_status && NMI) begin // -- по отключить
 
                     IRQ    <= 2'b01; // $FFFA
-                    opcode <= 8'h00; // BRK
+                    opcode <= 8'h00; // BRK / NMI
+                    ISBRK  <= 1'b0; 
                     MS     <= `IMP;
                     HOP    <= 1'b0;
 
@@ -161,6 +163,7 @@ always @(posedge CLK) begin
                     opcode <= DIN;   /* Принять новый опкод */
                     PC     <= PCINC; /* PC++ */
                     IRQ    <= 2'b11; /* Для BRK -> $FFFE */
+                    ISBRK  <= DIN == 8'h00;
 
                     casex (DIN)
 
@@ -254,7 +257,7 @@ always @(posedge CLK) begin
             PCL <= PC[7:0]; /* Для JSR */
 
             /* Инкремент PC по завершении разбора адреса */
-            if (HOP) PC <= PCINC;
+            if (HOP | ISBRK) PC <= PCINC;
 
             casex (opcode)
 
@@ -272,8 +275,8 @@ always @(posedge CLK) begin
                 /* JSR: Записываем в стек */
                 8'b001_000_00: {AS, MS, WREQ, DOUT} <= {1'b1, MSINC, 1'b1, PC[15:8]};
 
-                /* BRK */
-                8'b000_000_00: {AS, MS, WREQ, DOUT} <= {1'b1, MSINC, 1'b1, PCINC[15:8]};
+                /* BRK или NMI */
+                8'b000_000_00: {AS, MS, WREQ, DOUT} <= {1'b1, MSINC, 1'b1, ISBRK ? PCINC[15:8] : PC[15:8]};
 
                 /* RTS, RTI */
                 8'b01x_000_00: {AS, MS} <= {1'b1, MSINC};
@@ -311,7 +314,7 @@ always @(posedge CLK) begin
 
         `EXEC3: casex (opcode)
 
-            /* BRK */ 8'b000_000_00: begin MS <= MSINC; DOUT <= (IRQ == 2'b11 ? {P[7:5], 1'b1, P[3:0]} : P); end
+            /* BRK */ 8'b000_000_00: begin MS <= MSINC; DOUT <= {P[7:6], 2'b11, P[3:0]}; end
             /* JSR */ 8'b001_000_00: begin MS <= 1'b0;  PC <= EA; {AS, WREQ, AM} <= 3'b000; end
             /* RTS */ 8'b011_000_00: begin MS <= MSINC; PC[15:8] <= DIN; end
             /* RTI */ 8'b010_000_00: begin MS <= MSINC; PC[7:0]  <= DIN;  end
@@ -508,7 +511,7 @@ always @(posedge CLK) begin
     endcase
 
     /* Флаги */
-    if (SEI) /* BRK I=1, B=1 */ P <= (IRQ == 2'b11 ? {P[7:5], 1'b1, P[3], 1'b1, P[1:0]} : P);
+    if (SEI) /* BRK I=1, B=1 */ P <= {P[7:6], 2'b11, P[3], 1'b1, P[1:0]};
     else if (WR && RA == 2'b11) P <= DIN; /* PLP, RTI */
     else if (FW) /* Другие */   P <= AF;
 

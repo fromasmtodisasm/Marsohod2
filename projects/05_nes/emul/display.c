@@ -304,7 +304,7 @@ void drawTiles(int i) {
                               globalPalette[ color ].b;
 
                 // Закраска черным цветом одной линии
-                if (yp > 232) {
+                if (yp > 231) {
                     setPixel(2*xp, 2*yp, 0, 2);
                 }
                 // Рисовать только в видимой области
