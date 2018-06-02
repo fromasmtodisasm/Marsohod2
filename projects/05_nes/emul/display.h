@@ -7,6 +7,7 @@
 // Тип отображения дампа памяти
 #define DUMP_ZP     1
 #define DUMP_STACK  2
+#define DUMP_OAM    3
 
 // 1 пиксель на экране
 struct sRGB {
@@ -35,7 +36,6 @@ unsigned char   ctrl1;
 unsigned char   spraddr;
 unsigned char   objvar;
 int             sprite[256];
-int             video_scroll;
 unsigned char   ppu_status;
 unsigned char   firstWrite;
 int             regFV, regVT, regV, regH, regFH, regHT,

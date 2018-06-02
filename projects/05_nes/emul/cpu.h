@@ -131,7 +131,7 @@ unsigned int  reg_S;
 unsigned int  reg_PC;
 
 // 64Кб общей + 16Кб CHR-ROM/VRAM
-unsigned char sram[ 256*1024 ]; // PRG-ROM (32k) + CHR-ROM (8k) + VRAM(4)
+unsigned char sram[ 128*1024 ]; // PRG-ROM (32k) + CHR-ROM (8k) + VRAM(4)
 unsigned char spriteRam[ 256 ]; // Память спрайтов
 
 // Статус CPU, если 0 - остановлен для отладки
@@ -173,5 +173,6 @@ unsigned int readW(int);
 void writeB(int, unsigned char);
 unsigned char PULL();
 void nmi_exec();
+void updateDebugger();
 
 #endif

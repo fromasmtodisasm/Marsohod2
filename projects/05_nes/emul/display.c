@@ -371,6 +371,33 @@ void drawLine(int x1, int y1, int x2, int y2, int color) {
 
 }
 
+// Обновить окно отладчика
+void updateDebugger() {
+    
+    int i, j;
+    
+    /* Полная очистка */
+    for (i = 0; i < HEIGHT; i++) {
+    for (j = 0; j < WIDTH; j++) {
+        frame[i][j].r = 0;
+        frame[i][j].g = 0;
+        frame[i][j].b = 0;
+    } }
+
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    /* Печать регистров */
+    printRegisters();
+    
+    /* Дизассемблер */
+    disassembleAll();
+    
+    /* Обновить экран */
+    printScreen();
+
+    swap();    
+}
+
 // Постоянное отображение информации на дисплее из буфера
 void display() {
 
@@ -380,22 +407,7 @@ void display() {
     if (cpu_running == 0) {
 
         if (redrawDump) {
-
-            /* Полная очистка */
-            for (i = 0; i < HEIGHT; i++) {
-            for (j = 0; j < WIDTH; j++) {
-                frame[i][j].r = 0;
-                frame[i][j].g = 0;
-                frame[i][j].b = 0;
-            } }
-
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-            printRegisters();
-            disassembleAll();
-            printScreen();
-
-            swap();
+            updateDebugger();
         }
 
         redrawDump    = 0;
@@ -405,7 +417,7 @@ void display() {
 
         /* Сделать Disabled для области отладки */
         if (justRedrawAll) {
-
+            
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
             for (i = 0; i < HEIGHT; i++) {
@@ -416,6 +428,7 @@ void display() {
                 } }
 
             swap();
+            
         }
 
         redrawDump    = 1;
@@ -532,25 +545,33 @@ void printRegisters() {
     // Таб
     printString(1, baseline + 9, "ZP",    dump_mode == DUMP_ZP ? 0xffffff : 0x00a0a0, 0);
     printString(4, baseline + 9, "Stack", dump_mode == DUMP_STACK ? 0xffffff : 0x00a0a0, 0);
+    printString(10, baseline + 9, "OAM", dump_mode == DUMP_OAM ? 0xffffff : 0x00a0a0, 0);
 
     // Памятка
-    printString(1,  baseline + 21, "F3 Seek F5 Run F6 Tab F7 Step", 0x808080, 0);
-    printString(1,  baseline + 21, "F3", 0xC0A000, 0);
-    printString(16, baseline + 21, "F6", 0xC0A000, 0);
-    printString(23, baseline + 21, "F7", 0xC0A000, 0);
+    printString(1,  baseline + 20, "F1 Help F3 Seek F5 Run F7 Step", 0x808080, 0);
+    printString(1,  baseline + 21, "F2 Bkpt F4 Save F6 Tab F8 Load", 0x808080, 0);
+    
+    // Подсветка для функциональных кнопок
+    printString(1,  baseline + 20, "F1", 0xC0A000, 0);
+    printString(9,  baseline + 20, "F3", 0xC0A000, 0);
+    printString(17, baseline + 20, "F5", 0xC0A000, 0);
+    printString(24, baseline + 20, "F7", 0xC0A000, 0);
+    printString(1,  baseline + 21, "F2", 0xC0A000, 0);
+    printString(9,  baseline + 21, "F4", 0xC0A000, 0);
+    printString(17, baseline + 21, "F6", 0xC0A000, 0);
+    printString(24, baseline + 21, "F8", 0xC0A000, 0);
+    
+    if (cpu_running) {        
+        printString(17, baseline + 20, "F5 Run", 0x80FF80, 0);        
+     }
 
     // PPU
-    printString(33, baseline + 21, "ADDR 0000  CTL 00 00 0000", 0x808080, 0);
+    printString(33, baseline + 21, "ADDR 0000  CTL 00 00 X00 Y00", 0x808080, 0);
     printHex(38, baseline + 21, VRAMAddress, 4, 0xffffff, 0);
     printHex(48, baseline + 21, ctrl0, 2, 0xffffff, 0);
     printHex(51, baseline + 21, ctrl1, 2, 0xffffff, 0);
-    printHex(54, baseline + 21, video_scroll, 4, 0xffff00, 0);
-
-    if (cpu_running) {
-        printString(9, baseline + 21, "F5 RUN",  0x80FF00, 0);
-    } else {
-        printString(9, baseline + 21, "F5",  0xC0A000, 0);
-    }
+    printHex(55, baseline + 21, regHT, 2, 0xffff00, 0);
+    printHex(59, baseline + 21, regVT, 2, 0xffff00, 0);
 
     int zp;
     printString(6, baseline + 11, "+0 +1 +2 +3 +4 +5 +6 +7", 0xffffff, 0);
@@ -559,7 +580,7 @@ void printRegisters() {
         case DUMP_ZP:
 
             zp = zp_base;
-            for (i = 0; i < 8; i++) {
+            for (i = 0; i < 7; i++) {
 
                 printHex(1, baseline + i + 12, zp + i*8, 4, 0xffffff, 0);
                 for (j = 0; j < 8; j++) {
@@ -574,7 +595,7 @@ void printRegisters() {
         case DUMP_STACK:
 
             zp = 0x0100 + reg_S + 1;
-            for (i = 0; i < 8; i++) {
+            for (i = 0; i < 7; i++) {
 
                 printHex(1, baseline + i + 12, (((zp + i*8) & 0xff) | 0x100), 4, 0xffffff, 0);
                 for (j = 0; j < 8; j++) {

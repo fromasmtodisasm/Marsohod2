@@ -12,6 +12,7 @@
 int rdsize;
 
 // Заголовки
+#include "load.h"
 #include "display.h"
 #include "keyboard.h"
 #include "cpu.h"

@@ -39,6 +39,14 @@ void keyboard_func(int key, int x, int y) {
             current_id = i;
         }
     }
+    
+    if (key == GLUT_KEY_F4) {        
+        save();        
+    }
+    
+    if (key == GLUT_KEY_F8) {
+        loadsav();
+    }
 
     // Выполнить 1 шаг
     if (key == GLUT_KEY_F7) {
@@ -83,7 +91,11 @@ void keyboard_func(int key, int x, int y) {
 
     // Переключение режима отладчика
     if (key == GLUT_KEY_F5) {
+
         cpu_running = 1 - cpu_running;
+        
+        updateDebugger();
+        swap();        
     }
 
     if (key == GLUT_KEY_F6) {
