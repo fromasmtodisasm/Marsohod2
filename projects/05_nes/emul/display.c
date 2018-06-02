@@ -139,9 +139,9 @@ void printString(int x, int y, char* string, int fr, int bg) {
 // -----------------------------------------------------------------
 
 void drawSprites() {
-    
+
     int i, a, b, color, fol, foh;
-    
+
     if (ctrl1 & 0x10) {
 
         int h;
@@ -149,36 +149,47 @@ void drawSprites() {
 
             int sprite_y = spriteRam[i + 0]; // По вертикали
             int sprite_x = spriteRam[i + 3]; // По горизонтали
-            int icon     = spriteRam[i + 1];
-            int attr_spr = spriteRam[i + 2];
-            int at       = attr_spr & 3; // Атрибут
+            int icon     = spriteRam[i + 1]; // Иконка из знакогенератора
+            int attr_spr = spriteRam[i + 2]; // Атрибут спрайта
+            int at       = attr_spr & 3;     // Атрибут цвета
 
-            // Выбор знакогенератора спрайтов
-            int chrsrc = (ctrl0 & 0x20) ? 0x1000 : 0x0000;
+            /* Не отрисовывать невидимые */
+            if (sprite_y >= 232 || sprite_y < 8) {
+                continue;
+            }
 
-            // 1x1 или 1x2 спрайты
-            for (h = 0; h < 1; h++) {
+            /* Выбор знакогенератора спрайтов */
+            int chrsrc = (ctrl0 & 0x20) ? 0x1000 : 0;
+
+            /* 8x8 или 8x16 */
+            for (h = 0; h < (ctrl0 & 0x20 ? 2 : 1); h++) {
 
                 for (b = 0; b < 8; b++) { // Y
+
                     for (a = 0; a < 8; a++) { // X
 
-                        // Получение битов цвета
+                        /* Получение битов из знакогенератора */
                         fol = sram[ 0x10000 + chrsrc + (icon + h)*16 + (h*16 + b) + 0 ]; // low
                         foh = sram[ 0x10000 + chrsrc + (icon + h)*16 + (h*16 + b) + 8 ]; // high bits
 
+                        /* Расчет X, Y, биты 6 и 7 отвечают за отражение */
                         int s = 1 << (7 - a);
                         int x = sprite_x + (attr_spr & 0x40 ? 7 - a : a);
-                        int y = sprite_y + (attr_spr & 0x80 ? 7 - b : b) + h*16 + 1; // Буферная линия
+                        int y = sprite_y + (attr_spr & 0x80 ? 7 - b : b) + h*16 + 1;
 
-                        // Вычислить 2 бита цвета спрайта
+                        /* Вычислить 2 бита цвета спрайта из знакогенератора */
                         color = (fol & s ? 1 : 0) | (foh & s ? 2 : 0);
 
-                        // Если у спрайта задан 5-й бит, то, если фон не прозрачный, не рисуем спрайт
-                        if ((attr_spr & 0x20) == 0x20 && opaque[y][x] == 0) { 
+                        /* Если у спрайта задан 5-й бит, то, если фон НЕ прозрачный (=0), НЕ рисуем спрайт */
+                        if ((attr_spr & 0x20) == 0x20 && opaque[y][x] == 0) {
                             continue;
                         }
-                        
-                        if (color) {
+
+                        /* Отображать пиксель если цвет не 0, и спрайт в пределах экрана */
+                        if (color && x < 256 && y < 232 && y > 8) {
+
+                            /* Формируем цвет из атрибута (2 бита) + 2 бита из знакогенератора
+                             * Палитра берется из 3F10 */
 
                             color = (4*at) | color;
                             color = sram[ 0x13F10 + color ];
@@ -186,10 +197,11 @@ void drawSprites() {
                                       256*globalPalette[ color ].g +
                                           globalPalette[ color ].b;
 
-                            
+                            /* Отображать пиксель:
+                             * a) Все спрайты видны
+                             * b) Не в крайнем левом столбце */
 
-                            // + prior, opaque
-                            if (x < 256 && y < 232 && y > 8 && ((ctrl1 & 0b100) || ((ctrl1 & 0b100) == 0 && x >= 8))) {
+                            if ((ctrl1 & 0b100) || ((ctrl1 & 0b100) == 0 && x >= 8)) {
                                 setPixel(2*x, 2*y, color, 2);
                             }
                         }
@@ -199,32 +211,40 @@ void drawSprites() {
 
         }
     }
-    
+
 }
 
 // Отрисовать одну линию тайлов
 void drawTiles(int i) {
+
+    int screen_h = (ctrl0 & 0x01) ? 1 : 0,
+        screen_v = (ctrl0 & 0x02) ? 1 : 0;
     
-    int screen_id  = (ctrl0 & 0x01); // ^ cntH; // ^ cntV;
+    int screen_id  = screen_h ^ screen_v ^ cntH ^ cntV;
     int active_chr = (ctrl0 & 0x10) ? 0x1000 : 0x0;
 
     int xp, yp;
     int j, a, b, ch, fol, foh, at, color, bn;
-    int ADDRNT, ADDRPG, ADDRAT;
-    
-    // 32+1 Нужно дополнительно рисовать 8 пикселей в случае превышения размера
+    int ADDRNT, ADDRPG, ADDRAT;    
+
+    /* 32+1 Нужно дополнительно рисовать 8 пикселей в случае превышения размера */
     for (j = 0; j < 33; j++) {
+        
+        int bCoarseY = vb_VT[ 8*i ],
+            bCoarseX = vb_HT[ 8*i ],
+            bFineX   = vb_FH[ 8*i ],
+            bFineY   = vb_FV[ 8*i ];
 
         // -----------------------
         /* Выполнить скроллинг Y */
-        int scroll_y  = (i + coarse_y);
+        int scroll_y  = (i + bCoarseY);
         int scroll_oy = VMirroring ? (scroll_y >= 0x20) : 0;
-            scroll_y  = scroll_y & 0x1F;    /* Сброс переполнения */
+            scroll_y  = scroll_y & 0x1F;
 
         /* Выполнить скроллинг X */
-        int scroll_x  = (j + coarse_x);
+        int scroll_x  = (j + bCoarseX);
         int scroll_ox = HMirroring ? scroll_x >= 0x20 : 0;
-            scroll_x  = scroll_x & 0x1F;    /* Сброс переполнения */
+            scroll_x  = scroll_x & 0x1F;
         // -----------------------
 
         // Активная страница либо 0, либо 1, в зависимости от переполнения еще
@@ -261,13 +281,13 @@ void drawTiles(int i) {
 
                 /* Отображается ли фон? */
                 color = (cpu_running == 0 || (ctrl1 & 0x08)) ? color : 0;
-                
-                xp = 8*j + b - fine_x;
-                yp = 8*i + a - fine_y;
+
+                xp = 8*j + b - bFineX;
+                yp = 8*i + a - bFineY;
 
                 /* Края не показывать */
                 if (yp < 8 || yp > 232) color = 0;
-                
+
                 if (color & 3) {
 
                     color = sram[ 0x13F00 + color ]; // 16 цветов палитры фона
@@ -293,7 +313,7 @@ void drawTiles(int i) {
                 }
             }
         }
-    } 
+    }
 }
 
 // Обновление экрана
@@ -313,8 +333,8 @@ void printScreen() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     int i;
-    for (i = 0; i < 30; i++) {
-        drawTiles(i);        
+    for (i = 0; i < 31; i++) {
+        drawTiles(i);
     }
 
     drawSprites();
@@ -351,7 +371,6 @@ void drawLine(int x1, int y1, int x2, int y2, int color) {
 
 }
 
-
 // Постоянное отображение информации на дисплее из буфера
 void display() {
 
@@ -361,8 +380,8 @@ void display() {
     if (cpu_running == 0) {
 
         if (redrawDump) {
-    
-            /* Полная очистка в зависимости от того, запущен процессор или нет */
+
+            /* Полная очистка */
             for (i = 0; i < HEIGHT; i++) {
             for (j = 0; j < WIDTH; j++) {
                 frame[i][j].r = 0;
@@ -370,9 +389,13 @@ void display() {
                 frame[i][j].b = 0;
             } }
 
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
             printRegisters();
             disassembleAll();
             printScreen();
+
+            swap();
         }
 
         redrawDump    = 0;
@@ -380,7 +403,7 @@ void display() {
     }
     else {
 
-        /* Сделать Disabled области отладки */
+        /* Сделать Disabled для области отладки */
         if (justRedrawAll) {
 
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -390,8 +413,8 @@ void display() {
                     frame[i][j].r = 0;
                     frame[i][j].g = 0;
                     frame[i][j].b = 0;
-                } }       
-                
+                } }
+
             swap();
         }
 
@@ -401,7 +424,7 @@ void display() {
         /* Выполнить код фрейма */
         nmi_exec();
     }
-        
+
     glutPostRedisplay();
 }
 
@@ -457,7 +480,7 @@ void printRegisters() {
 
     int  baseline = 31;
     char s[2]; s[1] = 0;
-    int  i, j;    
+    int  i, j;
     char sym[16] = "nv_bdizcNV_BDIZC";
 
     // Болванка

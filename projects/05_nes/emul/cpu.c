@@ -295,28 +295,28 @@ unsigned char readB(int addr) {
 
             /* Чтение из видеопамяти (кроме STA) */
             case 7:
-            
+
                 mirr = vmirror(VRAMAddress);
 
                 // Читать из регистров палитры
                 if (VRAMAddress >= 0x3F00) {
-                    
+
                     // Чтение из любой палитры с индексом & 3 = 0 читает из BG
                     if (mirr >= 0x3F00 && mirr < 0x3F20 && (mirr & 3) == 0) {
                         mirr = 0x3F00;
-                    }                    
-                    
+                    }
+
                     olddat = sram[ 0x10000 + mirr ];
-                    
-                    
+
+
                 // Читать с задержкой буфера
                 } else {
 
                     olddat = objvar;
                     objvar = sram[ 0x10000 + mirr ];
-                } 
+                }
 
-                VRAMAddress += (ctrl0 & 0x04 ? 32 : 1);                
+                VRAMAddress += (ctrl0 & 0x04 ? 32 : 1);
                 return olddat;
         }
     }
@@ -328,7 +328,7 @@ unsigned char readB(int addr) {
 void writeB(int addr, unsigned char data) {
 
     int mirr;
-    
+
     if (addr >= 0x8000) {
         return;
     }
@@ -365,8 +365,8 @@ void writeB(int addr, unsigned char data) {
 
         switch (addr & 7) {
 
-            case 0: ctrl0 = data; break;
-            case 1: ctrl1 = data; break;
+            case 0: ctrl0   = data; break;
+            case 1: ctrl1   = data; break;
             case 3: spraddr = data; break;
             case 4: spriteRam[ spraddr ] = data; spraddr = (spraddr + 1) & 0xff; break;
 
@@ -430,7 +430,7 @@ void writeB(int addr, unsigned char data) {
                 break;
 
             // Запись данных в видеопамять
-            case 7: 
+            case 7:
 
                 mirr = vmirror(VRAMAddress);
 
@@ -438,7 +438,7 @@ void writeB(int addr, unsigned char data) {
                 if (mirr == 0x3F00 || mirr == 0x3F10) {
                     mirr = 0x3F00;
                 }
-                
+
                 sram[ 0x10000 + mirr ] = data;
                 VRAMAddress += (ctrl0 & 0x04 ? 32 : 1);
                 break;
@@ -1344,11 +1344,13 @@ int breakpoint_test() {
 /* Запрос NMI */
 void request_NMI() {
 
-    /* Установить счетчик = 0 */
-    cntVT = 0;
-
     /* PPU генерирует обратный кадровый импульс (VBlank) */
     ppu_status |= 0b10000000;
+
+    /* Обновить счетчики */
+    cntVT = 0; // Вертикальный тайл
+    cntH  = 0; 
+    cntV  = 0; 
 
     /* Вызвать NMI */
     if ((ctrl0 & 0x80) && 1)  {
@@ -1372,6 +1374,12 @@ void nmi_exec() {
     // Выполнить 262 строк (1 кадр)
     for (row = 0; row < 262; row++) {
 
+        /* Сохранить буферизированные значения. Нужны для отладчика */
+        vb_HT[ row ] = regHT;
+        vb_VT[ row ] = regVT;
+        vb_FH[ row ] = regFH;
+        vb_FV[ row ] = regFV;
+
         /* Вызвать NMI на обратном синхроимпульсе */
         if (row == 241) {
             request_NMI();
@@ -1382,42 +1390,30 @@ void nmi_exec() {
             ppu_status |= 0b01000000;
         }
 
-        // Выполнить 1 строку
-        while (cycles < 115) {
+        /* Выполнить 1 строку (341 такт PPU) */
+        while (cycles < 341) {
 
+            /* Если нет точек остановка, выполнить инструкцию */
             if (!breakpoint_test()) {
-                cycles += exec();
+                cycles += 3 * exec();
             } else {
                 cpu_running = 0;
                 break;
             }
         }
 
-        // "Кольцо вычета"
-        if (cycles >= 115) {
-            cycles -= 115;
-        }
+        // "Кольцо вычета" циклов исполнения
+        cycles = cycles % 341;
 
         if (!cpu_running) {
             break;
         }
 
         /* Отрисовка линии с тайлами */
-        if ((row % 8) == 0 && row < 248) {
-
-            /* Использовать regHT, regVT от $2005 */
-            coarse_x = regHT;
-            coarse_y = regVT;
-            fine_x   = regFH;
-            fine_y   = regFV;
-
+        if ((row % 8) == 0 && row < 248) {        
             drawTiles(row >> 3);
         }
     }
-
-    /* Обновить счетчики */
-    // cntVT = 0;
-    // cntFV = regFV; cntV = regV;  cntH  = regH; cntHT = regHT;
 
     /* Нарисовать спрайты */
     drawSprites();

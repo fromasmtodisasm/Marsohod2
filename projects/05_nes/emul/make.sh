@@ -4,6 +4,6 @@ then
     cp d6502 /usr/local/bin
 
     # Исполнение
-    ./d6502 loderunner.nes
+    ./d6502 mario.nes
 fi
 

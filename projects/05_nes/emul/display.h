@@ -42,11 +42,9 @@ int             regFV, regVT, regV, regH, regFH, regHT,
                 ppu_address,
                 cntFV, cntV, cntH, cntVT, cntHT, b1, b2;
 
-/* Параметры скроллинга */
-int             coarse_x, coarse_y,
-                fine_x, fine_y,
-                addr_vt;
-
+/* Буферизированные параметры скроллинга */
+int vb_HT[262], vb_VT[262], vb_FH[262], vb_FV[262];
+           
 // Текущий видео адрес
 int VRAMAddress;
 int HMirroring;     /* При X + ScrollX > 256 использовать второй экран */
