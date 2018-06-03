@@ -139,23 +139,24 @@ always @(posedge CLK) begin
         /* ИНИЦИАЛИЗАЦИЯ */
         4'h0: begin
 
+            // Останов процессора для отладки
             if (DIN == 8'h02 /* KIL */) begin
 
-                // .. Останов процессора для отладки
-                AM <= 1'b1; AS <= 1'b0; EA <= 2;
+                AM <= 1'b0; 
+                AS <= 1'b0;
 
             end else begin
 
                 /* Получено изменение NMI. Переброска статуса. */
                 if (NMI_status) begin
-                    NMI_trigger <= NMI_trigger ^ 1'b1;
+                    NMI_trigger <= NMI_status ^ NMI_trigger;
                 end
 
                 /* Восходящий фронт NMI. Срабатывает при изменений статуса NMI. */
-                if (NMI_status && NMI || PC == 16'h80FF) begin
+                if (NMI && NMI_status && 1) begin
 
-                    IRQ    <= 2'b01; // $FFFA
                     opcode <= 8'h00; // BRK / NMI
+                    IRQ    <= 2'b01; // $FFFA
                     ISBRK  <= 1'b0; 
                     MS     <= `IMP;
                     HOP    <= 1'b0;
@@ -164,8 +165,8 @@ always @(posedge CLK) begin
                 end else begin
 
                     opcode <= DIN;   /* Принять новый опкод */
-                    PC     <= PCINC; /* PC++ */
                     IRQ    <= 2'b11; /* Для BRK -> $FFFE */
+                    PC     <= PCINC; /* PC++ */
                     ISBRK  <= DIN == 8'h00;
 
                     casex (DIN)
