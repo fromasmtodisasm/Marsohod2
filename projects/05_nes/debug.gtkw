@@ -1,15 +1,15 @@
 [*]
 [*] GTKWave Analyzer v3.3.82 (w)1999-2017 BSI
-[*] Sun Jun  3 07:08:47 2018
+[*] Sun Jun  3 14:06:44 2018
 [*]
 [dumpfile] "/home/fox/Data/Project/fpga/Marsohod2/projects/05_nes/nes.vcd"
-[dumpfile_mtime] "Sun Jun  3 07:08:08 2018"
-[dumpfile_size] 230590
+[dumpfile_mtime] "Sun Jun  3 14:03:39 2018"
+[dumpfile_size] 239495
 [savefile] "/home/fox/Data/Project/fpga/Marsohod2/projects/05_nes/debug.gtkw"
-[timestart] 250
+[timestart] 389
 [size] 1920 1033
 [pos] -1 -1
-*-7.000000 873 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-7.000000 910 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] main.
 [treeopen] main.CPU.
 [sst_width] 219
@@ -23,12 +23,13 @@ main.clk
 main.ppuclk
 [color] 2
 main.cpuclk
-@29
 [color] 3
 main.CPU.debug_clk
 @22
 main.CPU.ADDR[15:0]
 main.CPU.DIN[7:0]
+[color] 6
+main.CPU.EA[15:0]
 main.CPU.DOUT[7:0]
 main.CPU.MS[4:0]
 @28
@@ -44,14 +45,32 @@ main.CPU.X[7:0]
 main.CPU.Y[7:0]
 [color] 5
 main.CPU.S[7:0]
+@c00023
 [color] 5
 main.CPU.P[7:0]
+@29
+[color] 5
+(0)main.CPU.P[7:0]
+[color] 5
+(1)main.CPU.P[7:0]
+[color] 5
+(2)main.CPU.P[7:0]
+[color] 5
+(3)main.CPU.P[7:0]
+[color] 5
+(4)main.CPU.P[7:0]
+[color] 5
+(5)main.CPU.P[7:0]
+[color] 5
+(6)main.CPU.P[7:0]
+[color] 5
+(7)main.CPU.P[7:0]
+@1401201
+-group_end
+@22
 [color] 6
 main.CPU.PC[15:0]
 @1000200
 -Regs
-@22
-[color] 6
-main.CPU.EA[15:0]
 [pattern_trace] 1
 [pattern_trace] 0

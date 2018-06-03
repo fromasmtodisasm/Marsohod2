@@ -1372,9 +1372,6 @@ void nmi_exec() {
 
     int row = 0, cycles = 0;
 
-    /* Сброс активной экранной страницы на старте фрейма */
-    ctrl0 &= 0b11111100;
-
     // Выполнить 262 строк (1 кадр)
     for (row = 0; row < 262; row++) {
 
@@ -1389,8 +1386,10 @@ void nmi_exec() {
             request_NMI();
         }
 
-        /* Сбросить VBLank и Sprite0Hit */
+        /* Сбросить VBLank и Sprite0Hit, активной экранной страницы */
         if (row == 261) {
+            
+            ctrl0 &= 0b11111100;    
             ppu_status &= 0b00111111;
         }
 

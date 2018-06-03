@@ -269,7 +269,7 @@ always @(posedge CLK) begin
                 8'b100_xx1_x0: {AM, MS, WREQ, DOUT} <= {1'b0, 5'h0,  1'b1, AR};
 
                 /* JMP (IND) */
-                8'b011_011_00: {MS, TR} <= {MSINC, DIN};
+                8'b011_011_00: {MS, TR, EA} <= {MSINC, DIN, EA[15:8], EAINC[7:0]};
 
                 /* ROL/ROR/ASR/LSR/DEC/INC <mem> */
                 8'b0xx_xx1_10,

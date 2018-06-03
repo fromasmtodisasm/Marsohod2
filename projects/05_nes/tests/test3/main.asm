@@ -1,7 +1,7 @@
         
         .org $8000
 
-        ldx #$85
+        jmp ($80FF)
         
         txs
         tsx
