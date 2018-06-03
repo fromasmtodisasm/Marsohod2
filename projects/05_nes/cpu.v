@@ -129,7 +129,7 @@ always @(posedge CLK) begin
 
         MS   <= `RST;
         WREQ <= 1'b0;
-        {AS, AM} <= 2'b00;
+        {AS, AM} <= 2'b00;       
 
     end
 
@@ -386,8 +386,8 @@ always @* begin
     /* Все методы адресации разрешить читать из PPU, кроме STA */
     casex (opcode)
 
-        8'b100xxx01,
-        8'b100xx1x0: ENARD = 1'b0;
+        8'b100_xxx_01,
+        8'b100_xx1_x0: ENARD = 1'b0;
 
     endcase
 
@@ -506,20 +506,33 @@ end
 
 always @(posedge CLK) begin
 
-    /* Писать результат АЛУ */
-    if (WR) case (RA)
-        2'b00: A <= AR;
-        2'b01: X <= AR;
-        2'b10: Y <= AR;
-    endcase
+    if (RESET) begin
+        
+        A <= 8'h00;
+        X <= 8'h00;
+        Y <= 8'h00;
+        S <= 8'h00;
+        P <= 8'h00;
+        
+    end
+    else begin
 
-    /* Флаги */
-    if (SEI) /* BRK I=1, B=1 */ P <= {P[7:6], 2'b11, P[3], 1'b1, P[1:0]};
-    else if (WR && RA == 2'b11) P <= DIN; /* PLP, RTI */
-    else if (FW) /* Другие */   P <= AF;
+        /* Писать результат АЛУ */
+        if (WR) case (RA)
+            2'b00: A <= AR;
+            2'b01: X <= AR;
+            2'b10: Y <= AR;
+        endcase
 
-    /* Записать в регистр S результат */
-    if (SW) S <= AR;
+        /* Флаги */
+        if (SEI) /* BRK I=1, B=1 */ P <= {P[7:6], 2'b11, P[3], 1'b1, P[1:0]};
+        else if (WR && RA == 2'b11) P <= DIN; /* PLP, RTI */
+        else if (FW) /* Другие */   P <= AF;
+
+        /* Записать в регистр S результат */
+        if (SW) S <= AR;
+    
+    end
 
 end
 
