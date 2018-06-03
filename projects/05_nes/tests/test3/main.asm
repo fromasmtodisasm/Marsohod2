@@ -1,5 +1,9 @@
         
         .org $8000
+
+        ldx #$85
         
-        jmp $80FF
-        brk
+        txs
+        tsx
+OK      
+        rts

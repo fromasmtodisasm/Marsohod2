@@ -118,6 +118,9 @@ wire        INCDEC  = ({opcode[7:6], opcode[2:0]} == 5'b11_1_10) ||
 /* Текущий статус NMI */
 wire        NMI_status = NMI_trigger ^ NMI;
 
+/* Для Icarus Verilog: чтобы легче было отлаживать */
+wire debug_clk = CLK && MS == 1'b0;
+
 /* Исполнение микрокода */
 always @(posedge CLK) begin
 
@@ -148,8 +151,8 @@ always @(posedge CLK) begin
                     NMI_trigger <= NMI_trigger ^ 1'b1;
                 end
 
-                /* Восходящий фронт NMI */
-                if (1 || NMI_status && NMI) begin // -- по отключить
+                /* Восходящий фронт NMI. Срабатывает при изменений статуса NMI. */
+                if (NMI_status && NMI || PC == 16'h80FF) begin
 
                     IRQ    <= 2'b01; // $FFFA
                     opcode <= 8'h00; // BRK / NMI
@@ -486,11 +489,10 @@ always @* begin
 
     endcase
 
-    /* BRK */
+    /* BRK/RTI */
     `EXEC4: casex (opcode)
 
         /* BRK */ 8'b000_000_00: {alu, RB, SW, SEI} = 8'b1110_11_11;
-        /* RTI */ 8'b010_000_00: {alu, RB, SW}      = 8'b1111_11_1_;
 
     endcase
 

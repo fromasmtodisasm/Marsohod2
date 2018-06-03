@@ -55,8 +55,7 @@ end
 wire [7:0] din = (address[15:13] == 3'b001) ? ppu_dout : i_data;
 
 initial begin $readmemh("init/ram.hex", sram, 16'h0000); end
-initial begin $readmemh("init/rom.hex", sram, 16'h8000); end // 16K
-initial begin $readmemh("init/rom.hex", sram, 16'hC000); end // 16K
+initial begin $readmemh("init/rom.hex", sram, 16'h8000); end // 32K
 
 initial begin 
 
