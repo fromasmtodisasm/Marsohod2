@@ -38,7 +38,7 @@ always @* begin
         /* STA */ 4'b0100: R = A;
         /* LDA */ 4'b0101: R = B;
         /* CMP */ 4'b0110: R = A - B;
-        /* SBC */ 4'b0111: R = A - B - (~Cin);
+        /* SBC */ 4'b0111: R = A - B - !Cin;
         /* ASL */ 4'b1000: R = {B[6:0], 1'b0};
         /* ROL */ 4'b1001: R = {B[6:0], P[0]};
         /* LSR */ 4'b1010: R = {1'b0, B[7:1]};

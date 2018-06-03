@@ -1,9 +1,9 @@
         
         .org $8000
 
-        jmp ($80FF)
+        lda #$02
+        sec
+        sbc #$01
         
-        txs
-        tsx
 OK      
         rts
