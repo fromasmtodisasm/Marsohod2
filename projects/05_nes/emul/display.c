@@ -162,7 +162,7 @@ void drawSprites() {
             int chrsrc = (ctrl0 & 0x08) ? 0x1000 : 0;
             int height = (ctrl0 & 0x20 ? 2 : 1);
             
-            /* При 8x16 в icon[0] будет bank */
+            /* Если размер спрайтов = 8x16, то в icon[0] будет bank */
             if (height == 2) {
                 
                 chrsrc = icon & 1 ? 0x1000 : 0x0000;
@@ -177,8 +177,8 @@ void drawSprites() {
                     for (a = 0; a < 8; a++) { // X                    
 
                         /* Получение битов из знакогенератора */
-                        fol = sram[ 0x10000 + chrsrc + ((icon + h) & 255)*16 + b + 0 ]; // low
-                        foh = sram[ 0x10000 + chrsrc + ((icon + h) & 255)*16 + b + 8 ]; // high bits
+                        fol = sram[ 0x10000 + chrsrc + (icon + h)*16 + b + 0 ]; // low
+                        foh = sram[ 0x10000 + chrsrc + (icon + h)*16 + b + 8 ]; // high bits
 
                         /* Расчет X, Y, биты 6 и 7 отвечают за отражение */
                         int s = 1 << (7 - a);
