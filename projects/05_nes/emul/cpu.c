@@ -183,8 +183,8 @@ void initCPU() {
     redrawDump  = 1;
 
     /* Отражение экранных страниц. Зависит от картриджа */
-    HMirroring  = 1;
-    VMirroring  = 0;
+    HMirroring  = 1; // 1
+    VMirroring  = 0; // 0
 
     /* Джойстики */
     Joy1        = 0; Joy2        = 0;

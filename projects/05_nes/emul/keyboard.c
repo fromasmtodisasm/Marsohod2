@@ -47,6 +47,14 @@ void keyboard_func(int key, int x, int y) {
     if (key == GLUT_KEY_F8) {
         loadsav();
     }
+    
+    /* Выполненение 1 кадра */
+    if (key == GLUT_KEY_F9) {    
+        
+        cpu_running = 1;
+        nmi_exec();
+        cpu_running = 0;
+    }
 
     // Выполнить 1 шаг
     if (key == GLUT_KEY_F7) {

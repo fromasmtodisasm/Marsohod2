@@ -159,23 +159,31 @@ void drawSprites() {
             }
 
             /* Выбор знакогенератора спрайтов */
-            int chrsrc = (ctrl0 & 0x20) ? 0x1000 : 0;
+            int chrsrc = (ctrl0 & 0x08) ? 0x1000 : 0;
+            int height = (ctrl0 & 0x20 ? 2 : 1);
+            
+            /* При 8x16 в icon[0] будет bank */
+            if (height == 2) {
+                
+                chrsrc = icon & 1 ? 0x1000 : 0x0000;
+                icon  &= 0xFE;
+            }
 
             /* 8x8 или 8x16 */
-            for (h = 0; h < (ctrl0 & 0x20 ? 2 : 1); h++) {
+            for (h = 0; h < height; h++) {
 
                 for (b = 0; b < 8; b++) { // Y
 
-                    for (a = 0; a < 8; a++) { // X
+                    for (a = 0; a < 8; a++) { // X                    
 
                         /* Получение битов из знакогенератора */
-                        fol = sram[ 0x10000 + chrsrc + (icon + h)*16 + (h*16 + b) + 0 ]; // low
-                        foh = sram[ 0x10000 + chrsrc + (icon + h)*16 + (h*16 + b) + 8 ]; // high bits
+                        fol = sram[ 0x10000 + chrsrc + ((icon + h) & 255)*16 + b + 0 ]; // low
+                        foh = sram[ 0x10000 + chrsrc + ((icon + h) & 255)*16 + b + 8 ]; // high bits
 
                         /* Расчет X, Y, биты 6 и 7 отвечают за отражение */
                         int s = 1 << (7 - a);
                         int x = sprite_x + (attr_spr & 0x40 ? 7 - a : a);
-                        int y = sprite_y + (attr_spr & 0x80 ? 7 - b : b) + h*16 + 1;
+                        int y = sprite_y + (attr_spr & 0x80 ? (height == 2 ? 15 : 7) - b : b) + h*8 + 1;
 
                         /* Вычислить 2 бита цвета спрайта из знакогенератора */
                         color = (fol & s ? 1 : 0) | (foh & s ? 2 : 0);
@@ -548,18 +556,20 @@ void printRegisters() {
     printString(10, baseline + 9, "OAM", dump_mode == DUMP_OAM ? 0xffffff : 0x00a0a0, 0);
 
     // Памятка
-    printString(1,  baseline + 20, "F1 Help F3 Seek F5 Run F7 Step", 0x808080, 0);
-    printString(1,  baseline + 21, "F2 Bkpt F4 Save F6 Tab F8 Load", 0x808080, 0);
+    printString(1,  baseline + 19, "F1 Help F3 Seek F5 Run F7 Step", 0x808080, 0);
+    printString(1,  baseline + 20, "F2 Bkpt F4 Save F6 Tab F8 Load", 0x808080, 0);
+    printString(1,  baseline + 21, "                F9 One        ", 0x808080, 0);
     
     // Подсветка для функциональных кнопок
-    printString(1,  baseline + 20, "F1", 0xC0A000, 0);
-    printString(9,  baseline + 20, "F3", 0xC0A000, 0);
-    printString(17, baseline + 20, "F5", 0xC0A000, 0);
-    printString(24, baseline + 20, "F7", 0xC0A000, 0);
-    printString(1,  baseline + 21, "F2", 0xC0A000, 0);
-    printString(9,  baseline + 21, "F4", 0xC0A000, 0);
-    printString(17, baseline + 21, "F6", 0xC0A000, 0);
-    printString(24, baseline + 21, "F8", 0xC0A000, 0);
+    printString(1,  baseline + 19, "F1", 0xC0A000, 0);
+    printString(9,  baseline + 19, "F3", 0xC0A000, 0);
+    printString(17, baseline + 19, "F5", 0xC0A000, 0);
+    printString(24, baseline + 19, "F7", 0xC0A000, 0);
+    printString(1,  baseline + 20, "F2", 0xC0A000, 0);
+    printString(9,  baseline + 20, "F4", 0xC0A000, 0);
+    printString(17, baseline + 20, "F6", 0xC0A000, 0);
+    printString(24, baseline + 20, "F8", 0xC0A000, 0);
+    printString(17, baseline + 21, "F9", 0xC0A000, 0);
     
     if (cpu_running) {        
         printString(17, baseline + 20, "F5 Run", 0x80FF80, 0);        
@@ -580,7 +590,7 @@ void printRegisters() {
         case DUMP_ZP:
 
             zp = zp_base;
-            for (i = 0; i < 7; i++) {
+            for (i = 0; i < 6; i++) {
 
                 printHex(1, baseline + i + 12, zp + i*8, 4, 0xffffff, 0);
                 for (j = 0; j < 8; j++) {
@@ -595,7 +605,7 @@ void printRegisters() {
         case DUMP_STACK:
 
             zp = 0x0100 + reg_S + 1;
-            for (i = 0; i < 7; i++) {
+            for (i = 0; i < 6; i++) {
 
                 printHex(1, baseline + i + 12, (((zp + i*8) & 0xff) | 0x100), 4, 0xffffff, 0);
                 for (j = 0; j < 8; j++) {

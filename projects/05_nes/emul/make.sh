@@ -5,6 +5,7 @@ then
 
     # Исполнение
     ./d6502 loderunner.nes
-    # mario.nes
+    #./d6502 mario.nes
+     
 fi
 
