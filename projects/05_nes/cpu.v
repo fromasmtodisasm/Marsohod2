@@ -120,6 +120,7 @@ wire        NMI_status = NMI_trigger ^ NMI;
 
 /* Для Icarus Verilog: чтобы легче было отлаживать */
 wire debug_clk = CLK && MS == 1'b0;
+reg LN = 1'b1;
 
 /* Исполнение микрокода */
 always @(posedge CLK) begin
@@ -153,13 +154,14 @@ always @(posedge CLK) begin
                 end
 
                 /* Восходящий фронт NMI. Срабатывает при изменений статуса NMI. */
-                if (NMI && NMI_status && 1) begin
+                if (NMI && NMI_status) begin
 
                     opcode <= 8'h00; // BRK / NMI
                     IRQ    <= 2'b01; // $FFFA
                     ISBRK  <= 1'b0; 
                     MS     <= `IMP;
                     HOP    <= 1'b0;
+                    LN     <= 0;
 
                 /* Обычное исполнение */
                 end else begin
@@ -338,11 +340,11 @@ always @(posedge CLK) begin
         `EXEC5: casex (opcode)
 
             /* BRK */ 8'b000_000_00: begin MS <= MSINC; TR <= DIN; EA <= EAINC; end
-            /* RTI */ 8'b010_000_00: begin MS <= 1'b0; end
+            /* RTI */ 8'b010_000_00: begin {MS, LN} <= {5'h0, 1'b1}; end
 
         endcase
 
-        /* BRK */
+        /* BRK/RTI */
         `EXEC6: begin MS <= 1'b0; AM <= 1'b0; PC <= EADIN;  end
 
         /* Исполнение инструкции B<cc> */

@@ -103,13 +103,13 @@ reg  [1:0]  colorpad;   /* Атрибуты */
 reg  [15:0] colormap;   /* Цвета битов */
 
 /* Два дополнительных бита из ATTR секции VRAM */
-wire [1:0]  cpad = {hiclr[ {PPUY[4], PPUX[4], 1'b1} ],  /* 7|5|3|1 */
-                    hiclr[ {PPUY[4], PPUX[4], 1'b0} ]}; /* 6|4|2|0 */
+wire [1:0]  cpad = {hiclr[ {Y[4], X[4], 1'b1} ],  /* 7|5|3|1 */
+                    hiclr[ {Y[4], X[4], 1'b0} ]}; /* 6|4|2|0 */
 
 /* Текущий рисуемый цвет фона */
 wire [3:0]  curclr = {colorpad,
-                      colormap[ {PPUX[2:0], 1'b1} ],
-                      colormap[ {PPUX[2:0], 1'b0} ]};
+                      colormap[ {X[2:0], 1'b1} ],
+                      colormap[ {X[2:0], 1'b0} ]};
 
 // Транслируем в конечный цвет
 wire [3:0]  colmp = (curclr[1:0] == 2'b00) ? 4'h0 : curclr[3:0];
@@ -187,16 +187,15 @@ reg  [7:0] DBUF = 8'hFF;
 reg  [1:0] NTA;
 
 /* Текущий Nametable (0/1) */
-wire       NTBank = NTA[0] ^ NTA[1] ^ XOver ^ YOver;
+wire       NTBank = NTA[0] ^ NTA[1] ^ X[8] ^ Y[8];
 
 reg  [4:0] RegHT; // Грубый X скроллинг
 reg  [4:0] RegVT; // Грубый Y скроллинг
 reg  [3:0] RegFH; // Точный скроллинг по X
 reg  [3:0] RegFV; // Точный скроллинг по Y
-wire [5:0] ScrollX = PPUX[7:3] + RegHT;
-wire [5:0] ScrollY = PPUY[7:3] + RegVT;
-wire       XOver   = ScrollX[5];
-wire       YOver   = ScrollY[5];
+
+wire [8:0] X = PPUX[7:0] + {RegHT[4:0], RegFH[2:0]};
+wire [8:0] Y = PPUY[7:0] + {RegVT[4:0], RegFV[2:0]};
 
 /* Четная/Нечетная запись в регистры */
 reg        FIRSTW = 1; 
@@ -238,18 +237,22 @@ always @(posedge CLKPPU) begin
     // ----------------------
 
     /* Установка VBlank=1, NMI=0/1 */
-    if (PPUY == 9'd241 && PPUX == 1'b1) begin
+    if (div == 2'b01) begin // PPUX == 1 && 
+    
+        if (PPUY == 241) begin 
 
-        NMI       <= CTRL0[7];
-        VBlankPPU <= VBlankPPU ^ VBlank ^ 1'b1;
+            NMI       <= CTRL0[7];
+            VBlankPPU <= VBlankPPU ^ VBlank ^ 1'b1;
 
-    end
+        end
 
-    /* Установка VBlank=0, NMI=0 */
-    else if (PPUY == 9'd261 && PPUX == 1'b1) begin
+        /* Установка VBlank=0, NMI=0 */
+        else if (PPUY == 260) begin
 
-        NMI       <= 1'b0;
-        VBlankPPU <= VBlankPPU ^ VBlank ^ 1'b0;
+            NMI       <= 1'b0;
+            VBlankPPU <= VBlankPPU ^ VBlank ^ 1'b0;
+
+        end
 
     end
 
@@ -277,11 +280,11 @@ always @(posedge CLKPPU) begin
                 16'h2002: if (RD) begin
 
                     DOUT <= {
-                        VBlank,             /* Генерация синхроимпульса */
-                        1'b0,               /* Вывод спрайта ID=0 */
-                        1'b0,               /* =1 На линии более 8 спрайтов */
-                        (PPUY > 9'd240),    /* Разрешение записи в видеопамять */
-                        4'b0000             /* Не используется */
+                        VBlank,         /* Генерация синхроимпульса */
+                        1'b0,           /* Вывод спрайта ID=0 */
+                        1'b0,           /* =1 На линии более 8 спрайтов */
+                        (PPUY > 241),   /* Разрешение записи в видеопамять */
+                        4'b0000         /* Не используется */
                     };
 
                     /* Если был 1, перевести в 0, иначе оставить как 0 */
@@ -415,18 +418,18 @@ always @(posedge DE2X) begin
     else begin
 
         /* Прорисовка фона */
-        case (PPUX[2:0])
+        case (X[2:0])
 
             /* Прочитаем из памяти символ 8x8 */
-            3'h0: begin vaddr <= {NTBank, ScrollY[4:0], ScrollX[4:0]}; /* 32x30 */ end
+            3'h0: begin vaddr <= {NTBank, Y[7:3], X[7:3]}; /* 32x30 */ end
 
             /* Начнем чтение CHR (BA=0, CHR=00000000, B=0, Y=000} */
-            3'h1: begin faddr <= {CTRL0[4], vdata[7:0], 1'b0, PPUY[2:0]}; end
+            3'h1: begin faddr <= {CTRL0[4], vdata[7:0], 1'b0, Y[2:0]}; end
 
             /* Чтение верхней палитры знакогенератора, а также дополнительной ATTR */
-            3'h2: begin faddr <= {CTRL0[4], vdata[7:0], 1'b1, PPUY[2:0]}; 
+            3'h2: begin faddr <= {CTRL0[4], vdata[7:0], 1'b1, Y[2:0]}; 
                         chrl  <= fdata;
-                        vaddr <= {4'b1111, ScrollY[4:2], ScrollX[4:2] }; end 
+                        vaddr <= {4'b1111, Y[7:5], X[7:5] }; end 
 
             /* Палитра прочитана */
             3'h3: begin hiclr <= vdata; chrh <= fdata; end

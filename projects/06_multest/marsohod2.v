@@ -8,7 +8,7 @@ module marsohod2(
     input   wire        clk,
 
     // LED      4
-    output  wire [3:0]  led,
+    output  reg  [3:0]  led,
 
     // KEYS     2
     input   wire [1:0]  keys,
@@ -56,18 +56,25 @@ module marsohod2(
 );
 // --------------------------------------------------------------------------
 
-reg [127:0] S = 128'hF123456789ABCDEF;
+`define N 450
 
-always @(posedge clk) S <= S + 1'b1;
+reg [15:0] cnt[`N] /* synthesis preserve */;
+reg [`N-1:0] fix /* synthesis preserve */;
 
-wire [255:0] Rx = S[127:64] * S[63:0];
-// ---
-wire [191:0] Rb = Rx[255:128] ^ Rx[127:0];
-wire [95:0]  Rc = Rb[127:64]  ^ Rb[63:0];
-wire [47:0]  Rd = Rc[63:32]   ^ Rc[31:0];
-wire [23:0]  Re = Rd[31:16]   ^ Rd[15:0];
-wire [11:0]  R  = Re[15:8]    ^ Re[7:0];
+integer i;
 
-assign sdram_addr = R[11:0];
+reg [25:0] div; always @(posedge clk) div <= div + 1'b1;
+
+always @(posedge div[25]) begin
+
+    for (i = 0; i < `N-1; i = i + 1) begin
+        cnt[i] <= cnt[i] + 1'b1;
+        fix[i] <= ^cnt[i];
+    end
+    
+    led[0] <= ^fix;
+    led[3:1] <= cnt[0][2:0];
+        
+end
 
 endmodule
