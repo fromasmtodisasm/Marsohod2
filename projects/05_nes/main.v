@@ -88,6 +88,9 @@ reg  [ 7:0] fin;
 wire [ 7:0] wdata;
 wire [12:0] waddr;
 wire        vwreq;
+reg         dvram = 1'b0;
+
+always @(posedge clk) dvram <= vwreq;
 
 ppu PPU(
 

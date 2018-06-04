@@ -89,7 +89,7 @@ wire [7:0]  din = sram_route ? Dram :               /* 0000-07FF SRAM */
                   srom_route ? Drom : 8'h00;        /* 8000-FFFF ROM */
 
 always @(posedge clk) DSRAM <= CLKCPU;
-always @(posedge clk) DVRAM <= CLKPPU;
+always @(posedge clk) DVRAM <= WVREQ;
                   
 // --------------------------------------------------------------------------
 
@@ -242,7 +242,7 @@ romchr CHRROM(
 
 );
 
-/* Память программ 16 Кб (Базовыая) */
+/* Память программ 16 Кб (Базовая) */
 rom ROM(
 
     .clock    (clk),
@@ -267,7 +267,7 @@ vram VRAM(
     /* Для записи из PPU */
     .addr_wr (WADDR[10:0]),
     .data_wr (WDATA),
-    .wren    ({DVRAM, CLKPPU} == 2'b10 && WVREQ),
+    .wren    ({DVRAM, WVREQ} == 2'b11),
     .qw      (VIN),
 
 );
