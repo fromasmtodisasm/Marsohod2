@@ -108,7 +108,9 @@ wire [3:0]  curclr = {colorpad[ 1 ],
                       colormap[ {X[2:0], 1'b0} ]};
 
 // Транслируем в конечный цвет
-wire [3:0]  colmp = (curclr[1:0] == 2'b00) ? 4'h0 : curclr[3:0];
+wire [3:0]  colmp = (curclr[1:0] == 2'b00) || /* Прозрачный */
+                    (PPUX[7:3] == 0 && CTRL1[1] == 1'b0) /* Скрытие левого столбца */ ? 4'h0 : curclr[3:0];
+                    
 wire [5:0]  color = PALBG[ (x < 64 || x > 575) ? 4'h0 : colmp ];
 // ---------------------------------------------------------------------
 
@@ -192,8 +194,9 @@ reg  [4:0] RegVT; // Грубый Y скроллинг
 reg  [3:0] RegFH; // Точный скроллинг по X
 reg  [3:0] RegFV; // Точный скроллинг по Y
 
-wire [8:0] X = PPUX[7:0] + {RegHT[4:0], RegFH[2:0]};
-wire [8:0] Y = PPUY[7:0] + {RegVT[4:0], RegFV[2:0]};
+wire [8:0] Xs = PPUX[7:0] + {RegHT[4:0], RegFH[2:0]};
+wire [8:0] X  = PPUX >= (341 - 8) ? {RegHT[4:0], 3'b000} : Xs;
+wire [8:0] Y  = PPUY[7:0] + {RegVT[4:0], RegFV[2:0]};
 
 /* Четная/Нечетная запись в регистры */
 reg        FIRSTW = 1; 
@@ -398,11 +401,11 @@ always @(posedge CLKPPU) begin
 
                 case (ea[2:0])
 
-                    // +1/+32
+                    // Инкремент ADDR +1/+32 при чтении или записи
                     3'h7: if (WREQ | RD) begin
 
-                        /* Читать в буфер только если нет записи и чтения одновременно */
-                        if (!WREQ && RD && ADDR < 16'h3F00) begin                                                                                
+                        /* Читать в буфер */
+                        if (RD && ADDR < 16'h3F00) begin
                             BUFF <= (ADDR < 16'h2000 ? FIN : VIN);
                         end
                         
