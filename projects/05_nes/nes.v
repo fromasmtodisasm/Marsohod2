@@ -81,8 +81,8 @@ reg         prg_led;
 
 wire        sram_write = eawr     < 16'h2000;
 wire        sram_route = address  < 16'h2000;
+wire        ppu_route  = address >= 16'h2000 && address <= 16'h3FFF;
 wire        srom_route = address >= 16'h8000;
-wire        ppu_route  = address >= 16'h2000 && address < 16'h3FFF;
 
 wire [7:0]  din = sram_route ? Dram :               /* 0000-07FF SRAM */
                   ppu_route  ? Dppu :               /* 2000-3FFF PPU */
@@ -237,22 +237,8 @@ romchr CHRROM(
     .q       (data_frd),
     
     /* Для записи из программатора */
-    .addr_wr (WADDR),
+    .addr_wr (WADDR[12:0]),
     .qw      (FIN)
-
-);
-
-/* Память программ 16 Кб (Базовая) */
-rom ROM(
-
-    .clock    (clk),
-    .addr_rd  (address[13:0]), // 16K
-    .q        (Drom),
-        
-    /* Для записи из PPU */
-    .addr_wr (prg_addr),
-    .data_wr (prg_idata),
-    .wren    (prg_wren && prg_negedge == 2'b10),
 
 );
 
@@ -269,6 +255,20 @@ vram VRAM(
     .data_wr (WDATA),
     .wren    ({DVRAM, WVREQ} == 2'b11),
     .qw      (VIN),
+
+);
+
+/* Память программ 16 Кб (Базовая) */
+rom ROM(
+
+    .clock    (clk),
+    .addr_rd  (address[13:0]), // 16K
+    .q        (Drom),
+        
+    /* Для записи из PPU */
+    .addr_wr  (prg_addr),
+    .data_wr  (prg_idata),
+    .wren     (prg_wren && prg_negedge == 2'b10),
 
 );
 

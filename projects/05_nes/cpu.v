@@ -126,7 +126,7 @@ reg LN = 1'b1;
 always @(posedge CLK) begin
 
     /* Сброс процессора */
-    if (RESET) begin
+    if (RESET || !DKEY[0]) begin
 
         MS   <= `RST;
         WREQ <= 1'b0;

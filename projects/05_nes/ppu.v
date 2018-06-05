@@ -89,7 +89,7 @@ reg [8:0] PPUY      = 1'b0;     /* Положение Y в сканлайне [0
 /* Параметры видеоадаптера */
 reg  [ 5:0] PALBG[16];          /* Палитра фона в регистрах PPU */
 reg  [ 5:0] PALSP[16];          /* Палитра спрайтов в регистрах PPU */
-reg  [15:0] ADDR    = 16'h2000; /* Адрес внутри PPU */
+reg  [15:0] ADDR    = 16'h2055; /* Адрес внутри PPU */
 reg  [ 1:0] div     = 2'b00;    /* Формирование PPU/CPU clock */
 reg  [15:0] rgb;                /* Данные из стандартной палитры PPL */
 
@@ -101,18 +101,17 @@ reg  [7:0]  hiclr;      /* 3=[7:6] 2=[5:4] 1=[3:2] 0=[1:0] */
 reg  [1:0]  colorpad;   /* Атрибуты */
 reg  [15:0] colormap;   /* Цвета битов */
 
-/* Два дополнительных бита из ATTR секции VRAM */
-wire [1:0]  cpad = {hiclr[ {Y[4], X[4], 1'b1} ],  /* 7|5|3|1 */
-                    hiclr[ {Y[4], X[4], 1'b0} ]}; /* 6|4|2|0 */
-
 /* Текущий рисуемый цвет фона */
-wire [3:0]  curclr = {colorpad,
+wire [3:0]  curclr = {colorpad[ 1 ],
+                      colorpad[ 0 ],
                       colormap[ {X[2:0], 1'b1} ],
                       colormap[ {X[2:0], 1'b0} ]};
 
 // Транслируем в конечный цвет
-wire [3:0]  colmp = (curclr[1:0] == 2'b00) ? 4'h0 : curclr[3:0];
-wire [5:0]  color = PALBG[ (x < 64 || x > 575) ? 4'h0 : colmp ];
+wire [3:0]  colmp = (curclr[1:0] == 2'b00) || /* Прозрачный */
+                    (PPUX[7:3] == 0 && CTRL1[1] == 1'b0) /* Скрытие левого столбца */ ? 4'h0 : curclr[3:0];
+                    
+wire [5:0]  color = PALBG[ (x < 64+16 || x >= 575) ? 4'h0 : colmp ];
 // ---------------------------------------------------------------------
 
 /* Флаг VBlank */
@@ -129,10 +128,10 @@ initial begin
     NMI    = 1'b0;
     WADDR  = 16'h0000;
 
-    /* 0 */  PALBG[0]  = 6'h38; // 12
-    /* 1 */  PALBG[1]  = 6'h30; // 16
-    /* 2 */  PALBG[2]  = 6'h16; // 30
-    /* 3 */  PALBG[3]  = 6'h12; // 38
+    /* 0 */  PALBG[0]  = 6'h12; // 12
+    /* 1 */  PALBG[1]  = 6'h16; // 16
+    /* 2 */  PALBG[2]  = 6'h30; // 30
+    /* 3 */  PALBG[3]  = 6'h38; // 38
     /* 4 */
     /* 5 */  PALBG[5]  = 6'h17;
     /* 6 */  PALBG[6]  = 6'h26;
@@ -180,13 +179,13 @@ reg [7:0]  CTRL1  = 8'b000_11_00_0;
 reg [7:0]  SPRADR = 8'h0;
 
 /* Буфер VRAM */
-reg  [7:0] DBUF = 8'hFF;
+reg  [7:0] BUFF = 8'hFF;
 
 /* Nametable по умолчанию */
 reg  [1:0] NTA;
 
 /* Текущий Nametable (0/1) */
-wire       NTBank = NTA[0] ^ NTA[0] ^ X[8] /* ^ Y[8] */ ^ RegH ^ RegV; // HMirror=0 у Денди
+wire       NTBank = NTA[0] ^ NTA[0] ^ X[8] ^ Y[8] ^ RegH ^ RegV; // HMirror=0 у большинства
 
 reg        RegH = 1'b0;
 reg        RegV = 1'b0;
@@ -195,8 +194,8 @@ reg  [4:0] RegVT; // Грубый Y скроллинг
 reg  [3:0] RegFH; // Точный скроллинг по X
 reg  [3:0] RegFV; // Точный скроллинг по Y
 
-wire [8:0] X = PPUX[7:0] + {RegHT[4:0], RegFH[2:0]};
-wire [8:0] Y = PPUY[7:0] + {RegVT[4:0], RegFV[2:0]};
+wire [8:0] X  = PPUX[7:0] + {RegHT[4:0], RegFH[2:0]};
+wire [8:0] Y  = PPUY[7:0] + {RegVT[4:0], RegFV[2:0]};
 
 /* Четная/Нечетная запись в регистры */
 reg        FIRSTW = 1; 
@@ -213,7 +212,7 @@ always @(posedge CLK25) begin
 
     /* Пропуск 64 тактов (25 Mhz), потом 341T по 2T на частоте 25 Мгц */
     /* -16 для того, чтобы PPU успел подготовить данные. 525-я линия Y не используется */
-    else if (x > (64 - 16) && x <= (746 - 16)) DE2X <= ~DE2X;
+    else if (x >= (64 - 16) && x < (746 - 16)) DE2X <= ~DE2X; // 16
 
 end
 
@@ -363,30 +362,30 @@ always @(posedge CLKPPU) begin
                             WADDR <= ADDR;
 
                             /* Писать можно только в VRAM (исключая палитру) */
-                            if (ADDR >= 16'h2000 && ADDR < 16'h3F00) begin
-                                WDATA <= din;
-                            end
+                            if (ADDR < 16'h3F00) begin WDATA <= din; end
 
                             /* Палитра фона */
-                            else if (ADDR >= 16'h3F00 && ADDR < 16'h3F10) begin
-                                PALBG[ ADDR[3:0] ] <= din[5:0];
-                            end
+                            else if (ADDR < 16'h3F10) begin PALBG[ ADDR[3:0] ] <= din[5:0]; end
 
                             /* Палитра спрайтов */
-                            else if (ADDR >= 16'h3F10 && ADDR < 16'h3F20) begin
-                                PALSP[ ADDR[3:0] ] <= din[5:0];
-
-                            end
+                            else if (ADDR < 16'h3F20) begin PALSP[ ADDR[3:0] ] <= din[5:0]; end
 
                         end 
                         /* Прочитать из памяти */
                         else if (RD) begin
 
-                            WADDR <= ADDR;
-                            DOUT  <= DBUF; /* Используется операционный буфер */
-                            DBUF  <= (ADDR >= 16'h2000 ? VIN : FIN);
-
-                            // @todo READ PAL
+                            // Чтение данных
+                            if (ADDR < 16'h3F00) begin                            
+                                WADDR <= ADDR;
+                                DOUT  <= BUFF;
+                            end
+                            // Читать палитру
+                            else if (ADDR < 16'h3F10) begin
+                                DOUT <= PALBG[ ADDR[3:0] ];
+                            end
+                            else if (ADDR < 16'h3F20) begin
+                                DOUT <= PALSP[ ADDR[3:0] ];
+                            end
                             
                         end
 
@@ -401,9 +400,14 @@ always @(posedge CLKPPU) begin
 
                 case (ea[2:0])
 
-                    // +1/+32
+                    // Инкремент ADDR +1/+32 при чтении или записи
                     3'h7: if (WREQ | RD) begin
 
+                        /* Читать в буфер */
+                        if (RD && ADDR < 16'h3F00) begin
+                            BUFF <= (ADDR < 16'h2000 ? FIN : VIN);
+                        end
+                        
                         ADDR <= ADDR + (CTRL0[2] ? 6'h20 : 1'b1);
 
                     end
@@ -450,8 +454,8 @@ always @(posedge DE2X) begin
 
             /* Чтение верхней палитры знакогенератора, а также дополнительной ATTR */
             3'h2: begin faddr <= {CTRL0[4], vdata[7:0], 1'b1, Y[2:0]}; 
-                        chrl  <= fdata;
-                        vaddr <= {4'b1111, Y[7:5], X[7:5] }; end 
+                        vaddr <= {NTBank, 4'b1111, Y[7:5], X[7:5] }; 
+                        chrl  <= fdata; end
 
             /* Палитра прочитана */
             3'h3: begin hiclr <= vdata; chrh <= fdata; end
@@ -460,16 +464,16 @@ always @(posedge DE2X) begin
 
             /* Результат */
             3'h7: begin
-
+            
                 /* Старшие цвета пикселей */
-                colorpad <= cpad;
+                colorpad <= {hiclr[ {Y[4], X[4], 1'b1} ],  /* 7|5|3|1 */
+                             hiclr[ {Y[4], X[4], 1'b0} ]}; /* 6|4|2|0 */
 
                 /* Нижние цвета пикселей */
                 colormap <= {/* BIT 7 */ chrh[0], chrl[0], /* BIT 6 */ chrh[1], chrl[1],
                              /* BIT 5 */ chrh[2], chrl[2], /* BIT 4 */ chrh[3], chrl[3],
                              /* BIT 3 */ chrh[4], chrl[4], /* BIT 2 */ chrh[5], chrl[5],
                              /* BIT 1 */ chrh[6], chrl[6], /* BIT 0 */ chrh[7], chrl[7]};
-
             end
 
         endcase
