@@ -1,21 +1,21 @@
 [*]
 [*] GTKWave Analyzer v3.3.82 (w)1999-2017 BSI
-[*] Wed Jun  6 10:05:44 2018
+[*] Wed Jun  6 15:44:33 2018
 [*]
 [dumpfile] "/home/fox/Data/Project/fpga/Marsohod2/projects/05_nes/nes.vcd"
-[dumpfile_mtime] "Wed Jun  6 10:02:52 2018"
-[dumpfile_size] 505359
+[dumpfile_mtime] "Wed Jun  6 15:43:49 2018"
+[dumpfile_size] 204908
 [savefile] "/home/fox/Data/Project/fpga/Marsohod2/projects/05_nes/debug.gtkw"
-[timestart] 0
+[timestart] 5246
 [size] 1920 1033
 [pos] -1 -1
-*-7.000000 65830 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-7.000000 5820 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] main.
 [treeopen] main.CPU.
 [sst_width] 219
 [signals_width] 185
 [sst_expanded] 1
-[sst_vpaned_height] 318
+[sst_vpaned_height] 321
 @28
 [color] 2
 main.clk
@@ -72,45 +72,94 @@ main.CPU.P[7:0]
 main.CPU.PC[15:0]
 @1000200
 -Regs
-@c00200
+@800200
 -PPU
 @22
 main.PPU.ADDR[15:0]
 @28
-main.PPU.CLKCPU
-main.PPU.CLKPPU
 main.PPU.div[1:0]
-@22
-main.PPU.ea[15:0]
-@28
 main.PPU.RD
 main.PPU.WREQ
-main.PPU.WVREQ
-@1401200
+@22
+main.PPU.DOUT[7:0]
+@1000200
 -PPU
 @22
-main.PPU.x[9:0]
-main.PPU.y[9:0]
-@28
-main.PPU.DE2X
-@22
+main.PPU.SRD[7:0]
+main.PPU.SAR[7:0]
 main.PPU.X[8:0]
+@28
+main.PPU.SpHit
+@22
+main.PPU.SRD[7:0]
+main.PPU.SAR[7:0]
+main.PPU.ns[3:0]
+@c00023
+main.PPU.spt1[31:0]
+@28
+(0)main.PPU.spt1[31:0]
+(1)main.PPU.spt1[31:0]
+(2)main.PPU.spt1[31:0]
+(3)main.PPU.spt1[31:0]
+(4)main.PPU.spt1[31:0]
+(5)main.PPU.spt1[31:0]
+(6)main.PPU.spt1[31:0]
+(7)main.PPU.spt1[31:0]
+(8)main.PPU.spt1[31:0]
+(9)main.PPU.spt1[31:0]
+(10)main.PPU.spt1[31:0]
+(11)main.PPU.spt1[31:0]
+(12)main.PPU.spt1[31:0]
+(13)main.PPU.spt1[31:0]
+(14)main.PPU.spt1[31:0]
+(15)main.PPU.spt1[31:0]
+(16)main.PPU.spt1[31:0]
+(17)main.PPU.spt1[31:0]
+(18)main.PPU.spt1[31:0]
+(19)main.PPU.spt1[31:0]
+(20)main.PPU.spt1[31:0]
+(21)main.PPU.spt1[31:0]
+(22)main.PPU.spt1[31:0]
+(23)main.PPU.spt1[31:0]
+(24)main.PPU.spt1[31:0]
+(25)main.PPU.spt1[31:0]
+(26)main.PPU.spt1[31:0]
+(27)main.PPU.spt1[31:0]
+(28)main.PPU.spt1[31:0]
+(29)main.PPU.spt1[31:0]
+(30)main.PPU.spt1[31:0]
+(31)main.PPU.spt1[31:0]
+@1401201
+-group_end
+@28
+main.PPU.SpInit
+@22
+main.PPU.HitLine[7:0]
 main.PPU.Y[8:0]
-main.PPU.PPUX[8:0]
-main.PPU.PPUY[8:0]
-main.PPU.colormap[15:0]
+@c00022
+main.PPU.faddr[12:0]
 @28
-main.PPU.colorpad[1:0]
+(0)main.PPU.faddr[12:0]
+(1)main.PPU.faddr[12:0]
+(2)main.PPU.faddr[12:0]
+(3)main.PPU.faddr[12:0]
+(4)main.PPU.faddr[12:0]
+(5)main.PPU.faddr[12:0]
+(6)main.PPU.faddr[12:0]
+(7)main.PPU.faddr[12:0]
+(8)main.PPU.faddr[12:0]
+(9)main.PPU.faddr[12:0]
+(10)main.PPU.faddr[12:0]
+(11)main.PPU.faddr[12:0]
+(12)main.PPU.faddr[12:0]
+@1401200
+-group_end
 @22
-main.PPU.color[5:0]
+main.PPU.YVert[3:0]
+main.PPU.SpIcon[7:0]
 @28
-main.PPU.DMA
-main.CPU.CE
+main.PPU.SpId[2:0]
 @22
-main.curaddr[15:0]
-@28
-main.PPU.OAMW
-@23
-main.PPU.DATAIN[7:0]
+main.PPU.fdata[7:0]
 [pattern_trace] 1
 [pattern_trace] 0

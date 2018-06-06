@@ -130,18 +130,22 @@ wire [ 7:0] WDATA;
 wire [15:0] WADDR;
 wire        WVREQ;
 wire        RD;
+wire [7:0]  SAR;
+wire [7:0]  SRD;
 
 ppu PPU(
     
     .CLK25  (div[1]),
     .RESET  (prg_enable),
+    
+    /* Видеовыход VGA */
     .red    (vga_red),
     .green  (vga_green),
     .blue   (vga_blue),
     .hs     (vga_hs),
     .vs     (vga_vs),
     
-    /* Тактовые частоты */
+    /* Исходящие тактовые частоты */
     .CLKPPU (CLKPPU),
     .CLKCPU (CLKCPU),
     
@@ -160,12 +164,14 @@ ppu PPU(
     .WADDR  (WADDR),    /* Адрес к VRAM */
     .WDATA  (WDATA),    /* Данные для записи в VRAM */
     .NMI    (NMI),
-    .DMA    (DMA),
     
-    /* DMA */
+    /* Спрайты и DMA */
+    .DMA    (DMA),
     .OAMW   (OAMW),
-    .DATAIN (din),      /* Из памяти */
+    .DATAIN (din),      /* Из памяти CPU */
     .SPIN   (spin),     /* Из памяти OAM */
+    .SAR    (SAR),      /* Адрес памяти OAM 2-й порт */
+    .SRD    (SRD),      /* Данные */
     
     /* Знакогенератор */
     .faddr  (addr_frd), /* Адрес CHR-ROM */
@@ -300,5 +306,20 @@ sram SRAM(
 
 );
 
+/* Память для спрайтов */
+oam OAM(
+
+    /* Чтение */
+    .clock   (clk),
+    .addr_rd (SAR),
+    .q       (SRD),
+    
+    /* Запись */
+    .addr_wr (WADDR[7:0]),
+    .data_wr (WDATA),
+    .wren    (OAMW),
+    .qw      (spin)
+
+);
 
 endmodule

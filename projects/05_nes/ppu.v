@@ -40,10 +40,14 @@ module ppu(
     input   wire        RD,         /* Действие чтения из памяти */
     input   wire        WREQ,       /* Запрос на запись в PPU */
     output  reg  [ 7:0] DOUT,       /* Выход данных из PPU */
+
+    /* DMA запросы */
     output  reg         DMA,        /* Сигнал DMA: отключение процессора */
     output  reg         OAMW,       /* Запрос на запись в OAM (WADDR / WDATA) */
     input   wire [7:0]  DATAIN,     /* Чтение из общей памяти */
     input   wire [7:0]  SPIN,       /* Чтение из адреса спрайтов (WADDR) */
+    output  reg  [7:0]  SAR,        /* Запрос на чтение из 2-го порта */
+    input   wire [7:0]  SRD,        /* Данные из порта 2 спрайтов */
 
     /* NMI сигнал */
     output  reg         NMI,         /* Выход NMI */
@@ -91,12 +95,14 @@ reg [8:0] PPUX      = 1'b0;     /* Положение X в сканлайне [0
 reg [8:0] PPUY      = 1'b0;     /* Положение Y в сканлайне [0..261]=262T */
 
 /* Параметры видеоадаптера */
-reg  [ 5:0] PALBG[16];          /* Палитра фона в регистрах PPU */
-reg  [ 5:0] PALSP[16];          /* Палитра спрайтов в регистрах PPU */
-reg  [15:0] ADDR    = 16'h2055; /* Адрес внутри PPU */
+reg         odd = 1'b0;         /* Для DMA */
 reg  [ 1:0] div     = 2'b00;    /* Формирование PPU/CPU clock */
 reg  [15:0] rgb;                /* Данные из стандартной палитры PPL */
-reg         odd = 1'b0;         /* Для DMA */
+reg  [15:0] ADDR    = 16'h2000; /* Адрес памяти в PPU */
+
+/* Палитры в регистрах PPU */
+reg  [ 5:0] PALBG[16];          /* Палитра фона */
+reg  [ 5:0] PALSP[16];          /* Палитра спрайтов */
 
 /* Данные для рендеринга */
 // ---------------------------------------------------------------------
@@ -134,6 +140,17 @@ initial begin
     WADDR  = 16'h0000;
     DMA    = 1'b0;
     OAMW   = 1'b0;
+    SAR    = 1'b0;
+    
+    /* Инициалиазация буфера спрайтов */
+    Sprites[0] = 32'h0;
+    Sprites[1] = 32'h0;
+    Sprites[2] = 32'h0;
+    Sprites[3] = 32'h0;
+    Sprites[4] = 32'h0;
+    Sprites[5] = 32'h0;
+    Sprites[6] = 32'h0;
+    Sprites[7] = 32'h0;
 
     /* 0 */  PALBG[0]  = 6'h12; // 12
     /* 1 */  PALBG[1]  = 6'h16; // 16
@@ -204,6 +221,39 @@ reg  [3:0] RegFV = 4'h0; // Точный скроллинг по Y
 // Сделано -8 для того, чтобы за 16 пикселей прошел полностью инициализацию сканлайна
 wire [8:0] X = PPUX[8:0] + {RegHT[4:0], RegFH[2:0]} - 8;
 wire [8:0] Y = PPUY[8:0] + {RegVT[4:0], RegFV[2:0]};
+
+/* Управление спрайтами */
+wire       SpInit  = (X[8:3] == 1'b0); /* Для сброса и инициализации счетчика спрайтов */
+reg  [7:0] HitLine = 8'h00;                 /* Попадания спрайтов в кадр */
+reg        SpHit   = 1'b0;                  /* Попадает ли текущий спрайт в кадр? */
+reg  [3:0] ns      = 1'b0;                  /* Счетчик спрайтов */
+
+/* Номер обрабатываемого спрайта из буфера */
+wire [4:0] SpIdTX   = X - 16'h108;          
+wire [2:0] SpId     = SpIdTX[4:2];
+
+/* ID иконки */
+wire [7:0] SpIcon   = Sprites[ SpId ][ 15:8 ]; 
+
+/* Этап вычисления битовых масок */
+wire       VMirror = Sprites[ SpId ][ 16 + 7 ]; /* Отражение по вертикали?   */ 
+wire       HMirror = Sprites[ SpId ][ 16 + 6 ]; /* Отражение по горизонтали? */ 
+
+/* Учет Diff с вертикальным отражением */
+wire [3:0] Ydiff   = Sprites[ SpId ][ 27:24 ];
+wire [3:0] YVert   = VMirror ? ((CTRL0[5] ? 15 : 7) - Ydiff) : Ydiff;
+wire [7:0] FMirr   = HMirror ? {fdata[0],fdata[1],fdata[2],fdata[3],fdata[4],fdata[5],fdata[6],fdata[7]} : fdata[7:0];
+
+/* Данные по спрайтам (буфер) */
+/*   7:0 X
+    15:8 Icon / LowBit
+   23:16 Attr
+   31:24 HighBit / YDiff */
+
+reg [31:0] Sprites[8];                      
+
+/* Расчет попадания текущего Y в сканлайн */
+wire       SpCalcHit = (Y >= SRD && SRD < (Y + CTRL0[5] ? 16 : 8));
 
 /* Четная/Нечетная запись в регистры */
 reg        FIRSTW = 1;
@@ -360,7 +410,7 @@ always @(posedge CLKPPU) begin
                     3'h3: if (WREQ) SADDR <= din;
 
                     /* r/w Операция записи/чтения в память спрайтов */
-                    3'h4: if (RD | WREQ) WADDR <= SADDR;
+                    3'h4: if (RD | WREQ) begin WADDR <= SADDR; WDATA <= din; end
 
                     /* w/o(2) Установка данных о скроллинге */
                     3'h5: if (WREQ) begin
@@ -482,12 +532,13 @@ always @(posedge CLKPPU) begin
     else begin
 
         WVREQ <= 1'b0;
-        
+
     end
 end
 
 /* ~ 5,3675 Mhz: PPUX=[0..340], PPUY=[0..261] */
 // -----------------------------------------------------------------
+wire [31:0] spt1 = Sprites[0];
 
 always @(posedge DE2X) begin
 
@@ -500,10 +551,101 @@ always @(posedge DE2X) begin
 
     end
 
-    /* При рендеринге, vaddr / faddr заняты */
-    else begin
+    /* Процедура заполнения атрибутами 8 спрайтов */
+    // -----------------------------------------------------------------
+    
+    /* Невидимая область (горизонтальное гашение луча) */
+    if (X >= 16'h108) begin 
+    
+        /* 4 запроса на 8 спрайтов = 32 */
+        if (X < 16'h108 + 32) case (X[1:0])
+                    
+            3'h0: begin 
 
-        /* Прорисовка фона */
+                if (CTRL0[5])
+                /* 8x16 */ faddr <= {SpIcon[0], SpIcon[7:1], YVert[3], 1'b0, YVert[2:0]};
+                else 
+                /* 8x8  */ faddr <= {CTRL0[3],  SpIcon[7:0],           1'b0, YVert[2:0]};
+            
+            end
+            
+            /* Пишем битовую маску */
+            3'h1: begin Sprites[ SpId ][ 15:8 ]  <= FMirr; faddr[3] <= 1'b1; end
+            3'h2: begin Sprites[ SpId ][ 31:24 ] <= FMirr; end        
+        
+        endcase
+    
+    end
+    
+    /* Прорисовка фона и спрайтов */
+    // -----------------------------------------------------------------
+    
+    else begin
+    
+        case (X[1:0])
+
+            /* Сброс на начало OAM, и счетчиков набранных спрайтов в буфере */
+            /* +0 Читается Y четного спрайта */
+            2'h0: begin
+            
+                if (SpInit) begin SAR <= 1'b0; ns <= 4'h0; SpHit <= 1'b0; HitLine <= 8'h00; end                
+                else begin
+                
+                    /* Сверяется, попадает ли спрайт в сканлайн и не overflow */
+                    if (SpCalcHit & !ns[3]) begin
+                    
+                        /* Спрайт виден */
+                        SpHit <= 1'b1;
+                        
+                        /* Запись Diff для расчета битов по Y */
+                        Sprites[ ns[2:0] ][ 31:24 ] <= Y - SRD; 
+                        
+                    /* Спрайт не виден */                        
+                    end else SpHit <= 1'b0; 
+
+                    SAR <= SAR + 1'b1;
+                
+                end
+            
+            end
+            
+            /* +1 Загружаем в память иконку спрайта */
+            2'h1: if (!SpInit) begin 
+            
+                if (SpHit) Sprites[ ns[2:0] ][15:8] <= SRD;
+                SAR <= SAR + 1'b1; 
+                          
+            end
+            
+            /* +2 Запись атрибутов спрайта */
+            3'h2: if (!SpInit) begin
+                
+                if (SpHit) Sprites[ ns[2:0] ][23:16] = SRD; 
+                SAR <= SAR + 1'b1;
+            
+            end
+            
+            /* +3 Запись X */
+            3'h3: if (!SpInit) begin
+                                        
+                if (SpHit) begin
+                
+                    Sprites[ ns[2:0] ][7:0] <= SRD;  
+                    
+                    /* Пишем информацию о том, что спрайт попал в сканлайн */
+                    HitLine[ ns[2:0] ] <= 1'b1;                  
+                                        
+                    /* Переход к следующему спрайту */
+                    ns <= ns[3] ? {4'b1000} : ns + 1'b1;
+
+                end
+                
+                SAR <= SAR + 1'b1;
+
+            end            
+    
+        endcase
+
         case (X[2:0])
 
             // -------------------------------------------------------------------
@@ -515,15 +657,12 @@ always @(posedge DE2X) begin
                         vaddr <= {NTBank, 4'b1111, Y[7:5], X[7:5] }; end
 
             /* Чтение верхней палитры знакогенератора, а также дополнительной ATTR */
-            3'h2: begin faddr[3] <= 1'b1;
-                        chrl     <= fdata;
-                        hiclr    <= vdata; end
+            3'h2: begin faddr[3] <= 1'b1; chrl <= fdata; hiclr <= vdata; end
 
-            /* Палитра прочитана */
-            3'h3: begin chrh <= fdata; end /* todo запрос спрайта */
+            /* Прочитаны старшие биты цветов фона */
+            3'h3: begin chrh <= fdata; end                                
+            
             // -------------------------------------------------------------------
-
-            // 4,5,6,7 -- поиск спрайтов на будущий сканлайн
 
             /* Результат */
             3'h7: begin
