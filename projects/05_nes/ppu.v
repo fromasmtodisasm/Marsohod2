@@ -123,7 +123,12 @@ wire [3:0]  colmp = (curclr[1:0] == 2'b00) || /* Прозрачный */
                     (x < (64 + 16) && CTRL1[1] == 1'b0) /* Скрытие левого столбца */ ? 4'h0 : curclr[3:0];
 
 // Выбор финального цвета с учетом спрайтов
-wire [5:0]  color = (x < 64 || x >= 575) ? (final_color[4] ? PALBG[ final_color[3:0] ] : PALSP[ final_color[3:0] ]) : PALBG[0];
+wire [5:0]  color = (x < 64 || x >= 575 || CTRL1[3] == 1'b0) ? /* Отображается ли фон? */
+            PALBG[0] : /* Прозрачный */
+            (final_color[4] ? 
+                PALSP[ final_color[3:0] ] : /* Спрайт */
+                PALBG[ final_color[3:0] ]   /* Фон */
+            );
 // ---------------------------------------------------------------------
 
 /* Флаг VBlank */
@@ -228,6 +233,7 @@ wire [8:0] Y = PPUY[8:0] + {RegVT[4:0], RegFV[2:0]};
 // ---------------------------------------------------------------------
 
 reg [31:0] Sprites[8];
+reg [31:0] SpritesLatch[8];
 
 /* Данные по спрайтам (буфер) */
 /*   7:0 X
@@ -235,13 +241,13 @@ reg [31:0] Sprites[8];
    23:16 Attr
    31:24 HighBit / YDiff */
 
-wire       SpInit  = (X[8:3] == 1'b0);      /* Для сброса и инициализации счетчика спрайтов */
 reg        SpHit   = 1'b0;                  /* Попадает ли текущий спрайт в кадр? */
 reg  [3:0] ns      = 1'b0;                  /* Счетчик спрайтов */
-reg  [7:0] HitLine = 8'h00;                 /* Попадания спрайтов в кадр */
+reg  [7:0] HitLine  = 8'h00;                /* Попадания спрайтов в кадр */
+reg  [7:0] HitLatch = 8'h00;                /* Кеш линии попаданий */
 
 /* Номер обрабатываемого спрайта из буфера */
-wire [4:0] SpIdTX  = X - 16'h108;
+wire [4:0] SpIdTX  = PPUX - 16'h110;
 wire [2:0] SpId    = SpIdTX[4:2];
 
 /* ID иконки */
@@ -256,8 +262,8 @@ wire [3:0] Ydiff   = Sprites[ SpId ][ 27:24 ];
 wire [3:0] YVert   = VMirror ? ((CTRL0[5] ? 15 : 7) - Ydiff) : Ydiff;
 wire [7:0] FMirr   = HMirror ? {fdata[0],fdata[1],fdata[2],fdata[3],fdata[4],fdata[5],fdata[6],fdata[7]} : fdata[7:0];
 
-/* Расчет попадания текущего Y в сканлайн */
-wire       SpCalcHit = (Y >= SRD && SRD < (Y + CTRL0[5] ? 16 : 8));
+// Проверка на попадание в ранг Y
+wire SpTest = (SRD <= PPUY) && (PPUY < SRD + (CTRL0[5] ? 16 : 8));
 
 // Тайминги PPU 341 x 262 линии
 // https://wiki.nesdev.com/w/index.php/Clock_rate (NTSC)
@@ -537,7 +543,6 @@ end
 
 /* ~ 5,3675 Mhz: PPUX=[0..340], PPUY=[0..261] */
 // -----------------------------------------------------------------
-wire [31:0] spt1 = Sprites[0];
 
 always @(posedge DE2X) begin
 
@@ -545,10 +550,10 @@ always @(posedge DE2X) begin
     // -----------------------------------------------------------------
 
     /* Невидимая область (горизонтальное гашение луча) */
-    if (X >= 16'h108) begin
+    if (PPUX >= 16'h110) begin
 
         /* 4 запроса на 8 спрайтов = 32 */
-        if (X < 16'h108 + 32) case (X[1:0])
+        if (PPUX < 16'h110 + 32) case (PPUX[1:0])
 
             3'h0: begin
 
@@ -572,35 +577,56 @@ always @(posedge DE2X) begin
 
     else begin
 
-        case (X[1:0])
+        // Init
+        if (PPUX == 0) begin
+        
+            HitLatch <= HitLine;
+
+            // Спрайты на следующую линию
+            SpritesLatch[0] <= Sprites[0];
+            SpritesLatch[1] <= Sprites[1];
+            SpritesLatch[2] <= Sprites[2];
+            SpritesLatch[3] <= Sprites[3];
+            SpritesLatch[4] <= Sprites[4];
+            SpritesLatch[5] <= Sprites[5];
+            SpritesLatch[6] <= Sprites[6];
+            SpritesLatch[7] <= Sprites[7];
+            
+            HitLine  <= 8'h00;
+        
+        end
+        else if (PPUX < 8) begin 
+        
+            SAR     <= 1'b0; 
+            ns      <= 4'h0; 
+
+        end
+        
+        // Расчет спрайтов
+        else if (PPUX < 16'h108) case (PPUX[1:0])
 
             /* Сброс на начало OAM, и счетчиков набранных спрайтов в буфере */
             /* +0 Читается Y четного спрайта */
             2'h0: begin
 
-                if (SpInit) begin SAR <= 1'b0; ns <= 4'h0; SpHit <= 1'b0; HitLine <= 8'h00; end
-                else begin
+                /* Сверяется, попадает ли спрайт в сканлайн и не overflow */
+                if (SpTest && !ns[3]) begin
 
-                    /* Сверяется, попадает ли спрайт в сканлайн и не overflow */
-                    if (SpCalcHit & !ns[3]) begin
+                    /* Спрайт виден */
+                    SpHit <= 1'b1;
 
-                        /* Спрайт виден */
-                        SpHit <= 1'b1;
+                    /* Запись Diff для расчета битов по Y */
+                    Sprites[ ns[2:0] ][ 31:24 ] <= (PPUY - SRD);
 
-                        /* Запись Diff для расчета битов по Y */
-                        Sprites[ ns[2:0] ][ 31:24 ] <= Y - SRD;
+                /* Спрайт не виден */
+                end else SpHit <= 1'b0;
 
-                    /* Спрайт не виден */
-                    end else SpHit <= 1'b0;
-
-                    SAR <= SAR + 1'b1;
-
-                end
+                SAR <= SAR + 1'b1;
 
             end
 
             /* +1 Загружаем в память иконку спрайта */
-            2'h1: if (!SpInit) begin
+            2'h1: begin
 
                 if (SpHit) Sprites[ ns[2:0] ][15:8] <= SRD;
                 SAR <= SAR + 1'b1;
@@ -608,7 +634,7 @@ always @(posedge DE2X) begin
             end
 
             /* +2 Запись атрибутов спрайта */
-            3'h2: if (!SpInit) begin
+            2'h2: begin
 
                 if (SpHit) Sprites[ ns[2:0] ][23:16] = SRD;
                 SAR <= SAR + 1'b1;
@@ -616,7 +642,7 @@ always @(posedge DE2X) begin
             end
 
             /* +3 Запись X */
-            3'h3: if (!SpInit) begin
+            2'h3: begin
 
                 if (SpHit) begin
 
@@ -724,26 +750,28 @@ end
 // Пересчет всех спрайтов
 wire [4:0] scolor[8];
 wire [4:0] final_color = scolor[7][4:0];
+wire [8:0] SPRX = PPUX - 16;
 
 // Спрайт 1
 evaluator Sprite1(
 
-    Sprites[0],     /* .sprite */
-    HitLine[0],     /* .valid */
-    {1'b0, colmp},  /* .bg */
-    X,              /* .x */
-    scolor[0]       /* .color */
+    HitLatch[0],     /* .valid */
+    SpritesLatch[0], /* .sprite */
+    {1'b0, colmp},   /* .bg */
+    SPRX,            /* .x */
+    scolor[0],       /* .color */
+    CTRL1    
 
 );
 
 // Спрайт 2-8
-evaluator Sprite2( Sprites[1], HitLine[1], scolor[0], X, scolor[1]);
-evaluator Sprite3( Sprites[2], HitLine[2], scolor[1], X, scolor[2]);
-evaluator Sprite4( Sprites[3], HitLine[3], scolor[2], X, scolor[3]);
-evaluator Sprite5( Sprites[4], HitLine[4], scolor[3], X, scolor[4]);
-evaluator Sprite6( Sprites[5], HitLine[5], scolor[4], X, scolor[5]);
-evaluator Sprite7( Sprites[6], HitLine[6], scolor[5], X, scolor[6]);
-evaluator Sprite8( Sprites[7], HitLine[7], scolor[6], X, scolor[7]);
+evaluator Sprite2( HitLatch[1], SpritesLatch[1], scolor[0], SPRX, scolor[1], CTRL1);
+evaluator Sprite3( HitLatch[2], SpritesLatch[2], scolor[1], SPRX, scolor[2], CTRL1);
+evaluator Sprite4( HitLatch[3], SpritesLatch[3], scolor[2], SPRX, scolor[3], CTRL1);
+evaluator Sprite5( HitLatch[4], SpritesLatch[4], scolor[3], SPRX, scolor[4], CTRL1);
+evaluator Sprite6( HitLatch[5], SpritesLatch[5], scolor[4], SPRX, scolor[5], CTRL1);
+evaluator Sprite7( HitLatch[6], SpritesLatch[6], scolor[5], SPRX, scolor[6], CTRL1);
+evaluator Sprite8( HitLatch[7], SpritesLatch[7], scolor[6], SPRX, scolor[7], CTRL1);
 
 /* Преобразования номера цвета палитры в реальный */
 always @* case (color)

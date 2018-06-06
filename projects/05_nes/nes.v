@@ -88,7 +88,7 @@ wire [15:0] curaddr = DMA ? WADDR : address;
 
 wire        sram_write = eawr     < 16'h2000;
 wire        sram_route = curaddr  < 16'h2000;
-wire        ppu_route  = curaddr >= 16'h2000 && address <= 16'h3FFF;
+wire        ppu_route  = curaddr >= 16'h2000 && curaddr <= 16'h3FFF;
 wire        srom_route = curaddr >= 16'h8000;
 
 wire [7:0]  din = sram_route ? Dram :               /* 0000-07FF SRAM */
@@ -281,7 +281,7 @@ vram VRAM(
 rom ROM(
 
     .clock    (clk),
-    .addr_rd  (address[13:0]), // 16K
+    .addr_rd  (curaddr[13:0]), // 16K
     .q        (Drom),
         
     /* Для записи из PPU */
@@ -296,7 +296,7 @@ sram SRAM(
 
     /* Чтение */
     .clock    (clk),
-    .addr_rd  (address[10:0]), // 2K
+    .addr_rd  (curaddr[10:0]), // 2K
     .q        (Dram),
     
     /* Запись на обратном фронте CPU в память */
