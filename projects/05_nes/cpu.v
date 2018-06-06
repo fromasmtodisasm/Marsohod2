@@ -134,8 +134,8 @@ always @(posedge CLK) begin
 
     end
 
-    /* Нормальное исполнение */
-    else case (MS)
+    /* Нормальное исполнение: если CE=1 */
+    else if (CE) case (MS)
 
         /* ИНИЦИАЛИЗАЦИЯ */
         4'h0: begin
@@ -367,6 +367,12 @@ always @(posedge CLK) begin
 
     endcase
 
+    /* Отключение записи для DMA */
+    else begin
+    
+        WREQ <= 1'b0;
+    
+    end
 end
 
 /* Подготовка данных на этапах исполнения */

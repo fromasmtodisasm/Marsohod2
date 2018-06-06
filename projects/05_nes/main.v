@@ -7,7 +7,7 @@ module main;
 reg         clk;
 always #0.5 clk = ~clk;
 
-initial begin clk = 1; #4000 $finish; end
+initial begin clk = 1; #8000 $finish; end
 initial begin $dumpfile("nes.vcd"); $dumpvars(0, main); end
 
 wire [4:0]  red;
@@ -18,8 +18,11 @@ wire        vs;
 wire        rd;
 wire [15:0] address;
 wire [15:0] ea;
+
 wire [7:0]  dout;
 reg  [7:0]  i_data;
+reg  [7:0]  spin;
+
 wire        wreq;
 wire        ppuclk;
 wire        cpuclk;
@@ -28,6 +31,7 @@ wire [7:0]  DEBUG;
 wire [7:0]  DEBUGPPU;
 wire [1:0]  KEYS;
 wire        reset = 1'b0;
+wire        oamw;
 reg         DVRAM;
 
 // Внутрисхемная память
@@ -35,6 +39,7 @@ reg         DVRAM;
 reg [ 7:0] sram[65536]; 
 reg [ 7:0] vram[2048]; /* Видеопамять */
 reg [ 7:0] crom[8192]; /* CHR-ROM */
+reg [ 7:0]  oam[256]; 
 
 wire VWREN = {DVRAM, vwreq} == 2'b01;
 
@@ -42,17 +47,23 @@ always @(posedge clk) begin
 
     /* SRAM */
     if (wreq)  sram[ ea ] <= dout;
-    i_data  <= sram[ address ];
+    i_data  <= sram[ curaddr ];
     
     /* VRAM */
     if (VWREN) vram[ waddr ] <= wdata;
     vin     <= vram[ waddr ];
     fin     <= crom[ waddr ];
+    
+    if (oamw)  oam[ waddr[7:0] ] <= wdata;
+    spin    <= oam[ waddr[7:0] ];
 
 end
 
+/* Роутинг из памяти при DMA */
+wire [15:0] curaddr = dma ? waddr : address;
+
 // Роутинг памяти (из PPU к процессору). Важно указывать именно address
-wire [7:0] din = (address[15:13] == 3'b001) ? ppu_dout : i_data;
+wire [7:0] din = (curaddr[15:13] == 3'b001) ? ppu_dout : i_data;
 
 initial begin $readmemh("init/ram.hex", sram, 16'h0000); end
 initial begin $readmemh("init/rom.hex", sram, 16'h8000); end // 32K
@@ -74,7 +85,7 @@ always @(posedge clk) DVRAM <= vwreq;
 // Центральный процессор
 // ---------------------------------------------------------------------
 
-cpu CPU( reset, cpuclk, 1'b1, address, din, dout, ea, wreq, rd, NMI, DEBUG, KEYS); 
+cpu CPU( reset, cpuclk, !dma, address, din, dout, ea, wreq, rd, NMI, DEBUG, KEYS); 
 
 // Графический процессор
 // ---------------------------------------------------------------------
@@ -86,7 +97,7 @@ wire [12:0] faddr; wire [7:0] fdata;
 reg  [ 7:0] vin;
 reg  [ 7:0] fin;
 wire [ 7:0] wdata;
-wire [12:0] waddr;
+wire [15:0] waddr;
 wire        vwreq;
 reg         dvram = 1'b0;
 
@@ -112,7 +123,15 @@ ppu PPU(
     cpuclk, /* 1.6 Mhz */
     
     /* Данные на запись/чтение */
-    ea, dout, rd, wreq, ppu_dout,
+    /* I */ ea, 
+    /* I */ dout, 
+    /* I */ rd, 
+    /* I */ wreq, 
+    /* O */ ppu_dout, 
+    /* O */ dma,
+    /* O */ oamw,
+    /* I */ din,
+    /* I */ spin,
     
     /* NonMasking */
     NMI, DEBUGPPU

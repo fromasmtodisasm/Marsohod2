@@ -1,21 +1,21 @@
 [*]
 [*] GTKWave Analyzer v3.3.82 (w)1999-2017 BSI
-[*] Tue Jun  5 11:07:38 2018
+[*] Wed Jun  6 10:05:44 2018
 [*]
 [dumpfile] "/home/fox/Data/Project/fpga/Marsohod2/projects/05_nes/nes.vcd"
-[dumpfile_mtime] "Tue Jun  5 11:05:02 2018"
-[dumpfile_size] 339140
+[dumpfile_mtime] "Wed Jun  6 10:02:52 2018"
+[dumpfile_size] 505359
 [savefile] "/home/fox/Data/Project/fpga/Marsohod2/projects/05_nes/debug.gtkw"
-[timestart] 533
+[timestart] 0
 [size] 1920 1033
 [pos] -1 -1
-*-5.000000 620 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-7.000000 65830 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] main.
 [treeopen] main.CPU.
 [sst_width] 219
 [signals_width] 185
 [sst_expanded] 1
-[sst_vpaned_height] 312
+[sst_vpaned_height] 318
 @28
 [color] 2
 main.clk
@@ -72,11 +72,10 @@ main.CPU.P[7:0]
 main.CPU.PC[15:0]
 @1000200
 -Regs
-@800200
+@c00200
 -PPU
 @22
 main.PPU.ADDR[15:0]
-main.PPU.WADDR[12:0]
 @28
 main.PPU.CLKCPU
 main.PPU.CLKPPU
@@ -87,11 +86,10 @@ main.PPU.ea[15:0]
 main.PPU.RD
 main.PPU.WREQ
 main.PPU.WVREQ
-@1000200
+@1401200
 -PPU
-@23
-main.PPU.x[9:0]
 @22
+main.PPU.x[9:0]
 main.PPU.y[9:0]
 @28
 main.PPU.DE2X
@@ -105,5 +103,14 @@ main.PPU.colormap[15:0]
 main.PPU.colorpad[1:0]
 @22
 main.PPU.color[5:0]
+@28
+main.PPU.DMA
+main.CPU.CE
+@22
+main.curaddr[15:0]
+@28
+main.PPU.OAMW
+@23
+main.PPU.DATAIN[7:0]
 [pattern_trace] 1
 [pattern_trace] 0

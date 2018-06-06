@@ -70,6 +70,8 @@ wire [15:0] eawr;           /* Запись в память (EA) */
 wire [ 7:0] dout;           /* Выход данных из процессора */
 wire        mreq;           /* Запрос на запись из процессора */
 wire        NMI;
+wire        DMA;
+wire        OAMW;           /* Запрос на запись в OAM из PPU */
 
 /* Роутинг записи памяти */
 wire [7:0]  Dram;
@@ -79,10 +81,15 @@ reg         DVRAM = 1'b0;     /* Отложенная запись в VRAM */
 reg         DSRAM = 1'b0;     /* ... в SRAM */
 reg         prg_led;
 
+/* В зависимости от того, включен ли DMA. 
+   Если да - то данные перенаправляются в PPU */
+   
+wire [15:0] curaddr = DMA ? WADDR : address;
+
 wire        sram_write = eawr     < 16'h2000;
-wire        sram_route = address  < 16'h2000;
-wire        ppu_route  = address >= 16'h2000 && address <= 16'h3FFF;
-wire        srom_route = address >= 16'h8000;
+wire        sram_route = curaddr  < 16'h2000;
+wire        ppu_route  = curaddr >= 16'h2000 && address <= 16'h3FFF;
+wire        srom_route = curaddr >= 16'h8000;
 
 wire [7:0]  din = sram_route ? Dram :               /* 0000-07FF SRAM */
                   ppu_route  ? Dppu :               /* 2000-3FFF PPU */
@@ -97,7 +104,7 @@ cpu C6502(
     
     .RESET  ( prg_enable ),     // Сброс процессора
     .CLK    ( CLKCPU ),         // 1.71 МГц
-    .CE     ( 1'b1 ),           // Временное блокирование исполнения (DMA Request)
+    .CE     ( !DMA ),           // Временное блокирование исполнения (DMA Request)
     .ADDR   ( address ),        // Адрес программы или данных
     .DIN    ( din ),            // Входящие данные
     .DOUT   ( dout ),           // Исходящие данные
@@ -111,7 +118,7 @@ cpu C6502(
 
 // --------------------------------------------------------------------------
 
-reg [1:0] div = 2'b00; always @(posedge clk) div <= div + 1'b1;
+reg  [1:0]  div = 2'b00; always @(posedge clk) div <= div + 1'b1;
 
 wire [10:0] addr_vrd; // 2048
 wire [12:0] addr_frd; // 8192
@@ -120,7 +127,7 @@ wire [ 7:0] data_frd;
 wire [ 7:0] FIN;
 wire [ 7:0] VIN;
 wire [ 7:0] WDATA;
-wire [12:0] WADDR;
+wire [15:0] WADDR;
 wire        WVREQ;
 wire        RD;
 
@@ -153,6 +160,12 @@ ppu PPU(
     .WADDR  (WADDR),    /* Адрес к VRAM */
     .WDATA  (WDATA),    /* Данные для записи в VRAM */
     .NMI    (NMI),
+    .DMA    (DMA),
+    
+    /* DMA */
+    .OAMW   (OAMW),
+    .DATAIN (din),      /* Из памяти */
+    .SPIN   (spin),     /* Из памяти OAM */
     
     /* Знакогенератор */
     .faddr  (addr_frd), /* Адрес CHR-ROM */
