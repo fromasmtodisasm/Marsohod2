@@ -52,7 +52,7 @@ module ppu(
     /* NMI сигнал */
     output  reg         NMI,         /* Выход NMI */
     output  wire [ 7:0] DEBUG,
-    
+
     /* Джойстики */
     input   wire [ 7:0] JOY1,
     input   wire [ 7:0] JOY2
@@ -130,7 +130,7 @@ wire [3:0]  colmp = (curclr[1:0] == 2'b00) || /* Прозрачный */
 // Выбор финального цвета с учетом спрайтов
 wire [5:0]  color = (x < 64 || x >= 575) ? /* Отображается ли фон? */
             PALBG[0] : /* Прозрачный */
-            (final_color[4] ? 
+            (final_color[4] ?
                 PALSP[ final_color[3:0] ] : /* Спрайт */
                 PALBG[ final_color[3:0] ]   /* Фон */
             );
@@ -217,7 +217,10 @@ reg [7:0]  SADDR = 8'h0;
 reg  [7:0] BUFF = 8'hFF;
 
 /* Nametable по умолчанию */
-reg  [1:0] NTA;
+reg  [1:0] NTA     = 2'b00;
+reg        NTATrig = 1'b0;  /* Меняет видеоадаптер */
+reg        NTACPU  = 1'b0;  /* Меняет CPU */
+wire       NTARequest = NTATrig ^ NTACPU; /* Статус запроса на изменение NTA */
 
 /* Текущий Nametable (0/1) */
 wire       NTBank = NTA[0] ^ NTA[0] ^ X[8] ^ Y[8] ^ RegH ^ RegV; // HMirror=0 у большинства
@@ -368,29 +371,29 @@ always @(posedge CLKPPU) begin
     // Джойстики
     // 2000h - 3FFFh
     // ----------------------
-    
+
     else if (ea == 16'h4016) begin
-    
+
         case (div)
-        
+
             2'b01: if (WREQ) begin
-            
+
                 if (Joy1L == 1'b1 && din[0] == 1'b0)
                     Joy1Latch <= { 8'h08, 8'h00, JOY1 }; // | (1 << 19)
-                    
+
                 Joy1L <= din[0];
 
             end else if (RD) begin
-            
+
                 DOUT <= {7'b0100_000, Joy1Latch[0]}; // 40h | Latch
                 Joy1Latch <= {1'b0, Joy1Latch[23:1]};
-            
+
             end
-        
+
         endcase
-    
+
     end
-    
+
     /* При записи из процессора по адресу, выбирается DMA */
     else if (ea == 16'h4014 && WREQ && div == 2'b10) begin
 
@@ -417,122 +420,112 @@ always @(posedge CLKPPU) begin
             2'b00: begin OAMW <= 1'b0; end
 
             /* Запись или чтение */
-            2'b01: begin
+            2'b01: case (ea[2:0])
 
-                case (ea[2:0])
+                /* w/o Регистр управления 0 */
+                3'h0: if (WREQ) begin CTRL0 <= din; NTACPU <= NTARequest ^ NTACPU ^ 1'b1; end
 
-                    /* w/o Регистр управления 0 */
-                    3'h0: if (WREQ) CTRL0 <= din;
+                /* w/o Регистр управления 1 */
+                3'h1: if (WREQ) CTRL1 <= din;
 
-                    /* w/o Регистр управления 1 */
-                    3'h1: if (WREQ) CTRL1 <= din;
+                /* r/o Чтение статуса */
+                3'h2: if (RD) begin
 
-                    /* r/o Чтение статуса */
-                    3'h2: if (RD) begin
+                    DOUT <= {
+                        VBlank,         /* Генерация синхроимпульса */
+                        1'b0,           /* Вывод спрайта ID=0 */
+                        ns[3],          /* =1 На линии более 8 спрайтов */
+                        (PPUY > 241),   /* Разрешение записи в видеопамять */
+                        4'b0000         /* Не используется */
+                    };
 
-                        DOUT <= {
-                            VBlank,         /* Генерация синхроимпульса */
-                            1'b0,           /* Вывод спрайта ID=0 */
-                            1'b0,           /* =1 На линии более 8 спрайтов */
-                            (PPUY > 241),   /* Разрешение записи в видеопамять */
-                            4'b0000         /* Не используется */
-                        };
+                    /* Если был 1, перевести в 0, иначе оставить как 0 */
+                    VBlankCPU <= VBlankCPU ^ VBlank ^ 1'b0;
 
-                        /* Если был 1, перевести в 0, иначе оставить как 0 */
-                        VBlankCPU <= VBlankCPU ^ VBlank ^ 1'b0;
+                    /* Сбросить Odd/Even */
+                    FIRSTW <= 1;
 
-                        /* Сбросить Odd/Even */
-                        FIRSTW <= 1;
+                end
+
+                /* w/o Адрес спрайта */
+                3'h3: if (WREQ) SADDR <= din;
+
+                /* r/w Операция записи/чтения в память спрайтов */
+                3'h4: if (RD | WREQ) begin WADDR <= SADDR; WDATA <= din; end
+
+                /* w/o(2) Установка данных о скроллинге */
+                3'h5: if (WREQ) begin
+
+                    if (FIRSTW) begin
+                        RegHT <= din[7:3];
+                        RegFH <= din[2:0];
+                    end
+                    else begin
+                        RegVT <= din[7:3];
+                        RegFV <= din[2:0];
+                    end
+
+                    FIRSTW <= ~FIRSTW;
+                end
+
+                /* w/o(2) Запись адреса */
+                3'h6: if (WREQ) begin
+
+                    if (FIRSTW) /* Первый */ begin
+
+                        ADDR[15:8] <= din;
+
+                        RegVT <= {din[1:0], RegVT[2:0]};    // = (RegVT & 7) | ((din & 3) << 3);
+                        RegH  <= din[2];                    // = (din >> 2) & 1;
+                        RegV  <= din[3];                    // = (din >> 3) & 1;
+                        RegFV <= din[5:4];                  // = (din >> 4) & 3;
+
+                    end
+                    else /* Второй */ begin
+
+                        RegVT <= {RegVT[4:3], din[7:5]};    // = (regVT & 24) | ((din >> 5) & 7);
+                        RegHT <=  din[4:0];                 // =  din & 31;
+
+                        ADDR[7:0]  <= din;
 
                     end
 
-                    /* w/o Адрес спрайта */
-                    3'h3: if (WREQ) SADDR <= din;
+                    FIRSTW <= ~FIRSTW;
+                end
 
-                    /* r/w Операция записи/чтения в память спрайтов */
-                    3'h4: if (RD | WREQ) begin WADDR <= SADDR; WDATA <= din; end
+                /* r/w Запись/чтение данных */
+                3'h7: begin
 
-                    /* w/o(2) Установка данных о скроллинге */
-                    3'h5: if (WREQ) begin
+                    /* Записать данные в память */
+                    if (WREQ) begin
 
-                        if (FIRSTW) begin
-                            RegHT <= din[7:3];
-                            RegFH <= din[2:0];
-                        end
-                        else begin
-                            RegVT <= din[7:3];
-                            RegFV <= din[2:0];
-                        end
+                        WADDR <= ADDR;
 
-                        FIRSTW <= ~FIRSTW;
+                        /* Писать можно только в VRAM (исключая палитру) */
+                        if (ADDR < 16'h3F00) WDATA <= din;
+
+                        /* Палитра фона */
+                        else if (ADDR <= 16'h3F10) PALBG[ ADDR[3:0] ] <= din[5:0];
+
+                        /* Палитра спрайтов */
+                        else if (ADDR < 16'h3F20) PALSP[ ADDR[3:0] ] <= din[5:0];
+
                     end
+                    
+                    /* Прочитать из памяти */
+                    else if (RD) begin
 
-                    /* w/o(2) Запись адреса */
-                    3'h6: if (WREQ) begin
-
-                        if (FIRSTW) /* Первый */ begin
-
-                            ADDR[15:8] <= din;
-
-                            RegVT <= {din[1:0], RegVT[2:0]};    // = (RegVT & 7) | ((din & 3) << 3);
-                            RegH  <= din[2];                    // = (din >> 2) & 1;
-                            RegV  <= din[3];                    // = (din >> 3) & 1;
-                            RegFV <= din[5:4];                  // = (din >> 4) & 3;
-
-                        end
-                        else /* Второй */ begin
-
-                            RegVT <= {RegVT[4:3], din[7:5]};    // = (regVT & 24) | ((din >> 5) & 7);
-                            RegHT <=  din[4:0];                 // =  din & 31;
-
-                            ADDR[7:0]  <= din;
-
-                        end
-
-                        FIRSTW <= ~FIRSTW;
-                    end
-
-                    /* r/w Запись/чтение данных */
-                    3'h7: begin
-
-                        /* Записать данные в память */
-                        if (WREQ) begin
-
-                            WADDR <= ADDR;
-
-                            /* Писать можно только в VRAM (исключая палитру) */
-                            if (ADDR < 16'h3F00) begin WDATA <= din; end
-
-                            /* Палитра фона */
-                            else if (ADDR < 16'h3F10) begin PALBG[ ADDR[3:0] ] <= din[5:0]; end
-
-                            /* Палитра спрайтов */
-                            else if (ADDR < 16'h3F20) begin PALSP[ ADDR[3:0] ] <= din[5:0]; end
-
-                        end
-                        /* Прочитать из памяти */
-                        else if (RD) begin
-
-                            // Чтение данных
-                            if (ADDR < 16'h3F00) begin
-                                WADDR <= ADDR;
-                                DOUT  <= BUFF;
-                            end
-                            // Читать палитру
-                            else if (ADDR < 16'h3F10) begin
-                                DOUT <= PALBG[ ADDR[3:0] ];
-                            end
-                            else if (ADDR < 16'h3F20) begin
-                                DOUT <= PALSP[ ADDR[3:0] ];
-                            end
-
-                        end
+                        // Чтение данных
+                        if (ADDR < 16'h3F00) begin WADDR <= ADDR; DOUT <= BUFF; end
+                        // Читать палитру
+                        else if (ADDR <= 16'h3F10) DOUT <= PALBG[ ADDR[3:0] ];                    
+                        else if (ADDR <  16'h3F20) DOUT <= PALSP[ ADDR[3:0] ];
 
                     end
 
-                endcase
+                end
 
-            end
+            endcase
 
             /* Снять запись в память на этом такте */
             2'b10: begin
@@ -614,7 +607,7 @@ always @(posedge DE2X) begin
 
         // Init
         if (PPUX == 0) begin
-        
+
             HitLatch <= HitLine;
 
             // Спрайты на следующую линию
@@ -626,17 +619,17 @@ always @(posedge DE2X) begin
             SpritesLatch[5] <= Sprites[5];
             SpritesLatch[6] <= Sprites[6];
             SpritesLatch[7] <= Sprites[7];
-            
+
             HitLine  <= 8'h00;
-        
-        end
-        else if (PPUX < 8) begin 
-        
-            SAR     <= 1'b0; 
-            ns      <= 4'h0; 
 
         end
-        
+        else if (PPUX < 8) begin
+
+            SAR     <= 1'b0;
+            ns      <= 4'h0;
+
+        end
+
         // Расчет спрайтов
         else if (PPUX < 16'h108) case (PPUX[1:0])
 
@@ -733,7 +726,10 @@ always @(posedge DE2X) begin
 
     end
 
-    // -----------------------------------------------------------------
+end
+
+// Вертикальная и горизонтальная развертка
+always @(posedge DE2X) begin
 
     // 525-й такт, не используемый в NES
     if (y == vert_whole - 1) begin
@@ -749,10 +745,14 @@ always @(posedge DE2X) begin
         PPUX <= 1'b0;
         DE2Y <= ~DE2Y;
 
-        /* @todo Переписать счетчики, адреса страниц, скроллинг в новые регистры */
-
-        // Установить новый NameTable по умолчанию для следующей линии
-        NTA  <= {1'b0, CTRL0[0]};
+        // Внешним образом было установлена страница
+        // Установить новый NameTable для следующей линии
+        if (NTARequest) begin
+        
+            NTATrig <= NTARequest ^ NTATrig;
+            NTA     <= CTRL0[1:0];
+            
+        end
 
         /* Второй сканлайн НЕ учитывается. При достижении 261-го, сбросить до 0 */
         if (DE2Y) PPUY <= PPUY + 1'b1;
@@ -786,16 +786,18 @@ end
 wire [4:0] scolor[8];
 wire [4:0] final_color = scolor[7][4:0];
 wire [8:0] SPRX = PPUX - 16;
+wire       SpHit0;
+wire [7:0] SpHit17;
 
 // Спрайт 1-8
-evaluator Sprite1( HitLatch[0], SpritesLatch[0], {1'b0, colmp}, SPRX, scolor[0], CTRL1);
-evaluator Sprite2( HitLatch[1], SpritesLatch[1], scolor[0], SPRX, scolor[1], CTRL1);
-evaluator Sprite3( HitLatch[2], SpritesLatch[2], scolor[1], SPRX, scolor[2], CTRL1);
-evaluator Sprite4( HitLatch[3], SpritesLatch[3], scolor[2], SPRX, scolor[3], CTRL1);
-evaluator Sprite5( HitLatch[4], SpritesLatch[4], scolor[3], SPRX, scolor[4], CTRL1);
-evaluator Sprite6( HitLatch[5], SpritesLatch[5], scolor[4], SPRX, scolor[5], CTRL1);
-evaluator Sprite7( HitLatch[6], SpritesLatch[6], scolor[5], SPRX, scolor[6], CTRL1);
-evaluator Sprite8( HitLatch[7], SpritesLatch[7], scolor[6], SPRX, scolor[7], CTRL1);
+evaluator Sprite1( HitLatch[0], SpritesLatch[0], {1'b0, colmp}, SPRX, scolor[0], CTRL1, SpHit0);
+evaluator Sprite2( HitLatch[1], SpritesLatch[1], scolor[0], SPRX, scolor[1], CTRL1, SpHit17[0]);
+evaluator Sprite3( HitLatch[2], SpritesLatch[2], scolor[1], SPRX, scolor[2], CTRL1, SpHit17[1]);
+evaluator Sprite4( HitLatch[3], SpritesLatch[3], scolor[2], SPRX, scolor[3], CTRL1, SpHit17[2]);
+evaluator Sprite5( HitLatch[4], SpritesLatch[4], scolor[3], SPRX, scolor[4], CTRL1, SpHit17[3]);
+evaluator Sprite6( HitLatch[5], SpritesLatch[5], scolor[4], SPRX, scolor[5], CTRL1, SpHit17[4]);
+evaluator Sprite7( HitLatch[6], SpritesLatch[6], scolor[5], SPRX, scolor[6], CTRL1, SpHit17[5]);
+evaluator Sprite8( HitLatch[7], SpritesLatch[7], scolor[6], SPRX, scolor[7], CTRL1, SpHit17[6]);
 
 /* Преобразования номера цвета палитры в реальный */
 always @* case (color)

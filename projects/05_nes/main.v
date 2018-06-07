@@ -105,6 +105,8 @@ wire [ 7:0] wdata;
 wire [15:0] waddr;
 wire        vwreq;
 reg         dvram = 1'b0;
+wire [ 7:0] Joy1;
+wire [ 7:0] Joy2;
 
 always @(posedge clk) dvram <= vwreq;
 
@@ -141,7 +143,9 @@ ppu PPU(
     /* I */ srd,
     
     /* NonMasking */
-    NMI, DEBUGPPU
+    NMI, DEBUGPPU,
+    
+    Joy1, Joy2
 );
 
 endmodule
