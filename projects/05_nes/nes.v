@@ -208,9 +208,9 @@ uart UART(
     .rx_ready   (rx_ready),
 );
 
-parameter  prg_len      = 16384;
+parameter  prg_len      = 32768;
 reg [7:0]  prg_idata    = 1'b0; /* Данные для записи */
-reg [13:0] prg_addr     = 1'b0; /* Адрес (16Kb) */
+reg [14:0] prg_addr     = 1'b0; /* Адрес (16Kb) */
 reg        prg_wren     = 1'b0; /* Производится запись в память */
 reg        prg_enable   = 1'b0; /* Программирование включено */
 reg [1:0]  prg_negedge  = 2'b00;
@@ -281,11 +281,11 @@ vram VRAM(
 rom ROM(
 
     .clock    (clk),
-    .addr_rd  (curaddr[13:0]), // 16K
+    .addr_rd  (curaddr[14:0]), // 32K
     .q        (Drom),
         
     /* Для записи из PPU */
-    .addr_wr  (prg_addr),
+    .addr_wr  (prg_addr[14:0]),
     .data_wr  (prg_idata),
     .wren     (prg_wren && prg_negedge == 2'b10),
 

@@ -3,10 +3,10 @@
 // synopsys translate_on
 module rom (clock, addr_rd, addr_wr, data_wr, wren, q, qw);
 input    clock;
-input    [13:0] addr_wr;
+input    [14:0] addr_wr;
 input    [7:0] data_wr;
 input          wren;
-input    [13:0] addr_rd;
+input    [14:0] addr_rd;
 output   [7:0] q;
 output   [7:0] qw;
 wire     [7:0] sub_wire0;
@@ -47,8 +47,8 @@ defparam
     altsyncram_component.init_file = "rom.mif",
     altsyncram_component.intended_device_family = "Cyclone III",
     altsyncram_component.lpm_type = "altsyncram",
-    altsyncram_component.numwords_a = 16384,
-    altsyncram_component.numwords_b = 16384,
+    altsyncram_component.numwords_a = 32768,
+    altsyncram_component.numwords_b = 32768,
     altsyncram_component.operation_mode = "BIDIR_DUAL_PORT",
     altsyncram_component.outdata_aclr_a = "NONE",
     altsyncram_component.outdata_aclr_b = "NONE",
@@ -59,8 +59,8 @@ defparam
     altsyncram_component.read_during_write_mode_mixed_ports = "DONT_CARE",
     altsyncram_component.read_during_write_mode_port_a = "NEW_DATA_WITH_NBE_READ",
     altsyncram_component.read_during_write_mode_port_b = "NEW_DATA_WITH_NBE_READ",
-    altsyncram_component.widthad_a = 14,
-    altsyncram_component.widthad_b = 14,
+    altsyncram_component.widthad_a = 15,
+    altsyncram_component.widthad_b = 15,
     altsyncram_component.width_a = 8,
     altsyncram_component.width_b = 8,
     altsyncram_component.width_byteena_a = 1,

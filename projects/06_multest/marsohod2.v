@@ -56,25 +56,48 @@ module marsohod2(
 );
 // --------------------------------------------------------------------------
 
-`define N 450
+reg  kbd_reset = 1'b0;
+reg  div; always @(posedge clk) div <= !div;
+wire ps2_command_was_sent;
+wire ps2_error_communication_timed_out;
+wire [7:0] ps2_data;
+wire       ps2_data_clk;
 
-reg [15:0] cnt[`N] /* synthesis preserve */;
-reg [`N-1:0] fix /* synthesis preserve */;
+PS2_Controller Keyboard(
 
-integer i;
+	/* Вход */
+    .CLOCK_50       (div),
+	.reset          (1'b0),
+	.the_command    (1'b0),
+	.send_command   (1'b0),
 
-reg [25:0] div; always @(posedge clk) div <= div + 1'b1;
+	/* Ввод-вывод */
+	.PS2_CLK(ps2_keyb[1]),
+ 	.PS2_DAT(ps2_keyb[0]),
 
-always @(posedge div[25]) begin
+	/* Статус команды */
+	.command_was_sent  (ps2_command_was_sent),
+	.error_communication_timed_out (ps2_error_communication_timed_out),
 
-    for (i = 0; i < `N-1; i = i + 1) begin
-        cnt[i] <= cnt[i] + 1'b1;
-        fix[i] <= ^cnt[i];
-    end
+    /* Выход полученных */
+	.received_data      (ps2_data),
+	.received_data_en   (ps2_data_clk)
+
+);
+
+always @(posedge div) begin
+
+    if (ps2_data_clk) begin
     
-    led[0] <= ^fix;
-    led[3:1] <= cnt[0][2:0];
+        case (ps2_data)
         
-end
+            8'h01: led[0] <= 1'b1;
+            8'h02: led[0] <= 1'b0;
+            
+        endcase
+    
+    end
 
+end
+    
 endmodule
