@@ -6,9 +6,11 @@ module evaluator(
     input wire  [ 8:0] x,           /* Текущий X */
     output reg  [ 4:0] color,       /* Цвет спрайта, color[4] - палитра */
     input wire  [ 7:0] ctrl,        /* Управление */
-    output reg         opaque       /* Существует попадание */   
+    output reg         hit          /* Существует попадание */   
 
 );
+
+reg opaque;
 
 /* Для расчета номера бита */
 wire [2:0]  xbitn  = x - sprite[7:0];
@@ -32,7 +34,7 @@ always @* begin
     if (!ctrl[2] && x < 8 || !ctrl[4]) begin
     
         color  = bg;      
-        opaque = 0;
+        hit     = 0;
 
     end
 
@@ -42,7 +44,8 @@ always @* begin
         // Непрозрачный, если младшие 2 бит не равны 0
         // opaque = rcolor[1:0] != 2'b00; 
         
-        opaque = (rcolor[1:0] != 2'b00) ? (sprite[16 + 5] && bg[1:0] == 2'b00 ? 0 : 1) : 0;
+        hit    = (rcolor[1:0] != 2'b00);
+        opaque = hit ? (sprite[16 + 5] && bg[1:0] != 2'b00 ? 0 : 1) : 0;
         color  = opaque ? {1'b1, rcolor} : bg;
         
         // 1. Спрайт прозрачный - использовать цвет фона
@@ -54,7 +57,7 @@ always @* begin
             
     end else begin
         
-        opaque = 0;
+        hit    = 0;
         color  = bg;    
     end
 

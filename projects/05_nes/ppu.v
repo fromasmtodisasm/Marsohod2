@@ -223,7 +223,7 @@ reg        NTACPU  = 1'b0;  /* Меняет CPU */
 wire       NTARequest = NTATrig ^ NTACPU; /* Статус запроса на изменение NTA */
 
 /* Текущий Nametable (0/1) */
-wire       NTBank = NTA[0] ^ NTA[0] ^ X[8] ^ Y[8] ^ RegH ^ RegV; // HMirror=0 у большинства
+wire       NTBank = NTA[0] ^ NTA[1] ^ X[8] ^ Y[8] ^ RegH ^ RegV; // HMirror=0 у большинства
 
 reg        RegH  = 1'b0; // Горизонтальный NameTable
 reg        RegV  = 1'b0; // Вертикальный
@@ -249,10 +249,15 @@ reg [31:0] SpritesLatch[8];
    23:16 Attr
    31:24 HighBit / YDiff */
 
-reg        SpHit   = 1'b0;                  /* Попадает ли текущий спрайт в кадр? */
-reg  [3:0] ns      = 1'b0;                  /* Счетчик спрайтов */
-reg  [7:0] HitLine  = 8'h00;                /* Попадания спрайтов в кадр */
-reg  [7:0] HitLatch = 8'h00;                /* Кеш линии попаданий */
+reg        SpHit       = 1'b0;    /* Попадает ли текущий спрайт в кадр? */
+reg        SpZero      = 1'b0;    /* Попадает ли 0-й спрайт в кадр? */
+reg        SpZeroLatch = 1'b0;
+reg  [2:0] SpNum       = 1'b0;    /* Номер спрайта 0 в буфере */
+reg  [2:0] SpNumLatch  = 1'b0;     
+
+reg  [3:0] ns       = 1'b0;    /* Счетчик спрайтов */
+reg  [7:0] HitLine  = 8'h00;   /* Попадания спрайтов в кадр */
+reg  [7:0] HitLatch = 8'h00;   /* Кеш линии попаданий */
 
 wire       Sprite0Hit = Sprite0Rd ^ Sprite0Set;
 reg        Sprite0Rd  = 1'b0;
@@ -627,7 +632,13 @@ always @(posedge DE2X) begin
             SpritesLatch[6] <= Sprites[6];
             SpritesLatch[7] <= Sprites[7];
 
+            SpZeroLatch <= SpZero;
+            SpNumLatch  <= SpNum;
+            
             HitLine  <= 8'h00;
+            SpZero   <= 1'b0;
+            SpNum    <= 1'b0;
+            
 
         end
         else if (PPUX < 8) begin
@@ -635,7 +646,7 @@ always @(posedge DE2X) begin
             SAR     <= 1'b0;
             ns      <= 4'h0;
 
-        end
+        end        
 
         // Расчет спрайтов
         else if (PPUX < 16'h108) case (PPUX[1:0])
@@ -649,6 +660,10 @@ always @(posedge DE2X) begin
 
                     /* Спрайт виден */
                     SpHit <= 1'b1;
+                    
+                    /* Это хит Zero-спрайта */
+                    SpZero <= (SAR == 0);
+                    SpNum  <= ns[2:0];
 
                     /* Запись Diff для расчета битов по Y */
                     Sprites[ ns[2:0] ][ 31:24 ] <= (PPUY - SRD);
@@ -767,11 +782,12 @@ always @(posedge DE2X) begin
     end else begin
 
         PPUX <= PPUX + 1'b1;
+    
+        /* Установка Sprite0Hit: на нечетной линии */
+        if (SpZeroLatch && SpHitZ[ SpNumLatch ] && DE2Y) 
+            Sprite0Set <= Sprite0Hit ^ Sprite0Set ^ 1'b1;
         
     end
-
-    /* Установка Sprite0Hit */
-    if (SpHit0) Sprite0Set <= Sprite0Hit ^ Sprite0Set ^ 1'b1;
 
 end
 
@@ -796,18 +812,17 @@ end
 wire [4:0] scolor[8];
 wire [4:0] final_color = scolor[7][4:0];
 wire [8:0] SPRX = PPUX - 16;
-wire       SpHit0;
-wire [7:0] SpHit17;
+wire [7:0] SpHitZ;
 
 // Спрайт 1-8
-evaluator Sprite1( HitLatch[0], SpritesLatch[0], {1'b0, colmp}, SPRX, scolor[0], CTRL1, SpHit0);
-evaluator Sprite2( HitLatch[1], SpritesLatch[1], scolor[0], SPRX, scolor[1], CTRL1, SpHit17[0]);
-evaluator Sprite3( HitLatch[2], SpritesLatch[2], scolor[1], SPRX, scolor[2], CTRL1, SpHit17[1]);
-evaluator Sprite4( HitLatch[3], SpritesLatch[3], scolor[2], SPRX, scolor[3], CTRL1, SpHit17[2]);
-evaluator Sprite5( HitLatch[4], SpritesLatch[4], scolor[3], SPRX, scolor[4], CTRL1, SpHit17[3]);
-evaluator Sprite6( HitLatch[5], SpritesLatch[5], scolor[4], SPRX, scolor[5], CTRL1, SpHit17[4]);
-evaluator Sprite7( HitLatch[6], SpritesLatch[6], scolor[5], SPRX, scolor[6], CTRL1, SpHit17[5]);
-evaluator Sprite8( HitLatch[7], SpritesLatch[7], scolor[6], SPRX, scolor[7], CTRL1, SpHit17[6]);
+evaluator Sprite1( HitLatch[0], SpritesLatch[0], {1'b0, colmp}, SPRX, scolor[0], CTRL1, SpHitZ[0]);
+evaluator Sprite2( HitLatch[1], SpritesLatch[1], scolor[0], SPRX, scolor[1], CTRL1, SpHitZ[1]);
+evaluator Sprite3( HitLatch[2], SpritesLatch[2], scolor[1], SPRX, scolor[2], CTRL1, SpHitZ[2]);
+evaluator Sprite4( HitLatch[3], SpritesLatch[3], scolor[2], SPRX, scolor[3], CTRL1, SpHitZ[3]);
+evaluator Sprite5( HitLatch[4], SpritesLatch[4], scolor[3], SPRX, scolor[4], CTRL1, SpHitZ[4]);
+evaluator Sprite6( HitLatch[5], SpritesLatch[5], scolor[4], SPRX, scolor[5], CTRL1, SpHitZ[5]);
+evaluator Sprite7( HitLatch[6], SpritesLatch[6], scolor[5], SPRX, scolor[6], CTRL1, SpHitZ[6]);
+evaluator Sprite8( HitLatch[7], SpritesLatch[7], scolor[6], SPRX, scolor[7], CTRL1, SpHitZ[7]);
 
 /* Преобразования номера цвета палитры в реальный */
 always @* case (color)
