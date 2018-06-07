@@ -254,6 +254,10 @@ reg  [3:0] ns      = 1'b0;                  /* Счетчик спрайтов *
 reg  [7:0] HitLine  = 8'h00;                /* Попадания спрайтов в кадр */
 reg  [7:0] HitLatch = 8'h00;                /* Кеш линии попаданий */
 
+wire       Sprite0Hit = Sprite0Rd ^ Sprite0Set;
+reg        Sprite0Rd  = 1'b0;
+reg        Sprite0Set = 1'b0;
+
 /* Номер обрабатываемого спрайта из буфера */
 wire [4:0] SpIdTX  = PPUX - 16'h110;
 wire [2:0] SpId    = SpIdTX[4:2];
@@ -433,7 +437,7 @@ always @(posedge CLKPPU) begin
 
                     DOUT <= {
                         VBlank,         /* Генерация синхроимпульса */
-                        1'b0,           /* Вывод спрайта ID=0 */
+                        Sprite0Hit,     /* Вывод спрайта ID=0 */
                         ns[3],          /* =1 На линии более 8 спрайтов */
                         (PPUY > 241),   /* Разрешение записи в видеопамять */
                         4'b0000         /* Не используется */
@@ -441,6 +445,9 @@ always @(posedge CLKPPU) begin
 
                     /* Если был 1, перевести в 0, иначе оставить как 0 */
                     VBlankCPU <= VBlankCPU ^ VBlank ^ 1'b0;
+                    
+                    /* Сброс Sprite0Hit */
+                    Sprite0Rd <= Sprite0Hit ^ Sprite0Rd;
 
                     /* Сбросить Odd/Even */
                     FIRSTW <= 1;
@@ -760,8 +767,11 @@ always @(posedge DE2X) begin
     end else begin
 
         PPUX <= PPUX + 1'b1;
-
+        
     end
+
+    /* Установка Sprite0Hit */
+    if (SpHit0) Sprite0Set <= Sprite0Hit ^ Sprite0Set ^ 1'b1;
 
 end
 
