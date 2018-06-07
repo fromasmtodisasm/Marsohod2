@@ -252,8 +252,6 @@ reg [31:0] SpritesLatch[8];
 reg        SpHit       = 1'b0;    /* Попадает ли текущий спрайт в кадр? */
 reg        SpZero      = 1'b0;    /* Попадает ли 0-й спрайт в кадр? */
 reg        SpZeroLatch = 1'b0;
-reg  [2:0] SpNum       = 1'b0;    /* Номер спрайта 0 в буфере */
-reg  [2:0] SpNumLatch  = 1'b0;     
 
 reg  [3:0] ns       = 1'b0;    /* Счетчик спрайтов */
 reg  [7:0] HitLine  = 8'h00;   /* Попадания спрайтов в кадр */
@@ -633,12 +631,9 @@ always @(posedge DE2X) begin
             SpritesLatch[7] <= Sprites[7];
 
             SpZeroLatch <= SpZero;
-            SpNumLatch  <= SpNum;
             
             HitLine  <= 8'h00;
-            SpZero   <= 1'b0;
-            SpNum    <= 1'b0;
-            
+            SpZero   <= 1'b0;            
 
         end
         else if (PPUX < 8) begin
@@ -662,8 +657,7 @@ always @(posedge DE2X) begin
                     SpHit <= 1'b1;
                     
                     /* Это хит Zero-спрайта */
-                    SpZero <= (SAR == 0);
-                    SpNum  <= ns[2:0];
+                    if (SAR == 0) SpZero <= 1'b1;
 
                     /* Запись Diff для расчета битов по Y */
                     Sprites[ ns[2:0] ][ 31:24 ] <= (PPUY - SRD);
@@ -784,7 +778,7 @@ always @(posedge DE2X) begin
         PPUX <= PPUX + 1'b1;
     
         /* Установка Sprite0Hit: на нечетной линии */
-        if (SpZeroLatch && SpHitZ[ SpNumLatch ] && DE2Y) 
+        if (SpZeroLatch && SpHitZ[0] && DE2Y) 
             Sprite0Set <= Sprite0Hit ^ Sprite0Set ^ 1'b1;
         
     end
