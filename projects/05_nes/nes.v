@@ -60,8 +60,9 @@ wire [7:0] DEBUGCPU;
 wire [7:0] DEBUGPPU;
 reg [31:0] Timer;
 
-always @(posedge clk) 
-begin Timer <= (Timer == 50000000) ? 0 : Timer + 1; led <= Timer > 25000000 ? DEBUGCPU[3:0] : DEBUGCPU[7:4]; end
+always @(posedge clk) led <= Joy1[7:4];
+
+// begin Timer <= (Timer == 50000000) ? 0 : Timer + 1; led <= Timer > 25000000 ? DEBUGCPU[3:0] : DEBUGCPU[7:4]; end
 
 // --------------------------------------------------------------------------
 
@@ -88,7 +89,7 @@ wire [15:0] curaddr = DMA ? WADDR : address;
 
 wire        sram_write = eawr     < 16'h2000;
 wire        sram_route = curaddr  < 16'h2000;
-wire        ppu_route  = curaddr >= 16'h2000 && curaddr <= 16'h3FFF;
+wire        ppu_route  = curaddr >= 16'h2000 && curaddr <= 16'h4017;
 wire        srom_route = curaddr >= 16'h8000;
 
 wire [7:0]  din = sram_route ? Dram :               /* 0000-07FF SRAM */
@@ -177,7 +178,11 @@ ppu PPU(
     .faddr  (addr_frd), /* Адрес CHR-ROM */
     .fdata  (data_frd), /* Данные CHR-ROM */
     .FIN    (FIN),      /* Данные из знакогенератора на чтение */    
-    .DEBUG  (DEBUGPPU)
+    .DEBUG  (DEBUGPPU),
+    
+    /* Джойстики */
+    .JOY1   (Joy1),
+    .JOY2   (Joy2)
     
 );
 
@@ -241,6 +246,73 @@ always @(posedge rx_ready) begin
 
         prg_addr <= prg_addr + 1'b1;
 
+    end
+
+end
+
+// Контроллер клавиатуры
+// --------------------------------------------------------------------------
+
+reg         kbd_reset = 1'b0;
+wire        ps2_command_was_sent;
+wire        ps2_error_communication_timed_out;
+wire [7:0]  ps2_data;
+wire        ps2_data_clk;
+
+PS2_Controller Keyboard(
+
+	/* Вход */
+    .CLOCK_50       (div[0]),
+	.reset          (1'b0),
+	.the_command    (1'b0),
+	.send_command   (1'b0),
+
+	/* Ввод-вывод */
+	.PS2_CLK(ps2_keyb[1]),
+ 	.PS2_DAT(ps2_keyb[0]),
+
+	/* Статус команды */
+	.command_was_sent  (ps2_command_was_sent),
+	.error_communication_timed_out (ps2_error_communication_timed_out),
+
+    /* Выход полученных */
+	.received_data      (ps2_data),
+	.received_data_en   (ps2_data_clk)
+
+);
+
+// Данные с джойстиков
+reg [7:0] Joy1 = 8'h00;
+reg [7:0] Joy2 = 8'h00;
+
+reg key_press = 1'b1;
+
+always @(posedge div[0]) begin
+
+    if (ps2_data_clk) begin
+    
+        /* Код отжимаеой клавиши */
+        if (ps2_data == 8'hF0) begin               
+            key_press <= 1'b0; 
+            
+        end else begin
+            
+            case (ps2_data[6:0])
+            
+                /* Z (A)   */ 8'h2D: Joy1[0] <= key_press;
+                /* X (B)   */ 8'h2C: Joy1[1] <= key_press; 
+                /* X (SEL) */ 8'h2E: Joy1[2] <= key_press;
+                /* V (ST)  */ 8'h2F: Joy1[3] <= key_press;                
+                /* UP */      8'h48: Joy1[4] <= key_press;
+                /* DOWN */    8'h50: Joy1[5] <= key_press;
+                /* LEFT */    8'h4B: Joy1[6] <= key_press;
+                /* RIGHT */   8'h4D: Joy1[7] <= key_press;
+                
+            endcase
+        
+            key_press <= 1'b1;
+        end
+    
     end
 
 end

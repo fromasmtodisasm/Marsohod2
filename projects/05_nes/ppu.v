@@ -51,7 +51,11 @@ module ppu(
 
     /* NMI сигнал */
     output  reg         NMI,         /* Выход NMI */
-    output  wire [ 7:0] DEBUG
+    output  wire [ 7:0] DEBUG,
+    
+    /* Джойстики */
+    input   wire [ 7:0] JOY1,
+    input   wire [ 7:0] JOY2
 
 );
 
@@ -124,7 +128,7 @@ wire [3:0]  colmp = (curclr[1:0] == 2'b00) || /* Прозрачный */
                     ((x < (64 + 16) && CTRL1[1] == 1'b0) || (CTRL1[3] == 1'b0)) ? 4'h0 : curclr[3:0];
 
 // Выбор финального цвета с учетом спрайтов
-wire [5:0]  color = (x <= 63 || x >= 575) ? /* Отображается ли фон? */
+wire [5:0]  color = (x < 64 || x >= 575) ? /* Отображается ли фон? */
             PALBG[0] : /* Прозрачный */
             (final_color[4] ? 
                 PALSP[ final_color[3:0] ] : /* Спрайт */
@@ -266,6 +270,9 @@ wire [7:0] FMirr   = HMirror ? {fdata[0],fdata[1],fdata[2],fdata[3],fdata[4],fda
 // Проверка на попадание в ранг Y
 wire SpTest = (SRD <= PPUY) && (PPUY < SRD + (CTRL0[5] ? 16 : 8));
 
+/* Регистр джойстика 1 */
+reg [23:0] Joy1Latch = 1'b0; reg Joy1L = 1'b0;
+
 // Тайминги PPU 341 x 262 линии
 // https://wiki.nesdev.com/w/index.php/Clock_rate (NTSC)
 
@@ -357,6 +364,33 @@ always @(posedge CLKPPU) begin
 
     end
 
+    // ----------------------
+    // Джойстики
+    // 2000h - 3FFFh
+    // ----------------------
+    
+    else if (ea == 16'h4016) begin
+    
+        case (div)
+        
+            2'b01: if (WREQ) begin
+            
+                if (Joy1L == 1'b1 && din[0] == 1'b0)
+                    Joy1Latch <= { 8'h08, 8'h00, JOY1 }; // | (1 << 19)
+                    
+                Joy1L <= din[0];
+
+            end else if (RD) begin
+            
+                DOUT <= {7'b0100_000, Joy1Latch[0]}; // 40h | Latch
+                Joy1Latch <= {1'b0, Joy1Latch[23:1]};
+            
+            end
+        
+        endcase
+    
+    end
+    
     /* При записи из процессора по адресу, выбирается DMA */
     else if (ea == 16'h4014 && WREQ && div == 2'b10) begin
 
@@ -753,19 +787,8 @@ wire [4:0] scolor[8];
 wire [4:0] final_color = scolor[7][4:0];
 wire [8:0] SPRX = PPUX - 16;
 
-// Спрайт 1
-evaluator Sprite1(
-
-    HitLatch[0],     /* .valid */
-    SpritesLatch[0], /* .sprite */
-    {1'b0, colmp},   /* .bg */
-    SPRX,            /* .x */
-    scolor[0],       /* .color */
-    CTRL1    
-
-);
-
-// Спрайт 2-8
+// Спрайт 1-8
+evaluator Sprite1( HitLatch[0], SpritesLatch[0], {1'b0, colmp}, SPRX, scolor[0], CTRL1);
 evaluator Sprite2( HitLatch[1], SpritesLatch[1], scolor[0], SPRX, scolor[1], CTRL1);
 evaluator Sprite3( HitLatch[2], SpritesLatch[2], scolor[1], SPRX, scolor[2], CTRL1);
 evaluator Sprite4( HitLatch[3], SpritesLatch[3], scolor[2], SPRX, scolor[3], CTRL1);

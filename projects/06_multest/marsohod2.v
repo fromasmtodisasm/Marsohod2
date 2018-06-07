@@ -85,16 +85,25 @@ PS2_Controller Keyboard(
 
 );
 
+reg unlocked = 1'b0;
+
 always @(posedge div) begin
 
     if (ps2_data_clk) begin
     
-        case (ps2_data)
-        
-            8'h01: led[0] <= 1'b1;
-            8'h02: led[0] <= 1'b0;
+        /* Код отжимаеой клавиши */
+        if (ps2_data == 8'hF0) begin               
+            unlocked <= 1'b1;            
+        end else begin
             
-        endcase
+            case (ps2_data[6:0])
+            
+                8'h01: led[0] <= !unlocked;
+
+            endcase
+        
+            unlocked <= 1'b0;
+        end
     
     end
 
