@@ -128,7 +128,7 @@ wire [3:0]  colmp = (curclr[1:0] == 2'b00) || /* Прозрачный */
                     ((x < (64 + 16) && CTRL1[1] == 1'b0) || (CTRL1[3] == 1'b0)) ? 4'h0 : curclr[3:0];
 
 // Выбор финального цвета с учетом спрайтов
-wire [5:0]  color = (x < 64 || x >= 575) ? /* Отображается ли фон? */
+wire [5:0]  color = (x < 64 || x >= 575 || y < 16) ? /* Отображается ли фон? */
             PALBG[0] : /* Прозрачный */
             (final_color[4] ?
                 PALSP[ final_color[3:0] ] : /* Спрайт */
@@ -223,7 +223,7 @@ reg        NTACPU  = 1'b0;  /* Меняет CPU */
 wire       NTARequest = NTATrig ^ NTACPU; /* Статус запроса на изменение NTA */
 
 /* Текущий Nametable (0/1) */
-wire       NTBank = NTA[0] ^ NTA[1] ^ X[8] ^ Y[8] ^ RegH ^ RegV; // HMirror=0 у большинства
+wire       NTBank = NTA[0] ^ NTA[1] ^ X[8] ^ RegH ^ RegV; // VMirror=0 (^ Y[8]) у большинства
 
 reg        RegH  = 1'b0; // Горизонтальный NameTable
 reg        RegV  = 1'b0; // Вертикальный
@@ -374,6 +374,16 @@ always @(posedge CLKPPU) begin
 
     end
 
+    /* При записи из процессора по адресу, выбирается DMA */
+    else if (ea == 16'h4014 && WREQ && div == 2'b10) begin
+
+        DMA   <= 1'b1;
+        odd   <= 1'b0;
+        WADDR <= {din, 8'h00};
+        WVREQ <= 1'b0;
+
+    end
+
     // ----------------------
     // Джойстики
     // 2000h - 3FFFh
@@ -398,16 +408,6 @@ always @(posedge CLKPPU) begin
             end
 
         endcase
-
-    end
-
-    /* При записи из процессора по адресу, выбирается DMA */
-    else if (ea == 16'h4014 && WREQ && div == 2'b10) begin
-
-        DMA   <= 1'b1;
-        odd   <= 1'b0;
-        WADDR <= {din, 8'h00};
-        WVREQ <= 1'b0;
 
     end
 
