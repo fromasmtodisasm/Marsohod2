@@ -12,4 +12,34 @@ initial begin $dumpfile("main.vcd"); $dumpvars(0, main); end
 
 // ---------------------------------------------------------------------
 
+wire [15:0] Ca;  reg  [ 7:0] Ci; /* Кот */
+wire [15:0] Da;  reg  [ 7:0] Di; wire [ 7:0] Do; wire Dw; /* Дата */
+reg  [7:0]  Ci_; reg  [ 7:0] Di_;
+
+reg [7:0] CIRAM[65536]; /* Сделаем тут доступной всю память */
+
+always @(posedge clk) begin
+
+    // На реальной ПЛИС тут будет задержка
+    Ci_ <= CIRAM[ Ca ]; Ci <= Ci_;
+    Di_ <= CIRAM[ Da ]; Di <= Di_;
+    
+    if (Dw) CIRAM[ Da ] <= Do;
+
+end
+
+/* Загрузить тестбенчовые данные в память */
+initial begin $readmemh("rom/rom.hex", CIRAM, 16'h0000); end
+
+// ---------------------------------------------------------------------
+
+reg  InitZ = 1'b0;
+reg  [ 1:0] Dv = 2'b00; always @(posedge clk) begin Dv <= Dv + 1'b1; if (Dv == 2'b11) InitZ <= 1'b1; end
+
+z80 Z80(
+     Dv[1] && InitZ, /* Клоак 25 Супер Генрих Герц */
+     Ca, Ci,         /* Ка-Ки */
+     Da, Di, Do, Dw  /* Дадидодв */
+);
+
 endmodule

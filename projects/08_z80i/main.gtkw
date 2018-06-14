@@ -1,0 +1,25 @@
+[*]
+[*] GTKWave Analyzer v3.3.86 (w)1999-2017 BSI
+[*] Thu Jun 14 17:20:45 2018
+[*]
+[dumpfile] "/home/fox/Marsohod2/projects/08_z80i/main.vcd"
+[dumpfile_mtime] "Thu Jun 14 17:20:30 2018"
+[dumpfile_size] 52446
+[savefile] "/home/fox/Marsohod2/projects/08_z80i/main.gtkw"
+[timestart] 0
+[size] 1920 1032
+[pos] -1 -1
+*-4.000000 10 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] main.
+[sst_width] 212
+[signals_width] 213
+[sst_expanded] 1
+[sst_vpaned_height] 306
+@29
+main.clk
+@28
+main.Z80.clk
+@22
+main.Z80.Ca[15:0]
+[pattern_trace] 1
+[pattern_trace] 0

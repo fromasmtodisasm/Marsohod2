@@ -23,5 +23,5 @@ dd if=loderunner.nes of=rom.bin skip=16400 bs=1 seek=32768 count=8192 conv=notru
 #    Цепь DTR:              ON
 #    Цепь RTS:              ON
 
-stty -F /dev/ttyUSB1 460800 cs8 -cstopb -parenb raw -ixoff
+stty -F /dev/ttyUSB1 460800 cs8 raw -clocal -cstopb -parenb 
 cat rom.bin > /dev/ttyUSB1
