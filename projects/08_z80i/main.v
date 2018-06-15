@@ -24,7 +24,8 @@ always @(posedge clk) begin
     Ci_ <= CIRAM[ Ca ]; Ci <= Ci_;
     Di_ <= CIRAM[ Da ]; Di <= Di_;
     
-    if (Dw) CIRAM[ Da ] <= Do;
+    // Писать в память на 2-м такте после CPU.
+    if (Dw && Dv == 2'b00) CIRAM[ Da ] <= Do;
 
 end
 
@@ -33,11 +34,19 @@ initial begin $readmemh("rom/rom.hex", CIRAM, 16'h0000); end
 
 // ---------------------------------------------------------------------
 
-reg  InitZ = 1'b0;
-reg  [ 1:0] Dv = 2'b00; always @(posedge clk) begin Dv <= Dv + 1'b1; if (Dv == 2'b11) InitZ <= 1'b1; end
+reg         CPUClk = 1'b0;
+reg  [ 1:0] Dv = 2'b00; 
+
+always @(posedge clk) case (Dv)
+
+    2'b00: {Dv, CPUClk} <= {2'b01, 1'b0};
+    2'b01: {Dv, CPUClk} <= {2'b10, 1'b0};
+    2'b10: {Dv, CPUClk} <= {2'b00, 1'b1};
+    
+endcase 
 
 z80 Z80(
-     Dv[1] && InitZ, /* Клоак 25 Супер Генрих Герц */
+     CPUClk,         /* 16 Mhz */
      Ca, Ci,         /* Ка-Ки */
      Da, Di, Do, Dw  /* Дадидодв */
 );

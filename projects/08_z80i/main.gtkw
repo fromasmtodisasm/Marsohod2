@@ -1,31 +1,34 @@
 [*]
 [*] GTKWave Analyzer v3.3.82 (w)1999-2017 BSI
-[*] Fri Jun 15 07:16:07 2018
+[*] Fri Jun 15 12:39:10 2018
 [*]
 [dumpfile] "/home/fox/Data/Project/fpga/Marsohod2/projects/08_z80i/main.vcd"
-[dumpfile_mtime] "Fri Jun 15 07:15:27 2018"
-[dumpfile_size] 84574
+[dumpfile_mtime] "Fri Jun 15 12:38:18 2018"
+[dumpfile_size] 121750
 [savefile] "/home/fox/Data/Project/fpga/Marsohod2/projects/08_z80i/main.gtkw"
 [timestart] 0
 [size] 1920 1033
 [pos] -1 -1
-*-6.000000 100 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-5.000000 30 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] main.
 [sst_width] 219
 [signals_width] 213
 [sst_expanded] 1
-[sst_vpaned_height] 308
+[sst_vpaned_height] 311
 @28
 main.clk
 main.Z80.clk
+@29
 main.Z80.M_cycle[1:0]
+@28
+main.Dv[1:0]
 @22
-main.Z80.PC[15:0]
+main.Ca[15:0]
 main.Z80.Da[15:0]
 main.Z80.Ci[7:0]
 main.Z80.Di[7:0]
 main.Z80.opcode[7:0]
-@c00201
+@800200
 -Reg
 @22
 [color] 6
@@ -45,16 +48,23 @@ main.Z80.A[7:0]
 [color] 6
 main.Z80.F[7:0]
 [color] 6
+main.Z80.PC[15:0]
+[color] 6
 main.Z80.SP[15:0]
-@1401201
+@1000200
 -Reg
 @28
 main.Z80.mT[1:0]
-@22
-main.Z80.T[7:0]
-@28
 main.Z80.mEXAF
 main.Z80.mPCrel
 main.Z80.Wn[2:0]
+@22
+main.Z80.R[7:0]
+@28
+main.Z80.Dw
+main.Z80.We
+@22
+main.Do[7:0]
+main.Z80.T[15:0]
 [pattern_trace] 1
 [pattern_trace] 0
