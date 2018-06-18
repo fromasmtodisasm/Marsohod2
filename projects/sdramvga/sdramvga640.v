@@ -223,7 +223,7 @@ always @(posedge clock) begin
                 end
                 
                 // Начать чтение после CAS
-                else if (bank_cnt > 5 && bank_cnt < 6 + 128) begin
+                else if (bank_cnt >= 6 && bank_cnt < 6 + 128) begin
                 
                     dw <= dq;
                     wb <= 1'b1;
