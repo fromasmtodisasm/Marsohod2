@@ -13,19 +13,19 @@
 
 int main(int argc, char* argv[]) {
 
+    /* Включение возможностей */
+    SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER);
+
+    init_event();
     init_video();
     init_audio();
-    init_event();
         
     int x, y, kk;
     
     for (x = 0; x < 2000; x++) {
         RAM[ 0xB8000 + 2*x    ] = 0x40;
-        RAM[ 0xB8000 + 2*x + 1] = 0x17;
+        RAM[ 0xB8000 + 2*x + 1] = x < 1000 ? 0x97 : 0x17;
     }    
-    
-    //redraw_graphics();
-    redraw_textmode();
         
     /* Бесконечный цикл */
     while (1) {
@@ -35,6 +35,12 @@ int main(int argc, char* argv[]) {
             switch (event.type) {
 
                 // SDL_KEYUP
+                
+                /* Один кадр (1/600 */
+                case SDL_USEREVENT: 
+                                
+                    redraw();
+                    break;
                 
                 /* Нажата кнопка выхода */
                 case SDL_QUIT: 
@@ -46,7 +52,7 @@ int main(int argc, char* argv[]) {
 
                     kk = get_key_code(event);
                     if (kk == 9) 
-                    return 0;
+                        return 0;
 
                     break;
 

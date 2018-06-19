@@ -16,7 +16,6 @@ SDL_Surface * sdl_screen;
 /* Инициализация */
 void init_video() {
     
-    SDL_Init(SDL_INIT_VIDEO);
     SDL_EnableUNICODE(1);
     
     sdl_screen = SDL_SetVideoMode(SCRWIDTH, SCRHEIGHT, 32, 0); 
@@ -107,8 +106,7 @@ void redraw_graphics() {
 /* Текстовый видеорежим */
 void redraw_textmode() {
     
-    int i, j, a, b, c, s, k, bit;
-    
+    int i, j, a, b, c, s, k, bit;    
     
     for (i = 0; i < 25; i++) { 
         for (j = 0; j < 80; j++) {        
@@ -125,7 +123,7 @@ void redraw_textmode() {
                     
                     // Эмуляция мерцания символов                   
                     if (bit) {
-                        bit ^= ((c & 0x80) && fps < 30);
+                        bit ^= ((c & 0x80) && fps < 25);
                     } 
 
                     k = bit ? (c & 0xf) : (c >> 4) & 0x07;
@@ -142,4 +140,10 @@ void redraw_textmode() {
     }    
     
     SDL_Flip(sdl_screen);
+}
+
+/* Полное обновление (или нет) экрана в зависимости от выбранного видеорежима */
+void redraw() {
+    
+    redraw_textmode();    
 }

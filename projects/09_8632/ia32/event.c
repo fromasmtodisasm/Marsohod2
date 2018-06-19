@@ -4,7 +4,6 @@
 
 SDL_KeyboardEvent   *eventkey;
 SDL_Event           event;
-SDL_TimerCallback   fps60;
 
 int fps;
 
@@ -13,18 +12,37 @@ int get_key_code(SDL_Event event) {
      
     eventkey = &event.key;
     
-    printf( "Scancode: 0x%02X", eventkey->keysym.scancode );
-    
+    // printf( "Scancode: 0x%02X", eventkey->keysym.scancode );
     // https://www.libsdl.org/release/SDL-1.2.15/docs/html/sdlgetkeyname.html
-    printf( ", Name: %s\n", SDL_GetKeyName( eventkey->keysym.sym ) );
+    // printf( ", Name: %s\n", SDL_GetKeyName( eventkey->keysym.sym ) );
     
     /* Получить скан-код клавиш */
     return eventkey->keysym.scancode;
 }
 
-void init_event() {
+// Таймер, который вызывается раз 1/60 секунду
+Uint32 TimerFPS(Uint32 interval, void *param) {
     
-    // 60 FPS
-    fps = 0;
-    SDL_SetTimer(1000 / 60, fps60);    
+    SDL_Event     event;
+    SDL_UserEvent userevent;
+    
+    fps = fps == 50 ? 0 : fps + 1;
+    
+    /* Создать новый Event */
+    userevent.type  = SDL_USEREVENT;
+    userevent.code  = 0;
+    userevent.data1 = NULL;
+    userevent.data2 = NULL;
+
+    event.type = SDL_USEREVENT;
+    event.user = userevent;
+
+    SDL_PushEvent(&event);
+    return(interval);    
+}
+
+void init_event() {
+        
+    fps = 0;    
+    SDL_TimerID MyTimer = SDL_AddTimer(20, TimerFPS, NULL);
 }
