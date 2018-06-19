@@ -1,6 +1,9 @@
-//come from linux/drivers/video/font-8x16.c
+/*
+ * Шрифты
+ * linux/drivers/video/font-8x16.c
+ */
 
-unsigned char font[ 16*256 ] = {
+const unsigned char font[ 16*256 ] = {
 
 	/* 0 0x00 '^@' */
 	0x00, /* 00000000 */

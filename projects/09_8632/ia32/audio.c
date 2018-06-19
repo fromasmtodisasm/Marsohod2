@@ -1,16 +1,15 @@
-
 // https://wiki.libsdl.org/SDL_AudioSpec
-SDL_AudioSpec        sdl_audio = {44100, AUDIO_U8, 2, 0, 1024};
+SDL_AudioSpec        sdl_audio = {44100, AUDIO_U8, 2, 0, 256};
 
 void audio_callback(void *data, unsigned char *stream, int len)
 {
 	for (int i = 0; i < len; i++) {        
 		stream[i] = 128;
-    }
+    }    
 }
 
 int init_audio() {
-    
+        
     sdl_audio.callback   = audio_callback;
     
     /* SDL Audio не получилось открыть */

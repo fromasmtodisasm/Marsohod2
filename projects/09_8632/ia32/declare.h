@@ -1,0 +1,1 @@
+void redraw_textmode();
