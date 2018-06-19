@@ -20,12 +20,15 @@ int main(int argc, char* argv[]) {
     init_video();
     init_audio();
         
-    int x, y, kk;
+    int x, kk;
     
     for (x = 0; x < 2000; x++) {
         RAM[ 0xB8000 + 2*x    ] = 0x40;
-        RAM[ 0xB8000 + 2*x + 1] = x < 1000 ? 0x97 : 0x17;
-    }    
+        RAM[ 0xB8000 + 2*x + 1] = x < 1000 ? 0x8A : 0x17;
+    }
+    
+    /* Вывести дизассемблер */
+    update();
         
     /* Бесконечный цикл */
     while (1) {
@@ -38,7 +41,7 @@ int main(int argc, char* argv[]) {
                 
                 /* Один кадр (1/600 */
                 case SDL_USEREVENT: 
-                                
+
                     redraw();
                     break;
                 

@@ -1,5 +1,7 @@
-#define SCRWIDTH    1280
-#define SCRHEIGHT   800
+
+// В основно для текстового режима
+#define SCRWIDTH    640 * 2
+#define SCRHEIGHT   400 * 2
 
 /*
  * Видеовывод
@@ -22,13 +24,13 @@ void init_video() {
     SDL_WM_SetCaption( "Упрощенный эмулятор IA32", 0 );      
     
     dac[0]  = 0x000000;
-    dac[1]  = 0x000088;
-    dac[2]  = 0x008800;
-    dac[3]  = 0x008888;
-    dac[4]  = 0x880000;
-    dac[5]  = 0x880088;
-    dac[6]  = 0x888800;
-    dac[7]  = 0xcccccc;
+    dac[1]  = 0x0000aa;
+    dac[2]  = 0x00aa00;
+    dac[3]  = 0x00aaaa;
+    dac[4]  = 0xaa0000;
+    dac[5]  = 0xaa0088;
+    dac[6]  = 0xaaaa00;
+    dac[7]  = 0xaaaaaa;
     dac[8]  = 0x888888;
     dac[9]  = 0x0000ff;
     dac[10] = 0x00ff00;
@@ -46,22 +48,29 @@ void pset(int x, int y, unsigned int color) {
         ((Uint32*)sdl_screen->pixels)[ SCRWIDTH*y + x ] = color;
 }
 
-/* Пропечатать фонт */
-void print(int x, int y, unsigned char* source, int color) {
+void print_char(int x, int y, unsigned char sym, int color) {
     
-    int i, j, ch, sym = 'C';
-    unsigned char* s = source;
+    int i, j, ch;
+    for (i = 0; i < 16; i++) {
+            
+        ch = font[16*sym + i];
+        for (j = 0; j < 8; j++) 
+            if (ch & (1 << j))
+                pset(x + 7 - j, y + i, color);             
+    }    
+}
+
+/* Пропечатать фонт */
+void print(int x, int y, char* source, int color) {
+    
+    int sym;
+    char* s = source;
 
     while (*s) {
         
         sym = *s; s++;
-        for (i = 0; i < 16; i++) {
-            
-            ch = font[16*sym + i];
-            for (j = 0; j < 8; j++) 
-                if (ch & (1 << j))
-                    pset(x + 7 - j, y + i, color);             
-        }
+        
+        print_char(x, y, sym, color);
         
         x += 8;
         if (x >= SCRWIDTH) {
@@ -85,7 +94,7 @@ void linebf(int x1, int y1, int x2, int y2, int color) {
 /* Обновить видеофрейм */
 void redraw_graphics() {
     
-    int i, j, c, x;
+    int i, j, c;
     
     linebf(0, 0, SCRWIDTH, SCRHEIGHT, 0);
     
@@ -132,8 +141,7 @@ void redraw_textmode() {
                     pset(2*(8*j + b)+ 0, 2*(16*i + a) + 0, k);
                     pset(2*(8*j + b)+ 1, 2*(16*i + a) + 0, k);
                     pset(2*(8*j + b)+ 1, 2*(16*i + a) + 1, k);
-                    pset(2*(8*j + b)+ 0, 2*(16*i + a) + 1, k);                    
-                    
+                    pset(2*(8*j + b)+ 0, 2*(16*i + a) + 1, k);                                    
                 }
             }            
         }    
@@ -145,5 +153,11 @@ void redraw_textmode() {
 /* Полное обновление (или нет) экрана в зависимости от выбранного видеорежима */
 void redraw() {
     
-    redraw_textmode();    
+    // SDL_GetTicks();
+    switch (param_video_mode) {
+        
+        case 1: redraw_textmode(); break;
+        case 2: redraw_graphics(); break;
+        // EGA/CGA    
+    }
 }

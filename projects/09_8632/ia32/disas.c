@@ -118,12 +118,31 @@ const int ops[512] = {
     
 };
 
-unsigned char disas_row[256];
+char disas_row[256];
 
 /* Дизассемблирование одной инструкции */
-unsigned char* disas(Uint32 address) {
+char* disas(Uint32 address) {
         
     sprintf(disas_row, "%s", mnemonics[0]);
     
     return disas_row;
 } 
+
+/* Вывод общего дизассемблера */
+void update() {
+    
+    linebf(0, 0,   1280, 15,  dac[7]); // Верхняя строка
+    linebf(0, 16,  1280, 783, dac[3]); // Общий фон
+    linebf(0, 784, 1280, 799, dac[7]); // Нижняя строка
+    
+    print(0, 0, "  \xF0  File  Edit  View  Run  Breakpoints  Data  Options  Window  Help", 0);
+    print(0, 0, "  \xF0  F     E     V     R    B            D     O        W       H   ", dac[4]);
+
+    print(0, 784, "F1-Help F2-Bkpt F3-Mod F4-Here F5-Zoom F6-Next F7-Trace F8-Step F9-Run F10-Menu", 0);
+    print(0, 784, "F1      F2      F3     F4      F5      F6      F7       F8      F9     F10", dac[4]);
+        
+    print_char(0, 16, 0xc9, dac[15] );
+    print_char(8, 16, 0xcd, dac[15] );
+    
+    SDL_Flip(sdl_screen);
+}

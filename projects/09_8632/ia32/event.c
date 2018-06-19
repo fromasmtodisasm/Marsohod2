@@ -44,5 +44,5 @@ Uint32 TimerFPS(Uint32 interval, void *param) {
 void init_event() {
         
     fps = 0;    
-    SDL_TimerID MyTimer = SDL_AddTimer(20, TimerFPS, NULL);
+    SDL_AddTimer(20, TimerFPS, NULL);
 }
