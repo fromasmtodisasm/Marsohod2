@@ -19,13 +19,9 @@ int main(int argc, char* argv[]) {
     init_event();
     init_video();
     init_audio();
+    init_disas();
         
-    int x, kk;
-    
-    for (x = 0; x < 2000; x++) {
-        RAM[ 0xB8000 + 2*x    ] = 0x40;
-        RAM[ 0xB8000 + 2*x + 1] = x < 1000 ? 0x8A : 0x17;
-    }
+    int kk;
     
     /* Вывести дизассемблер */
     update();
@@ -60,11 +56,14 @@ int main(int argc, char* argv[]) {
                     break;
 
                 /* Дернута мышь */
-                // case SDL_MOUSEMOTION:              
+                // case SDL_MOUSEMOTION:   
+                           
                 // default:
                 // printf("I don't know what this event is!\n");
-            }
+            }            
         }
+        
+        SDL_Delay(1); /* Снижение нагрузки на процессор */
     } 
 
     SDL_CloseAudio();      
