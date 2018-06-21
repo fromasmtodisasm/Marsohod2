@@ -1,10 +1,12 @@
 /*
  * Дизассемблер
  */
- 
+
+#define OPCODE_PADLEN   8
+
 // Список мнемоник, используюстя в ops
 const char* mnemonics[] = {
-  
+
     /* 00 */ "add",     /* 01 */ "or",      /* 02 */ "adc",     /* 03 */ "sbb",
     /* 04 */ "and",     /* 05 */ "sub",     /* 06 */ "xor",     /* 07 */ "cmp",
     /* 08 */ "es:",     /* 09 */ "cs:",     /* 0A */ "ss:",     /* 0B */ "ds:",
@@ -18,36 +20,36 @@ const char* mnemonics[] = {
     /* 20 */ "jo",      /* 21 */ "jno",     /* 22 */ "jb",      /* 23 */ "jnb",
     /* 24 */ "jz",      /* 25 */ "jnz",     /* 26 */ "jbe",     /* 27 */ "jnbe",
     /* 28 */ "js",      /* 29 */ "jns",     /* 2A */ "jp",      /* 2B */ "jnp",
-    /* 2C */ "jl",      /* 2D */ "jnl",     /* 2E */ "jle",     /* 2F */ "jnle"    
-    
-    /* 30 */ "mov",     /* 31 */ "nop",     /* 32 */ "cbw",     /* 33 */ "cwd",    
+    /* 2C */ "jl",      /* 2D */ "jnl",     /* 2E */ "jle",     /* 2F */ "jnle"
+
+    /* 30 */ "mov",     /* 31 */ "nop",     /* 32 */ "cbw",     /* 33 */ "cwd",
     /* 34 */ "cwde",    /* 35 */ "cdq",     /* 36 */ "callf",   /* 37 */ "fwait",
     /* 38 */ "pushf",   /* 39 */ "popf",    /* 3A */ "sahf",    /* 3B */ "lahf",
     /* 3C */ "movs",    /* 3D */ "cmps",    /* 3E */ "stos",    /* 3F */ "lods",
-    
+
     /* 40 */ "scas",    /* 41 */ "ret",     /* 42 */ "retf",    /* 43 */ "les",
     /* 44 */ "lds",     /* 45 */ "lfs",     /* 46 */ "lgs",     /* 47 */ "enter",
     /* 48 */ "leave",   /* 49 */ "int",     /* 4A */ "int1",    /* 4B */ "int3",
     /* 4C */ "into",    /* 4D */ "iret",    /* 4E */ "aam",     /* 4F */ "aad",
-    
+
     /* 50 */ "salc",    /* 51 */ "xlatb",   /* 52 */ "loopnz",  /* 53 */ "loopz",
     /* 54 */ "loop",    /* 55 */ "jcxz",    /* 56 */ "in",      /* 57 */ "out",
     /* 58 */ "call",    /* 59 */ "jmp",     /* 5A */ "jmpf",    /* 5B */ "lock:",
     /* 5C */ "repnz:",  /* 5D */ "repz:",   /* 5E */ "hlt",     /* 5F */ "cmc",
-    
+
     /* 60 */ "clc",     /* 61 */ "stc",     /* 62 */ "cli",     /* 63 */ "sti",
     /* 64 */ "cld",     /* 65 */ "std",     /* 66 */ "rol",     /* 67 */ "ror",
     /* 68 */ "rcl",     /* 69 */ "rcr",     /* 6A */ "shl",     /* 6B */ "shr",
     /* 6C */ "sal",     /* 6D */ "sar",     /* 6E */ "not",     /* 6F */ "neg",
-    
-    /* 70 */ "mul",     /* 71 */ "div",     /* 72 */ "idiv",    /* 73 */ "rep:",        
+
+    /* 70 */ "mul",     /* 71 */ "div",     /* 72 */ "idiv",    /* 73 */ "rep:",
     /* 74 */ "",        /* 75 */ "",        /* 76 */ "",        /* 77 */ "",
     /* 78 */ "",        /* 79 */ "",        /* 7A */ "",        /* 7B */ "",
-    /* 7C */ "",        /* 7D */ "",        /* 7E */ "",        /* 7F */ "",    
+    /* 7C */ "",        /* 7D */ "",        /* 7E */ "",        /* 7F */ "",
 };
- 
+
 const int ops[512] = {
-    
+
     /* Основной набор */
     /* 00 */ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0E, 0x0F,
     /* 08 */ 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x0E, 0xFF,
@@ -56,19 +58,19 @@ const int ops[512] = {
     /* 20 */ 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x08, 0x10,
     /* 28 */ 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x09, 0x11,
     /* 30 */ 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x0A, 0x12,
-    /* 38 */ 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x0B, 0x13,    
+    /* 38 */ 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x0B, 0x13,
     /* 40 */ 0x14, 0x14, 0x14, 0x14, 0x14, 0x14, 0x14, 0x14,
     /* 48 */ 0x15, 0x15, 0x15, 0x15, 0x15, 0x15, 0x15, 0x15,
     /* 50 */ 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E,
     /* 58 */ 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F,
     /* 60 */ 0x16, 0x17, 0x18, 0x19, 0x0C, 0x0D, 0xFF, 0xFF,
-    /* 68 */ 0x0E, 0x1A, 0x0E, 0x1A, 0x1B, 0x1B, 0x1C, 0x1C,    
+    /* 68 */ 0x0E, 0x1A, 0x0E, 0x1A, 0x1B, 0x1B, 0x1C, 0x1C,
     /* 70 */ 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27,
     /* 78 */ 0x28, 0x29, 0x2A, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F,
     /* 80 */ 0xFF, 0xFF, 0xFF, 0xFF, 0x1D, 0x1D, 0x1E, 0x1E,
     /* 88 */ 0x30, 0x30, 0x30, 0x30, 0x30, 0x1F, 0x30, 0x0F,
-    /* 90 */ 0x31, 0x1E, 0x1E, 0x1E, 0x1E, 0x1E, 0x1E, 0x1E,    
-    /* 98 */ 0x32, 0x33, 0x36, 0x37, 0x38, 0x39, 0x3A, 0x3B,    
+    /* 90 */ 0x31, 0x1E, 0x1E, 0x1E, 0x1E, 0x1E, 0x1E, 0x1E,
+    /* 98 */ 0x32, 0x33, 0x36, 0x37, 0x38, 0x39, 0x3A, 0x3B,
     /* A0 */ 0x30, 0x30, 0x30, 0x30, 0x3C, 0x3C, 0x3D, 0x3D,
     /* A8 */ 0x1D, 0x1D, 0x3E, 0x3E, 0x3F, 0x3F, 0x40, 0x40,
     /* B0 */ 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30,
@@ -81,7 +83,7 @@ const int ops[512] = {
     /* E8 */ 0x58, 0x59, 0x5A, 0x59, 0x56, 0x56, 0x57, 0x57,
     /* F0 */ 0x5B, 0x4A, 0x5C, 0x5D, 0x5E, 0x5F, 0xFF, 0xFF,
     /* F8 */ 0x60, 0x61, 0x62, 0x63, 0x64, 0x65, 0xFF, 0xFF,
-    
+
     /* Дополнительный набор */
     /* 00 */ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     /* 08 */ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -115,20 +117,20 @@ const int ops[512] = {
     /* E8 */ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     /* F0 */ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     /* F8 */ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-    
+
 };
 
 const char* regnames[] = {
-    
+
     /* 00 */ "al",  "cl",  "dl",  "bl",  "ah",  "ch",  "dh",  "bh",
     /* 08 */ "ax",  "cx",  "dx",  "bx",  "sp",  "bp",  "si",  "di",
     /* 10 */ "eax", "ecx", "edx", "ebx", "esp", "ebp", "esi", "edi",
-    /* 18 */ "es",  "cs",  "ds",  "ss",  "fs",  "gs",  "",    ""    
+    /* 18 */ "es",  "cs",  "ds",  "ss",  "fs",  "gs",  "",    ""
 
 };
 
 const char* rm16names[] = {
-    
+
     /* 0 */ "bx+si",
     /* 1 */ "bx+di",
     /* 2 */ "bp+si",
@@ -137,7 +139,7 @@ const char* rm16names[] = {
     /* 5 */ "di",
     /* 6 */ "bp",
     /* 7 */ "bx"
-    
+
 };
 
 char tmps[256];
@@ -149,7 +151,7 @@ char dis_rm[32];        /* Rm-часть Modrm */
 char dis_px[32];        /* Префикс */
 
 void init_disas() {
-    dis_visline = 0;    
+    dis_visline = 0;
 }
 
 /* Дизассемблирование одной инструкции */
@@ -161,127 +163,124 @@ void init_disas() {
 //       = 0x20 32 бит
 
 int disas_modrm(int reg32, int mem32) {
-    
+
     int n = 0, b, w, reg, mod, rm;
-    
+
     /* Очистка */
     dis_rg[0] = 0;
     dis_rm[0] = 0;
-    
+
     // 16 бит
     if (mem32 == 0) {
-        
-        b = fetchb(); 
+
+        b = fetchb();
         n++;
-        
+
         rm  = (b & 0x07);
         reg = (b & 0x38) >> 3;
         mod = (b & 0xc0);
-        
-        /* Печать регистра 8/16/32 */        
+
+        /* Печать регистра 8/16/32 */
         switch (reg32) {
             case 0x08: sprintf(dis_rg, "%s", regnames[ reg ]); break;
             case 0x10: sprintf(dis_rg, "%s", regnames[ reg + 0x08 ]); break;
             case 0x20: sprintf(dis_rg, "%s", regnames[ reg + 0x10 ]); break;
             default:   sprintf(dis_rg, "<unknown>"); break;
         }
-                
+
         /* Rm-часть */
         switch (mod) {
-            
+
             /* Индекс без disp или disp16 */
-            case 0x00: 
-            
+            case 0x00:
+
                 if (rm == 6) {
                     w = fetchw(); n += 2;
                     sprintf(dis_rm, "[%s%04x]", dis_px, w);
                 } else {
                     sprintf(dis_rm, "[%s%s]", dis_px, rm16names[ rm ]);
                 }
-                
+
                 break;
 
-            /* + disp8 */  
-            case 0x40: 
-            
+            /* + disp8 */
+            case 0x40:
+
                 b = fetchb(); n++;
                 if (b & 0x80) {
                     sprintf(dis_rm, "[%s%s-%02x]", dis_px, rm16names[ rm ], (0xff ^ b) + 1);
+                } else if (b == 0) { 
+                    sprintf(dis_rm, "[%s%s]", dis_px, rm16names[ rm ]);
                 } else {
-                    sprintf(dis_rm, "[%s%s+%02x]", dis_px, rm16names[ rm ], b);            
+                    sprintf(dis_rm, "[%s%s+%02x]", dis_px, rm16names[ rm ], b);
                 }
-                
+
                 break;
 
             /* + disp16 */
-            case 0x80: 
-            
+            case 0x80:
+
                 w = fetchw(); n += 2;
                 if (w & 0x8000) {
-                    sprintf(dis_rm, "[%s%s-%04x]", dis_px, rm16names[ rm ], (0xFFFF ^ w) + 1); 
+                    sprintf(dis_rm, "[%s%s-%04x]", dis_px, rm16names[ rm ], (0xFFFF ^ w) + 1);
+                } else if (w == 0) {
+                    sprintf(dis_rm, "[%s%s]", dis_px, rm16names[ rm ]);
                 } else {
-                    sprintf(dis_rm, "[%s%s+%04x]", dis_px, rm16names[ rm ], w); 
+                    sprintf(dis_rm, "[%s%s+%04x]", dis_px, rm16names[ rm ], w);
                 }
-                
+
                 break;
 
             /* Регистровая часть */
-            case 0xc0: 
-            
+            case 0xc0:
+
                 switch (reg32) {
                     case 0x08: sprintf(dis_rm, "%s", regnames[ rm ]); break;
                     case 0x10: sprintf(dis_rm, "%s", regnames[ rm + 0x08 ]); break;
                     case 0x20: sprintf(dis_rm, "%s", regnames[ rm + 0x10 ]); break;
                 }
 
-                break;        
-        }    
-    } 
+                break;
+        }
+    }
     // 32 бит
     else {
-        
+
         // todo
-        
-    }    
-    
+
+    }
+
     return n;
 }
 
 /* Дизассемблер полной строки */
 int disas(Uint32 address) {
-    
+
     int bk_eip = eip; /* Чтобы восстановить его в конце */
     int ereg = default_reg, /* 16 bit */
         emem = default_reg,
         stop = 0,
         elock = 0;
-            
+
     char dis_pf[8];
     char dis_cmd[32];
     char dis_ops[64];
     char dis_dmp[64];
-    
-    int n = 0, i, d, opcode = 0;
+
+    int n = 0, i, j, d, opcode = 0;
 
     // Очистить префикс
     dis_px[0]  = 0; // Сегментный префикс
-    dis_pf[0]  = 0; // Префикс 
+    dis_pf[0]  = 0; // Префикс
     dis_ops[0] = 0; // Операнды
     dis_dmp[0] = 0; // Минидамп
 
-RAM[0] = 0x66;
-RAM[1] = 0x05;
-RAM[2] = 0x00;
-RAM[3] = 0x01;
-RAM[4] = 0x02;
-RAM[5] = 0x03;
-
     /* Декодирование префиксов (до 6 штук) */
-    for (i = 0; i < 6; i++) {    
-        
+    for (i = 0; i < 6; i++) {
+
         d = fetchb();
         n++;
-        
+
         switch (d) {
             case 0x0F: opcode |= 0x100; break;
             case 0x26: sprintf(dis_px, "%s", "es:"); break;
@@ -296,62 +295,116 @@ RAM[5] = 0x03;
             case 0xf2: sprintf(dis_pf, "%s", "repnz "); break;
             case 0xf3: sprintf(dis_pf, "%s", "rep "); break;
             default:   opcode |= d; stop = 1; break;
-        }   
-        
-        if (stop) break; 
+        }
+
+        if (stop) break;
     }
 
     int opdec = ops[ opcode ];
     int hasmodrm = modrm_lookup[ opcode ];
-    
+
     // Типичная мнемоника
     sprintf(dis_cmd, "%s%s%s", elock ? "lock " : "", dis_pf, mnemonics[ opdec ] );
-    
+
     // Байт имеет modrm
     if (hasmodrm) {
 
-        n += disas_modrm(16, 0);     // 8, 16, 32
-        sprintf(dis_ops, "%s, %s", dis_rm, dis_rg);
+        // Размер по умолчанию 8 бит, если opcode[0] = 1, то либо 16, либо 32
+        int regsize = opcode & 1 ? (ereg ? 32 : 16) : 8;            
+        int swmod   = opcode & 2; // Обмен местами dis_rm и dis_rg
         
+        if (opcode == /* BOUND */ 0x62) regsize = (ereg ? 32 : 16);        
+        if (opcode == /* ARPL */ 0x63) swmod = 0;
+
+        n += disas_modrm(regsize, emem ? 0x20 : 0x00);
+        
+        // IMUL imm16
+        if (opcode == 0x69) {
+            if (ereg) {         
+                sprintf(dis_ops, "%s, %s, %08X", dis_rg, dis_rm, fetchd() ); n += 4;
+            } else {
+                sprintf(dis_ops, "%s, %s, %04X", dis_rg, dis_rm, fetchw() ); n += 2;
+            }
+            
+        // Типичный операнд modrm
+        } else {            
+            sprintf(dis_ops, "%s, %s", swmod ? dis_rg : dis_rm, swmod ? dis_rm : dis_rg);
+        }
+
     } else {
-        
+
         // [00xx_x10x] АЛУ AL/AX/EAX, i8/16/32
         if ((opcode & 0b11000110) == 0b00000100) {
-            
+
             if ((opcode & 1) == 0) { // 8 bit
-                sprintf(dis_ops, "al, %02x", fetchb()); n++;
+                sprintf(dis_ops, "al, %02X", fetchb()); n++;
             } else if (ereg == 0) { // 16 bit
-                sprintf(dis_ops, "ax, %04x", fetchw()); n += 2;
+                sprintf(dis_ops, "ax, %04X", fetchw()); n += 2;
             } else {
-                sprintf(dis_ops, "eax, %08x", fetchd()); n += 4;
+                sprintf(dis_ops, "eax, %08X", fetchd()); n += 4;
             }
         }
-                
+        // [000x x11x] PUSH/POP
+        else if ((opcode & 0b11100110) == 0b00000110) {
+            sprintf(dis_ops, "%s", regnames[0x18 + ((opcode >> 3) & 3)] );
+        }
+        // [0100_xxxx] INC/DEC/PUSH/POP
+        else if ((opcode & 0b11100000) == 0b01000000) {
+            sprintf(dis_ops, "%s", regnames[ (ereg ? 0x10 : 0x08) + (opcode & 7)] );
+        }
+        else if (opcode == 0x60 && ereg) { sprintf(dis_cmd, "pushad"); }
+        else if (opcode == 0x61 && ereg) { sprintf(dis_cmd, "popad"); }
+        // PUSH imm16/32
+        else if (opcode == 0x68) { 
+            
+            if (ereg) {                
+                sprintf(dis_ops, "%08X", fetchd()); n += 4;
+            } else {
+                sprintf(dis_ops, "%04X", fetchw()); n += 2;
+            }
+        }
+        // PUSH imm8
+        else if (opcode == 0x6A) { int t = fetchb(); sprintf(dis_ops, "%04X", t | ((t & 0x80) ? 0xFF00 : 0)); n++; }        
+
     }
-    
+
     // Максимальное кол-во байт должно быть не более 6
     for (i = 0; i < 6; i++) {
-        if (i < n) {
-            sprintf(dis_dmp + 2*i, "%02x", readb(bk_eip + i));
+        if (i == 5 && n > 5) {
+            sprintf(dis_dmp + 2*i, "..");
+        } else if (i < n) {            
+            sprintf(dis_dmp + 2*i, "%02X", readb(bk_eip + i));
         } else {
             sprintf(dis_dmp + 2*i, "  ");
         }
     }
 
+    // Дополнить пробелами мнемонику
+    for (i = 0; i < OPCODE_PADLEN; i++) {
+        if (dis_cmd[i] == 0) {
+            for (j = i; j < OPCODE_PADLEN; j++) {
+                dis_cmd[j] = ' ';
+            }
+            dis_cmd[OPCODE_PADLEN - 1] = 0;
+            break;
+        }
+    }
+
     // Формирование строки вывода
-    sprintf(dis_row, "%08x %s %s     %s", bk_eip, dis_dmp, dis_cmd, dis_ops);    
+    // EIP, дамп инструкции, команда, операнды
+    sprintf(dis_row, "%08X %s %s %s", bk_eip, dis_dmp, dis_cmd, dis_ops);
 
     eip = bk_eip;
     return n;
-} 
+}
 // ---------------------------------------------------------------------
 
 /* Вывод общего дизассемблера */
 void update() {
-    
+
     int i;
     linebf(0, 16,  1280, 783, dac[3]); // Общий фон
-    
+
     linebf(0, 0,   1280, 15,  dac[7]); // Верхняя строка
     print(0, 0, "  \xF0  File  Edit  View  Run  Breakpoints  Data  Options  Window  Help", 0);
     print(0, 0, "  \xF0  F     E     V     R    B            D     O        W       H   ", dac[4]);
@@ -359,31 +412,31 @@ void update() {
     linebf(0, 784, 1280, 799, dac[7]); // Нижняя строка
     print(0, 784, "F1-Help F2-Bkpt F3-Mod F4-Here F5-Zoom F6-Next F7-Trace F8-Step F9-Run F10-Menu", 0);
     print(0, 784, "F1      F2      F3     F4      F5      F6      F7       F8      F9     F10", dac[4]);
-        
+
     // Обрамления
     // ------------------------------
     print_char(0, 16, 0xc9, dac[15] );    print_char(0,    16*48, 0xc8, dac[15] );
     print_char(8*62, 16, 0xd1, dac[15] ); print_char(8*62, 16*48, 0xcf, dac[15] );
-    print_char(8*75, 16, 0xd1, dac[15] ); print_char(8*75, 16*48, 0xcf, dac[15] ); 
+    print_char(8*75, 16, 0xd1, dac[15] ); print_char(8*75, 16*48, 0xcf, dac[15] );
     print_char(8*79, 16, 0xbb, dac[15] ); print_char(8*79, 16*48, 0xbc, dac[15] );
-    
-    for (i = 1; i < 79; i++) {        
-        
+
+    for (i = 1; i < 79; i++) {
+
         if (i == 62 || i == 75) continue;
-        
+
         print_char(8*i, 16, 0xcd, dac[15] );
         print_char(8*i, 16*48, 0xcd, dac[15] );
     }
-    
+
     // Вертикальные линии
-    for (i = 2; i < 48; i++) {        
-        
+    for (i = 2; i < 48; i++) {
+
         print_char(0,    16*i, 0xba, dac[15] );
         print_char(62*8, 16*i, 0xb3, dac[15] );
         if (i < 18) print_char(75*8, 16*i, 0xb3, dac[15] );
         print_char(79*8, 16*i, 0xba, dac[15] );
     }
-    
+
     // Сделать строку перемотки
     //if (i > 2 && i < 47)
     //print_char(62*8, 16*i, 0xb1, dac[1] );
@@ -397,44 +450,49 @@ void update() {
     print(76*8, 16*6, eflags & 0x004 ? "p=1" : "p=0", dac[0]);
     print(76*8, 16*7, eflags & 0x010 ? "a=1" : "a=0", dac[0]);
     print(76*8, 16*8, eflags & 0x200 ? "i=1" : "i=0", dac[0]);
-    print(76*8, 16*9, eflags & 0x400 ? "d=1" : "d=0", dac[0]);        
-    print(76*8, 16*10, eflags & 0x100 ? "t=1" : "t=0", dac[0]);   
-    
+    print(76*8, 16*9, eflags & 0x400 ? "d=1" : "d=0", dac[0]);
+    print(76*8, 16*10, eflags & 0x100 ? "t=1" : "t=0", dac[0]);
+
     /* Вывод регистров */
-    sprintf(tmps, "eax %08x", eax); print(63*8, 16*2, tmps, dac[0]);     
-    sprintf(tmps, "ebx %08x", ebx); print(63*8, 16*3, tmps, dac[0]);     
-    sprintf(tmps, "ecx %08x", ecx); print(63*8, 16*4, tmps, dac[0]);     
-    sprintf(tmps, "edx %08x", edx); print(63*8, 16*5, tmps, dac[0]);     
-    sprintf(tmps, "esp %08x", esp); print(63*8, 16*6, tmps, dac[0]);     
-    sprintf(tmps, "ebp %08x", ebp); print(63*8, 16*7, tmps, dac[0]);     
-    sprintf(tmps, "esi %08x", esi); print(63*8, 16*8, tmps, dac[0]);     
-    sprintf(tmps, "edi %08x", edi); print(63*8, 16*9, tmps, dac[0]);     
-    sprintf(tmps, "eip %08x", eip); print(63*8, 16*10, tmps, dac[0]);     
-    
+    sprintf(tmps, "eax %08x", eax); print(63*8, 16*2, tmps, dac[0]);
+    sprintf(tmps, "ebx %08x", ebx); print(63*8, 16*3, tmps, dac[0]);
+    sprintf(tmps, "ecx %08x", ecx); print(63*8, 16*4, tmps, dac[0]);
+    sprintf(tmps, "edx %08x", edx); print(63*8, 16*5, tmps, dac[0]);
+    sprintf(tmps, "esp %08x", esp); print(63*8, 16*6, tmps, dac[0]);
+    sprintf(tmps, "ebp %08x", ebp); print(63*8, 16*7, tmps, dac[0]);
+    sprintf(tmps, "esi %08x", esi); print(63*8, 16*8, tmps, dac[0]);
+    sprintf(tmps, "edi %08x", edi); print(63*8, 16*9, tmps, dac[0]);
+    sprintf(tmps, "eip %08x", eip); print(63*8, 16*10, tmps, dac[0]);
+
     /* Сегментные */
-    sprintf(tmps, " es %04x", es); print(63*8, 16*12, tmps, dac[0]);     
-    sprintf(tmps, " cs %04x", cs); print(63*8, 16*13, tmps, dac[0]);     
-    sprintf(tmps, " ds %04x", ds); print(63*8, 16*14, tmps, dac[0]);     
-    sprintf(tmps, " ss %04x", ss); print(63*8, 16*15, tmps, dac[0]);     
-    sprintf(tmps, " fs %04x", fs); print(63*8, 16*16, tmps, dac[0]);     
-    sprintf(tmps, " gs %04x", gs); print(63*8, 16*17, tmps, dac[0]);     
-    
+    sprintf(tmps, " es %04x", es); print(63*8, 16*12, tmps, dac[0]);
+    sprintf(tmps, " cs %04x", cs); print(63*8, 16*13, tmps, dac[0]);
+    sprintf(tmps, " ds %04x", ds); print(63*8, 16*14, tmps, dac[0]);
+    sprintf(tmps, " ss %04x", ss); print(63*8, 16*15, tmps, dac[0]);
+    sprintf(tmps, " fs %04x", fs); print(63*8, 16*16, tmps, dac[0]);
+    sprintf(tmps, " gs %04x", gs); print(63*8, 16*17, tmps, dac[0]);
+
+    int bk_eip = eip;
+
     /* Вывод отладчика */
     for (i = 0; i < 46; i++) {
 
         int dis_color = dac[0];
-        
+
         /* Текущая линия выбрана */
         if (dis_visline == i) {
-            
+
             linebf(8*1, 16*(i + 2), 8*62 - 1, 16*(i + 2) + 15, dac[1]);
             dis_color = dac[15];
-            
         }
-        
-        disas(0); 
-        print(16, 16*(i + 2), dis_row, dis_color);        
+
+        int n = disas(0);
+                
+        print(16, 16*(i + 2), dis_row, dis_color);
+        eip += n;            
     }
     
+    eip = bk_eip;
+
     SDL_Flip(sdl_screen);
 }

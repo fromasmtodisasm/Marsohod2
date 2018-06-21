@@ -1,4 +1,5 @@
 #include "SDL.h"
+#include <stdio.h>
 
 // --------------------------
 
@@ -10,6 +11,7 @@
 #include "video.c"
 #include "cpu.c"
 #include "disas.c"
+#include "load.c"
 
 int main(int argc, char* argv[]) {
 
@@ -20,6 +22,8 @@ int main(int argc, char* argv[]) {
     init_video();
     init_audio();
     init_disas();
+    
+    preload(argc, argv);
         
     int kk;
     
