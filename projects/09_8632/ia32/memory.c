@@ -17,3 +17,38 @@ unsigned char readb(Uint32 address) {
 unsigned int readw(Uint32 address) {    
     return readb(address) + (readb(address + 1) << 8);
 }
+
+// Прочитать байт из cs:ip / cs:eip
+unsigned int fetchb() {
+    
+    int fd;
+    
+    switch (processor_mode) {
+        
+        /* RM */ 
+        case 0: 
+        
+            fd = cs * 0x10 + (eip & 0xffff);
+            eip++; 
+            eip &= 0xffff;
+            break;
+    
+    }
+    
+    return readb( fd );
+};
+
+unsigned int fetchw() {
+    
+    int a = fetchb();
+    int b = fetchb();
+    return a + b*256;
+}
+
+unsigned int fetchd() {
+
+    int a = fetchw();
+    int b = fetchw();
+    return a + b*65536;
+
+}

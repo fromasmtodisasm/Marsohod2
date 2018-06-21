@@ -10,37 +10,37 @@ const char* mnemonics[] = {
     /* 08 */ "es:",     /* 09 */ "cs:",     /* 0A */ "ss:",     /* 0B */ "ds:",
     /* 0C */ "fs:",     /* 0D */ "gs:",     /* 0E */ "push",    /* 0F */ "pop",
 
-    /* 10 */ "DAA",     /* 11 */ "DAS",     /* 12 */ "AAA",     /* 13 */ "AAS",
-    /* 14 */ "INC",     /* 15 */ "DEC",     /* 16 */ "PUSHA",   /* 17 */ "POPA",
-    /* 18 */ "BOUND",   /* 19 */ "ARPL",    /* 1A */ "IMUL",    /* 1B */ "INS",
-    /* 1C */ "OUTS",    /* 1D */ "TEST",    /* 1E */ "XCHG",    /* 1F */ "LEA",
+    /* 10 */ "daa",     /* 11 */ "das",     /* 12 */ "aaa",     /* 13 */ "aas",
+    /* 14 */ "inc",     /* 15 */ "dec",     /* 16 */ "pusha",   /* 17 */ "popa",
+    /* 18 */ "bound",   /* 19 */ "arpl",    /* 1A */ "imul",    /* 1B */ "ins",
+    /* 1C */ "outs",    /* 1D */ "test",    /* 1E */ "xchg",    /* 1F */ "lea",
 
-    /* 20 */ "JO",      /* 21 */ "JNO",     /* 22 */ "JB",      /* 23 */ "JNB",
-    /* 24 */ "JZ",      /* 25 */ "JNZ",     /* 26 */ "JBE",     /* 27 */ "JNBE",
-    /* 28 */ "JS",      /* 29 */ "JNS",     /* 2A */ "JP",      /* 2B */ "JNP",
-    /* 2C */ "JL",      /* 2D */ "JNL",     /* 2E */ "JLE",     /* 2F */ "JNLE"    
+    /* 20 */ "jo",      /* 21 */ "jno",     /* 22 */ "jb",      /* 23 */ "jnb",
+    /* 24 */ "jz",      /* 25 */ "jnz",     /* 26 */ "jbe",     /* 27 */ "jnbe",
+    /* 28 */ "js",      /* 29 */ "jns",     /* 2A */ "jp",      /* 2B */ "jnp",
+    /* 2C */ "jl",      /* 2D */ "jnl",     /* 2E */ "jle",     /* 2F */ "jnle"    
     
-    /* 30 */ "MOV",     /* 31 */ "NOP",     /* 32 */ "CBW",     /* 33 */ "CWD",    
-    /* 34 */ "CWDE",    /* 35 */ "CDQ",     /* 36 */ "CALLF",   /* 37 */ "FWAIT",
-    /* 38 */ "PUSHF",   /* 39 */ "POPF",    /* 3A */ "SAHF",    /* 3B */ "LAHF",
-    /* 3C */ "MOVS",    /* 3D */ "CMPS",    /* 3E */ "STOS",    /* 3F */ "LODS",
+    /* 30 */ "mov",     /* 31 */ "nop",     /* 32 */ "cbw",     /* 33 */ "cwd",    
+    /* 34 */ "cwde",    /* 35 */ "cdq",     /* 36 */ "callf",   /* 37 */ "fwait",
+    /* 38 */ "pushf",   /* 39 */ "popf",    /* 3A */ "sahf",    /* 3B */ "lahf",
+    /* 3C */ "movs",    /* 3D */ "cmps",    /* 3E */ "stos",    /* 3F */ "lods",
     
-    /* 40 */ "SCAS",    /* 41 */ "RET",     /* 42 */ "RETF",    /* 43 */ "LES",
-    /* 44 */ "LDS",     /* 45 */ "LFS",     /* 46 */ "LGS",     /* 47 */ "ENTER",
-    /* 48 */ "LEAVE",   /* 49 */ "INT",     /* 4A */ "INT1",    /* 4B */ "INT3",
-    /* 4C */ "INTO",    /* 4D */ "IRET",    /* 4E */ "AAM",     /* 4F */ "AAD",
+    /* 40 */ "scas",    /* 41 */ "ret",     /* 42 */ "retf",    /* 43 */ "les",
+    /* 44 */ "lds",     /* 45 */ "lfs",     /* 46 */ "lgs",     /* 47 */ "enter",
+    /* 48 */ "leave",   /* 49 */ "int",     /* 4A */ "int1",    /* 4B */ "int3",
+    /* 4C */ "into",    /* 4D */ "iret",    /* 4E */ "aam",     /* 4F */ "aad",
     
-    /* 50 */ "SALC",    /* 51 */ "XLATB",   /* 52 */ "LOOPNZ",  /* 53 */ "LOOPZ",
-    /* 54 */ "LOOP",    /* 55 */ "JCXZ",    /* 56 */ "IN",      /* 57 */ "OUT",
-    /* 58 */ "CALL",    /* 59 */ "JMP",     /* 5A */ "JMPF",    /* 5B */ "LOCK:",
-    /* 5C */ "REPNZ:",  /* 5D */ "REPZ:",   /* 5E */ "HLT",     /* 5F */ "CMC",
+    /* 50 */ "salc",    /* 51 */ "xlatb",   /* 52 */ "loopnz",  /* 53 */ "loopz",
+    /* 54 */ "loop",    /* 55 */ "jcxz",    /* 56 */ "in",      /* 57 */ "out",
+    /* 58 */ "call",    /* 59 */ "jmp",     /* 5A */ "jmpf",    /* 5B */ "lock:",
+    /* 5C */ "repnz:",  /* 5D */ "repz:",   /* 5E */ "hlt",     /* 5F */ "cmc",
     
-    /* 60 */ "CLC",     /* 61 */ "STC",     /* 62 */ "CLI",     /* 63 */ "STI",
-    /* 64 */ "CLD",     /* 65 */ "STD",     /* 66 */ "ROL",     /* 67 */ "ROR",
-    /* 68 */ "RCL",     /* 69 */ "RCR",     /* 6A */ "SHL",     /* 6B */ "SHR",
-    /* 6C */ "SAL",     /* 6D */ "SAR",     /* 6E */ "NOT",     /* 6F */ "NEG",
+    /* 60 */ "clc",     /* 61 */ "stc",     /* 62 */ "cli",     /* 63 */ "sti",
+    /* 64 */ "cld",     /* 65 */ "std",     /* 66 */ "rol",     /* 67 */ "ror",
+    /* 68 */ "rcl",     /* 69 */ "rcr",     /* 6A */ "shl",     /* 6B */ "shr",
+    /* 6C */ "sal",     /* 6D */ "sar",     /* 6E */ "not",     /* 6F */ "neg",
     
-    /* 70 */ "MUL",     /* 71 */ "DIV",     /* 72 */ "IDIV",    /* 73 */ "REP:",        
+    /* 70 */ "mul",     /* 71 */ "div",     /* 72 */ "idiv",    /* 73 */ "rep:",        
     /* 74 */ "",        /* 75 */ "",        /* 76 */ "",        /* 77 */ "",
     /* 78 */ "",        /* 79 */ "",        /* 7A */ "",        /* 7B */ "",
     /* 7C */ "",        /* 7D */ "",        /* 7E */ "",        /* 7F */ "",    
@@ -160,7 +160,7 @@ void init_disas() {
 //       = 0x10 16 бит                = 0x20 32 бит
 //       = 0x20 32 бит
 
-int disas_modrm(Uint32 address, int reg32, int mem32) {
+int disas_modrm(int reg32, int mem32) {
     
     int n = 0, b, w, reg, mod, rm;
     
@@ -171,7 +171,7 @@ int disas_modrm(Uint32 address, int reg32, int mem32) {
     // 16 бит
     if (mem32 == 0) {
         
-        b = readb(address++); 
+        b = fetchb(); 
         n++;
         
         rm  = (b & 0x07);
@@ -193,10 +193,10 @@ int disas_modrm(Uint32 address, int reg32, int mem32) {
             case 0x00: 
             
                 if (rm == 6) {
-                    w = readw(address); address += 2; n += 2;
-                    sprintf(dis_rm, "[%04x]", w);
+                    w = fetchw(); n += 2;
+                    sprintf(dis_rm, "[%s%04x]", dis_px, w);
                 } else {
-                    sprintf(dis_rm, "[%s]", rm16names[ rm ]);
+                    sprintf(dis_rm, "[%s%s]", dis_px, rm16names[ rm ]);
                 }
                 
                 break;
@@ -204,11 +204,11 @@ int disas_modrm(Uint32 address, int reg32, int mem32) {
             /* + disp8 */  
             case 0x40: 
             
-                b = readb(address++); n++;
+                b = fetchb(); n++;
                 if (b & 0x80) {
-                    sprintf(dis_rm, "[%s-%02x]", rm16names[ rm ], (0xff ^ b) + 1);
+                    sprintf(dis_rm, "[%s%s-%02x]", dis_px, rm16names[ rm ], (0xff ^ b) + 1);
                 } else {
-                    sprintf(dis_rm, "[%s+%02x]", rm16names[ rm ], b);            
+                    sprintf(dis_rm, "[%s%s+%02x]", dis_px, rm16names[ rm ], b);            
                 }
                 
                 break;
@@ -216,11 +216,11 @@ int disas_modrm(Uint32 address, int reg32, int mem32) {
             /* + disp16 */
             case 0x80: 
             
-                w = readw(address); address += 2; n += 2;
+                w = fetchw(); n += 2;
                 if (w & 0x8000) {
-                    sprintf(dis_rm, "[%s-%04x]", rm16names[ rm ], (0xFFFF ^ w) + 1); 
+                    sprintf(dis_rm, "[%s%s-%04x]", dis_px, rm16names[ rm ], (0xFFFF ^ w) + 1); 
                 } else {
-                    sprintf(dis_rm, "[%s+%04x]", rm16names[ rm ], w); 
+                    sprintf(dis_rm, "[%s%s+%04x]", dis_px, rm16names[ rm ], w); 
                 }
                 
                 break;
@@ -249,21 +249,100 @@ int disas_modrm(Uint32 address, int reg32, int mem32) {
 
 /* Дизассемблер полной строки */
 int disas(Uint32 address) {
-
-
-RAM[0] = 0x87;
-RAM[1] = 0x00;
-RAM[2] = 0x80;
-
-    // Если есть modrm
-    disas_modrm(address, 16, 0); 
     
-    dis_px[0] = 0;    
-    // sprintf(dis_px, "%s", "ds:");
+    int bk_eip = eip; /* Чтобы восстановить его в конце */
+    int ereg = default_reg, /* 16 bit */
+        emem = default_reg,
+        stop = 0,
+        elock = 0;
+            
+    char dis_pf[8];
+    char dis_cmd[32];
+    char dis_ops[64];
+    char dis_dmp[64];
     
+    int n = 0, i, d, opcode = 0;
+
+    // Очистить префикс
+    dis_px[0]  = 0; // Сегментный префикс
+    dis_pf[0]  = 0; // Префикс 
+    dis_ops[0] = 0; // Операнды
+    dis_dmp[0] = 0; // Минидамп
+
+RAM[0] = 0x66;
+RAM[1] = 0x05;
+RAM[2] = 0x00;
+RAM[3] = 0x01;
+RAM[4] = 0x02;
+RAM[5] = 0x03;
+
+    /* Декодирование префиксов (до 6 штук) */
+    for (i = 0; i < 6; i++) {    
+        
+        d = fetchb();
+        n++;
+        
+        switch (d) {
+            case 0x0F: opcode |= 0x100; break;
+            case 0x26: sprintf(dis_px, "%s", "es:"); break;
+            case 0x2E: sprintf(dis_px, "%s", "cs:"); break;
+            case 0x36: sprintf(dis_px, "%s", "ss:"); break;
+            case 0x3E: sprintf(dis_px, "%s", "ss:"); break;
+            case 0x64: sprintf(dis_px, "%s", "fs:"); break;
+            case 0x65: sprintf(dis_px, "%s", "gs:"); break;
+            case 0x66: ereg = ereg ^ 1; break;
+            case 0x67: emem = emem ^ 1; break;
+            case 0xf0: elock = 1; break;
+            case 0xf2: sprintf(dis_pf, "%s", "repnz "); break;
+            case 0xf3: sprintf(dis_pf, "%s", "rep "); break;
+            default:   opcode |= d; stop = 1; break;
+        }   
+        
+        if (stop) break; 
+    }
+
+    int opdec = ops[ opcode ];
+    int hasmodrm = modrm_lookup[ opcode ];
     
-    sprintf(dis_row, "00000000 0000             add     %s%s, %s", dis_px, dis_rm, dis_rg);    
-    return 0;
+    // Типичная мнемоника
+    sprintf(dis_cmd, "%s%s%s", elock ? "lock " : "", dis_pf, mnemonics[ opdec ] );
+    
+    // Байт имеет modrm
+    if (hasmodrm) {
+
+        n += disas_modrm(16, 0);     // 8, 16, 32
+        sprintf(dis_ops, "%s, %s", dis_rm, dis_rg);
+        
+    } else {
+        
+        // [00xx_x10x] АЛУ AL/AX/EAX, i8/16/32
+        if ((opcode & 0b11000110) == 0b00000100) {
+            
+            if ((opcode & 1) == 0) { // 8 bit
+                sprintf(dis_ops, "al, %02x", fetchb()); n++;
+            } else if (ereg == 0) { // 16 bit
+                sprintf(dis_ops, "ax, %04x", fetchw()); n += 2;
+            } else {
+                sprintf(dis_ops, "eax, %08x", fetchd()); n += 4;
+            }
+        }
+                
+    }
+    
+    // Максимальное кол-во байт должно быть не более 6
+    for (i = 0; i < 6; i++) {
+        if (i < n) {
+            sprintf(dis_dmp + 2*i, "%02x", readb(bk_eip + i));
+        } else {
+            sprintf(dis_dmp + 2*i, "  ");
+        }
+    }
+
+    // Формирование строки вывода
+    sprintf(dis_row, "%08x %s %s     %s", bk_eip, dis_dmp, dis_cmd, dis_ops);    
+
+    eip = bk_eip;
+    return n;
 } 
 // ---------------------------------------------------------------------
 
@@ -353,7 +432,8 @@ void update() {
             
         }
         
-        disas(0); print(16, 16*(i + 2), dis_row, dis_color);        
+        disas(0); 
+        print(16, 16*(i + 2), dis_row, dis_color);        
     }
     
     SDL_Flip(sdl_screen);
