@@ -142,6 +142,22 @@ const char* rm16names[] = {
 
 };
 
+const char* grp2[] = {
+    
+    /* 0 */ "test",
+    /* 1 */ "test",
+    /* 2 */ "not",
+    /* 3 */ "neg",
+    /* 4 */ "mul",
+    /* 5 */ "imul",
+    /* 6 */ "div",
+    /* 7 */ "idiv",
+    
+};
+
+/* Из байта modrm */
+int reg, mod, rm;
+
 char tmps[256];
 char dis_row[256];
 int  dis_visline;
@@ -164,7 +180,7 @@ void init_disas() {
 
 int disas_modrm(int reg32, int mem32) {
 
-    int n = 0, b, w, reg, mod, rm;
+    int n = 0, b, w;
 
     /* Очистка */
     dis_rg[0] = 0;
@@ -300,11 +316,13 @@ int disas(Uint32 address) {
         if (stop) break;
     }
 
-    int opdec = ops[ opcode ];
+    int opdec    = ops[ opcode ];
     int hasmodrm = modrm_lookup[ opcode ];
-
-    // Типичная мнемоника
-    sprintf(dis_cmd, "%s%s%s", elock ? "lock " : "", dis_pf, mnemonics[ opdec ] );
+    
+    // Типичная мнемоника    
+    if (opdec != 0xff) {
+        sprintf(dis_cmd, "%s", mnemonics[ opdec ] );
+    }
 
     // Байт имеет modrm
     if (hasmodrm) {
@@ -316,18 +334,78 @@ int disas(Uint32 address) {
         if (opcode == /* BOUND */ 0x62) regsize = (ereg ? 32 : 16);        
         if (opcode == /* ARPL */ 0x63) swmod = 0;
 
-        n += disas_modrm(regsize, emem ? 0x20 : 0x00);
+        // Получить данные из modrm
+        n += disas_modrm(regsize, emem ? 0x20 : 0x00);        
         
+        // GRP-1 8 
+        if (opcode == 0x80 || opcode == 0x82) { 
+            
+            sprintf(dis_cmd, "%s", mnemonics[ reg ]  );
+            sprintf(dis_ops, "%s, %02X", dis_rm, fetchb()); n++;            
+        }
+        
+        // GRP-1 16/32
+        else if (opcode == 0x81) { 
+            
+            sprintf(dis_cmd, "%s", mnemonics[ reg ]  );
+            
+            if (ereg) {
+                sprintf(dis_ops, "%s, %08X", dis_rm, fetchd()); n += 4;
+            } else {
+                sprintf(dis_ops, "%s, %04X", dis_rm, fetchw()); n += 2;
+            }
+        }
+        
+        // GRP-1 16/32: Расширение 8 бит до 16/32
+        else if (opcode == 0x83) { 
+            
+            int b8 = fetchb(); n++;
+            sprintf(dis_cmd, "%s", mnemonics[ reg ]  );
+            
+            if (ereg) {
+                sprintf(dis_ops, "%s, %08X", dis_rm, b8 | (b8 & 0x80 ? 0xFFFFFF00 : 0));
+            } else {
+                sprintf(dis_ops, "%s, %04X", dis_rm, b8 | (b8 & 0x80 ? 0xFF00 : 0)); 
+            }
+        }
+                
         // IMUL imm16
-        if (opcode == 0x69) {
+        else if (opcode == 0x69) {
+            
             if (ereg) {         
                 sprintf(dis_ops, "%s, %s, %08X", dis_rg, dis_rm, fetchd() ); n += 4;
             } else {
                 sprintf(dis_ops, "%s, %s, %04X", dis_rg, dis_rm, fetchw() ); n += 2;
-            }
+            }        
+        }
+        // Групповые инструкции #2: Byte
+        else if (opcode == 0xF6) {
             
-        // Типичный операнд modrm
-        } else {            
+            sprintf(dis_cmd, "%s", grp2[ reg ]  );
+            if (reg < 2) { /* TEST */
+                sprintf(dis_ops, "%s, %02X", dis_rm, fetchb() ); n++;
+            } else {
+                sprintf(dis_ops, "%s", dis_rm);
+            }
+        }
+        // Групповые инструкции #2: Word/Dword
+        else if (opcode == 0xF7) {
+            
+            sprintf(dis_cmd, "%s", grp2[ reg ]  );
+            
+            if (reg < 2) { /* TEST */
+                if (ereg) {         
+                    sprintf(dis_ops, "%s, %08X", dis_rm, fetchd() ); n += 4;
+                } else {
+                    sprintf(dis_ops, "%s, %04X", dis_rm, fetchw() ); n += 2;
+                } 
+            } else {
+                sprintf(dis_ops, "%s", dis_rm);
+            }
+        }
+        
+        // Обычные
+        else {            
             sprintf(dis_ops, "%s, %s", swmod ? dis_rg : dis_rm, swmod ? dis_rm : dis_rg);
         }
 
@@ -365,6 +443,15 @@ int disas(Uint32 address) {
         }
         // PUSH imm8
         else if (opcode == 0x6A) { int t = fetchb(); sprintf(dis_ops, "%04X", t | ((t & 0x80) ? 0xFF00 : 0)); n++; }        
+        // Jccc rel8
+        else if ((opcode & 0b11110000) == 0b01110000) {
+            int br = fetchb(); n++;
+            sprintf(dis_ops, "%08X", (br & 0x80 ? (eip + br - 256) : eip + br ));
+        }
+        else if (opcode == 0x6c) sprintf(dis_cmd, "insb");
+        else if (opcode == 0x6d) sprintf(dis_cmd, ereg ? "insd" : "insw");
+        else if (opcode == 0x6e) sprintf(dis_cmd, "outsb");
+        else if (opcode == 0x6f) sprintf(dis_cmd, ereg ? "outsd" : "outsw");
 
     }
 
@@ -392,7 +479,7 @@ int disas(Uint32 address) {
 
     // Формирование строки вывода
     // EIP, дамп инструкции, команда, операнды
-    sprintf(dis_row, "%08X %s %s %s", bk_eip, dis_dmp, dis_cmd, dis_ops);
+    sprintf(dis_row, "%08X %s %s%s%s %s", bk_eip, dis_dmp, elock ? "lock " : "", dis_pf, dis_cmd, dis_ops);
 
     eip = bk_eip;
     return n;
