@@ -20,7 +20,7 @@ const char* mnemonics[] = {
     /* 20 */ "jo",      /* 21 */ "jno",     /* 22 */ "jb",      /* 23 */ "jnb",
     /* 24 */ "jz",      /* 25 */ "jnz",     /* 26 */ "jbe",     /* 27 */ "jnbe",
     /* 28 */ "js",      /* 29 */ "jns",     /* 2A */ "jp",      /* 2B */ "jnp",
-    /* 2C */ "jl",      /* 2D */ "jnl",     /* 2E */ "jle",     /* 2F */ "jnle"
+    /* 2C */ "jl",      /* 2D */ "jnl",     /* 2E */ "jle",     /* 2F */ "jnle",
 
     /* 30 */ "mov",     /* 31 */ "nop",     /* 32 */ "cbw",     /* 33 */ "cwd",
     /* 34 */ "cwde",    /* 35 */ "cdq",     /* 36 */ "callf",   /* 37 */ "fwait",
@@ -282,6 +282,7 @@ int disas(Uint32 address) {
     char dis_cmd[32];
     char dis_ops[64];
     char dis_dmp[64];
+    char dis_sfx[8];
 
     int n = 0, i, j, d, opcode = 0;
 
@@ -290,6 +291,7 @@ int disas(Uint32 address) {
     dis_pf[0]  = 0; // Префикс
     dis_ops[0] = 0; // Операнды
     dis_dmp[0] = 0; // Минидамп
+    dis_sfx[0] = 0; // Суффикс
 
     /* Декодирование префиксов (до 6 штук) */
     for (i = 0; i < 6; i++) {
@@ -333,6 +335,8 @@ int disas(Uint32 address) {
         
         if (opcode == /* BOUND */ 0x62) regsize = (ereg ? 32 : 16);        
         if (opcode == /* ARPL */ 0x63) swmod = 0;
+        if (opcode == /* LEA */ 0x8D) swmod = 1;
+        if (opcode == /* SREG */ 0x8C || opcode == 0x8E) regsize = 16; 
 
         // Получить данные из modrm
         n += disas_modrm(regsize, emem ? 0x20 : 0x00);        
@@ -404,6 +408,11 @@ int disas(Uint32 address) {
             }
         }
         
+        // Сегментные и POP r/m
+        else if (opcode == 0x8C) { sprintf(dis_ops, "%s, %s", dis_rm, regnames[ 0x18 + reg ] ); }
+        else if (opcode == 0x8E) { sprintf(dis_ops, "%s, %s", regnames[ 0x18 + reg ], dis_rm ); }
+        else if (opcode == 0x8F) { sprintf(dis_ops, "%s %s", ereg ? "dword" : "word", dis_rm ); }
+        
         // Обычные
         else {            
             sprintf(dis_ops, "%s, %s", swmod ? dis_rg : dis_rm, swmod ? dis_rm : dis_rg);
@@ -452,7 +461,52 @@ int disas(Uint32 address) {
         else if (opcode == 0x6d) sprintf(dis_cmd, ereg ? "insd" : "insw");
         else if (opcode == 0x6e) sprintf(dis_cmd, "outsb");
         else if (opcode == 0x6f) sprintf(dis_cmd, ereg ? "outsd" : "outsw");
-
+        // XCHG ax, r16/32
+        else if (opcode > 0x90 && opcode <= 0x97) {
+            if (ereg) {
+                sprintf(dis_ops, "eax, %s", regnames[ 0x10 + (opcode & 7) ] );
+            } else {
+                sprintf(dis_ops, "ax, %s", regnames[ 0x8 + (opcode & 7) ] );
+            }
+        }
+        else if (opcode == 0x98 && ereg) sprintf(dis_cmd, "cwde");
+        else if (opcode == 0x99 && ereg) sprintf(dis_cmd, "cdq");
+        else if (opcode == 0x9A) {
+            
+            n += (ereg ? 4 : 2);
+            int dw = ereg ? fetchd() : fetchw();
+            int sg = fetchw();
+            
+            if (ereg) sprintf(dis_ops, "%04X:%08X", sg, dw);
+                else  sprintf(dis_ops, "%04X:%04X", sg, dw);
+        }
+        // MOV
+        else if (opcode == 0xA0) { sprintf(dis_ops, "al, [%04X]", fetchw()); n += 2; }
+        else if (opcode == 0xA1) { sprintf(dis_ops, "ax, [%04X]", fetchw()); n += 2; }
+        else if (opcode == 0xA2) { sprintf(dis_ops, "[%04X], al", fetchw()); n += 2; }
+        else if (opcode == 0xA3) { sprintf(dis_ops, "[%04X], ax", fetchw()); n += 2; }        
+        else if (opcode == 0xA8) { sprintf(dis_ops, "al, %02X", fetchb()); n++; }
+        // TEST
+        else if (opcode == 0xA9) { 
+            if (ereg) {
+                sprintf(dis_ops, "eax, %08X", fetchd()); n += 4;
+            } else {
+                sprintf(dis_ops, "ax, %04X", fetchw()); n += 2;
+            }
+        }
+        else if ((opcode >= 0xA4 && opcode <= 0xA7) || (opcode >= 0xAA && opcode <= 0xAF)) { 
+            sprintf(dis_sfx, opcode&1 ? (ereg ? "d" : "w") : "b");
+        }
+        else if (opcode >= 0xB0 && opcode <= 0xB7) {
+            sprintf(dis_ops, "%s, %02x", regnames[ opcode & 7 ], fetchb()); n++;
+        }
+        else if (opcode >= 0xB8 && opcode <= 0xBF) {
+            if (ereg) {
+                sprintf(dis_ops, "%s, %08x", regnames[ 0x10 + (opcode & 7) ], fetchd()); n += 4;
+            } else {
+                sprintf(dis_ops, "%s, %04x", regnames[ 0x08 + (opcode & 7) ], fetchw()); n += 2;
+            }
+        }
     }
 
     // Максимальное кол-во байт должно быть не более 6
@@ -465,6 +519,9 @@ int disas(Uint32 address) {
             sprintf(dis_dmp + 2*i, "  ");
         }
     }
+    
+    // Суффикс команды
+    sprintf(dis_cmd, "%s%s", dis_cmd, dis_sfx);
 
     // Дополнить пробелами мнемонику
     for (i = 0; i < OPCODE_PADLEN; i++) {
