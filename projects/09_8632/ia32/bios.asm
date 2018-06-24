@@ -1,8 +1,12 @@
 
         org     0
-        
-        mov     al, $23
-        mov     ah, $55
-        mov     ax, $1155
-        mov     eax, $22551155
-k:  
+        inc     byte [bx + si]
+        dec     word [$0022]
+        call    word [bx]
+        call    eax
+        call    dword [bx]
+        jmp     bx
+        jmp     ebx
+        jmp     dword [bx]
+        push    word [bx]
+        push    dword [bx]
