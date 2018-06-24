@@ -1,4 +1,8 @@
 void redraw_textmode();
+void update();
+void step();
+
+// ---------------------------------------------------------------------
 
 /* cpu.c */
 Uint32 eflags, pflags;      /* pflags для отладчика */
@@ -12,6 +16,14 @@ Uint32 eip;
 Uint16 es, cs, ds, ss, fs, gs;
 Uint8  processor_mode;      /* 0 - realmode, 1 - protected mode */
 Uint8  default_reg;
+
+int  addr_start;        /* Стартовый адрес дизассемблера */
+int  cursor_at;         /* Курсор (синяя полоска) */
+
+/* Работа с диском IDE 0:0 */
+FILE * disk_file;
+
+// ---------------------------------------------------------------------
 
 const Uint8 modrm_lookup[512] = {
     

@@ -46,3 +46,19 @@ void init_event() {
     fps = 0;    
     SDL_AddTimer(20, TimerFPS, NULL);
 }
+
+void KeyF7() {
+    
+    step();
+
+    // Установка курсора
+    cursor_at = eip;
+    
+    // eip = eip + 2;
+    update();    
+    
+}
+
+void KeyF8() {
+    
+}

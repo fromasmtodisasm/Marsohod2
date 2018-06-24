@@ -180,6 +180,8 @@ char dis_rm[32];        /* Rm-часть Modrm */
 char dis_px[32];        /* Префикс */
 
 void init_disas() {
+    
+    addr_start = 0;
     dis_visline = 0;
 }
 
@@ -286,6 +288,8 @@ int disas_modrm(int reg32, int mem32) {
 int disas(Uint32 address) {
 
     int bk_eip = eip; /* Чтобы восстановить его в конце */
+        eip    = address;
+    
     int ereg = default_reg, /* 16 bit */
         emem = default_reg,
         stop = 0,
@@ -429,20 +433,20 @@ int disas(Uint32 address) {
 
         // Групповые инструкции #3: Byte
         else if (opcode == 0xFE) {
-            
+
             if (reg < 2) {
-                sprintf(dis_cmd, "%s", grp3[ reg ]  ); 
-                sprintf(dis_ops, "byte %s", dis_rm ); 
+                sprintf(dis_cmd, "%s", grp3[ reg ]  );
+                sprintf(dis_ops, "byte %s", dis_rm );
             } else {
                 sprintf(dis_cmd, "(unk)");
             }
         }
         // Групповые инструкции #3: Word / Dword
         else if (opcode == 0xFF) {
-            
+
             sprintf(dis_cmd, "%s", grp3[ reg ]  );
-            sprintf(dis_ops, "%s %s", ereg ? "dword" : "word", dis_rm ); 
-                
+            sprintf(dis_ops, "%s %s", ereg ? "dword" : "word", dis_rm );
+
         }
 
         // Сегментные и POP r/m
@@ -459,7 +463,7 @@ int disas(Uint32 address) {
         else if (opcode == 0xD0 || opcode == 0xD1) {
             sprintf(dis_cmd, "%s", mnemonics[ 0x66 + reg ]);
             sprintf(dis_ops, "%s, 1", dis_rm);
-        }        
+        }
         // cl
         else if (opcode == 0xD2 || opcode == 0xD3) {
             sprintf(dis_cmd, "%s", mnemonics[ 0x66 + reg ]);
@@ -475,7 +479,7 @@ int disas(Uint32 address) {
             } else {
                 sprintf(dis_ops, "%s, %04X", dis_rm, fetchw()); n += 2;
             }
-        }        
+        }
         // Обычные
         else {
             sprintf(dis_ops, "%s, %s", swmod ? dis_rg : dis_rm, swmod ? dis_rm : dis_rg);
@@ -494,19 +498,19 @@ int disas(Uint32 address) {
                 sprintf(dis_ops, "eax, %08X", fetchd()); n += 4;
             }
         }
-        
+
         // [000x x11x] PUSH/POP
         else if ((opcode & 0b11100110) == 0b00000110) {
             sprintf(dis_ops, "%s", regnames[0x18 + ((opcode >> 3) & 3)] );
         }
-        
+
         // [0100_xxxx] INC/DEC/PUSH/POP
         else if ((opcode & 0b11100000) == 0b01000000) {
             sprintf(dis_ops, "%s", regnames[ (ereg ? 0x10 : 0x08) + (opcode & 7)] );
         }
         else if (opcode == 0x60 && ereg) { sprintf(dis_cmd, "pushad"); }
         else if (opcode == 0x61 && ereg) { sprintf(dis_cmd, "popad"); }
-        
+
         // PUSH imm16/32
         else if (opcode == 0x68) {
 
@@ -537,7 +541,7 @@ int disas(Uint32 address) {
         }
         else if (opcode == 0x98 && ereg) sprintf(dis_cmd, "cwde");
         else if (opcode == 0x99 && ereg) sprintf(dis_cmd, "cdq");
-        
+
         // CALLF/JMPF
         else if (opcode == 0x9A || opcode == 0xEA) {
 
@@ -583,7 +587,7 @@ int disas(Uint32 address) {
         }
         // ENTER
         else if (opcode == 0xC8) {
-            
+
             int aa = fetchw();
             int ab = fetchb();
             sprintf(dis_ops, "%04x, %02X", aa, ab); n += 3;
@@ -600,13 +604,13 @@ int disas(Uint32 address) {
         else if (opcode == 0xEE) { sprintf(dis_ops, "dx, al"); }
         else if (opcode == 0xEF) { sprintf(dis_ops, "dx, %s", ereg ? "eax" : "ax"); }
         // CALL / JMP rel16
-        else if (opcode == 0xE8 || opcode == 0xE9) { 
+        else if (opcode == 0xE8 || opcode == 0xE9) {
             if (ereg) {
-                
+
                 int m = fetchd(); n += 4;
                     m = (m & 0x80000000) ? m - 0x100000000 : m;
-                sprintf(dis_ops, "%08X", m); 
-                
+                sprintf(dis_ops, "%08X", m);
+
             } else {
                 int m = fetchw(); n += 2;
                     m = (m & 0x8000) ? m - 0x10000 : m;
@@ -621,7 +625,7 @@ int disas(Uint32 address) {
         if (i == 5 && n > 5) {
             sprintf(dis_dmp + 2*i, "..");
         } else if (i < n) {
-            sprintf(dis_dmp + 2*i, "%02X", readb(bk_eip + i));
+            sprintf(dis_dmp + 2*i, "%02X", readb(address + i));
         } else {
             sprintf(dis_dmp + 2*i, "  ");
         }
@@ -643,7 +647,7 @@ int disas(Uint32 address) {
 
     // Формирование строки вывода
     // EIP, дамп инструкции, команда, операнды
-    sprintf(dis_row, "%08X %s %s%s%s %s", bk_eip, dis_dmp, elock ? "lock " : "", dis_pf, dis_cmd, dis_ops);
+    sprintf(dis_row, "%08X %s %s%s%s %s", address, dis_dmp, elock ? "lock " : "", dis_pf, dis_cmd, dis_ops);
 
     eip = bk_eip;
     return n;
@@ -668,12 +672,12 @@ void update() {
     // ------------------------------
     print_char(0, 16, 0xc9, dac[15] );    print_char(0,    16*48, 0xc8, dac[15] );
     print_char(8*62, 16, 0xd1, dac[15] ); print_char(8*62, 16*48, 0xcf, dac[15] );
-    print_char(8*75, 16, 0xd1, dac[15] ); print_char(8*75, 16*48, 0xcf, dac[15] );
+    print_char(8*75, 16, 0xd1, dac[15] ); 
     print_char(8*79, 16, 0xbb, dac[15] ); print_char(8*79, 16*48, 0xbc, dac[15] );
 
     for (i = 1; i < 79; i++) {
 
-        if (i == 62 || i == 75) continue;
+        if (i == 62) continue;
 
         print_char(8*i, 16, 0xcd, dac[15] );
         print_char(8*i, 16*48, 0xcd, dac[15] );
@@ -687,6 +691,8 @@ void update() {
         if (i < 18) print_char(75*8, 16*i, 0xb3, dac[15] );
         print_char(79*8, 16*i, 0xba, dac[15] );
     }
+    
+    print(62*8, 18*16, "\xC3\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC1\xC4\xC4\xC4\xB6", 0xFFFFFF);
 
     // Сделать строку перемотки
     //if (i > 2 && i < 47)
@@ -723,27 +729,30 @@ void update() {
     sprintf(tmps, " fs %04x", fs); print(63*8, 16*16, tmps, dac[0]);
     sprintf(tmps, " gs %04x", gs); print(63*8, 16*17, tmps, dac[0]);
 
-    int bk_eip = eip;
+    int current = addr_start;
 
     /* Вывод отладчика */
     for (i = 0; i < 46; i++) {
 
+        int yc = 16*(i + 2);
         int dis_color = dac[0];
 
         /* Текущая линия выбрана */
-        if (dis_visline == i) {
+        if (cursor_at == current) {
 
-            linebf(8*1, 16*(i + 2), 8*62 - 1, 16*(i + 2) + 15, dac[1]);
+            linebf(8*1, yc, 8*62 - 1, 16*(i + 2) + 15, dac[1]);
             dis_color = dac[15];
         }
 
-        int n = disas(0);
+        if (eip == current) {
+            print(8*10, yc, "\x10", cursor_at == current ? 0xFFFFFF : 0);
+        } 
+        
+        int n = disas(current);
+        current += n;
 
-        print(16, 16*(i + 2), dis_row, dis_color);
-        eip += n;
+        print(16, 16*(i + 2), dis_row, dis_color);                   
     }
-
-    eip = bk_eip;
 
     SDL_Flip(sdl_screen);
 }

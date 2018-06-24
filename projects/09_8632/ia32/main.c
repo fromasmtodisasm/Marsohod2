@@ -54,8 +54,14 @@ int main(int argc, char* argv[]) {
                 case SDL_KEYDOWN:
 
                     kk = get_key_code(event);
-                    if (kk == 9) 
-                        return 0;
+                    
+                    switch (kk) {
+                        
+                        case 9: return 0;
+                        case 73: KeyF7(); break;
+                        case 74: KeyF8(); break;
+                        
+                    }                    
 
                     break;
 
