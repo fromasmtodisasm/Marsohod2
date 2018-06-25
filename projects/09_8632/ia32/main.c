@@ -9,6 +9,7 @@
 #include "event.c"
 #include "audio.c"
 #include "video.c"
+#include "instr.c"
 #include "cpu.c"
 #include "disas.c"
 #include "load.c"
@@ -22,6 +23,7 @@ int main(int argc, char* argv[]) {
     init_video();
     init_audio();
     init_disas();
+    init_cpu();
     
     preload(argc, argv);
         

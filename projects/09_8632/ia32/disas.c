@@ -182,7 +182,29 @@ char dis_px[32];        /* Префикс */
 void init_disas() {
     
     addr_start = 0;
-    dis_visline = 0;
+    dump_start = 0;
+    dis_visline = 0;    
+}
+
+void dis_save_state() {
+    
+    dis_eax = eax;
+    dis_ebx = ebx;
+    dis_ecx = ecx;
+    dis_edx = edx;
+    dis_esp = esp;
+    dis_ebp = ebp;
+    dis_esi = esi;
+    dis_edi = edi;
+    dis_eip = eip;
+    
+    dis_es  = es;
+    dis_cs  = cs;
+    dis_ds  = ds;
+    dis_ss  = ss;
+    dis_fs  = fs;
+    dis_gs  = gs;
+        
 }
 
 /* Дизассемблирование одной инструкции */
@@ -657,7 +679,8 @@ int disas(Uint32 address) {
 /* Вывод общего дизассемблера */
 void update() {
 
-    int i;
+    int i, j;
+    
     linebf(0, 16,  1280, 783, dac[3]); // Общий фон
 
     linebf(0, 0,   1280, 15,  dac[7]); // Верхняя строка
@@ -673,11 +696,12 @@ void update() {
     print_char(0, 16, 0xc9, dac[15] );    print_char(0,    16*48, 0xc8, dac[15] );
     print_char(8*62, 16, 0xd1, dac[15] ); print_char(8*62, 16*48, 0xcf, dac[15] );
     print_char(8*75, 16, 0xd1, dac[15] ); 
-    print_char(8*79, 16, 0xbb, dac[15] ); print_char(8*79, 16*48, 0xbc, dac[15] );
+    print_char(8*79, 16, 0xcb, dac[15] );  print_char(8*79, 16*48, 0xca, dac[15] );
+    print_char(8*159, 16, 0xbb, dac[15] ); print_char(8*159, 16*48, 0xbc, dac[15] );    
+    
+    for (i = 1; i < 159; i++) {
 
-    for (i = 1; i < 79; i++) {
-
-        if (i == 62) continue;
+        if (i == 62 || i == 79) continue;
 
         print_char(8*i, 16, 0xcd, dac[15] );
         print_char(8*i, 16*48, 0xcd, dac[15] );
@@ -690,6 +714,7 @@ void update() {
         print_char(62*8, 16*i, 0xb3, dac[15] );
         if (i < 18) print_char(75*8, 16*i, 0xb3, dac[15] );
         print_char(79*8, 16*i, 0xba, dac[15] );
+        print_char(159*8, 16*i, 0xba, dac[15] );
     }
     
     print(62*8, 18*16, "\xC3\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC1\xC4\xC4\xC4\xB6", 0xFFFFFF);
@@ -711,15 +736,15 @@ void update() {
     print(76*8, 16*10, eflags & 0x100 ? "t=1" : "t=0", dac[0]);
 
     /* Вывод регистров */
-    sprintf(tmps, "eax %08x", eax); print(63*8, 16*2, tmps, dac[0]);
-    sprintf(tmps, "ebx %08x", ebx); print(63*8, 16*3, tmps, dac[0]);
-    sprintf(tmps, "ecx %08x", ecx); print(63*8, 16*4, tmps, dac[0]);
-    sprintf(tmps, "edx %08x", edx); print(63*8, 16*5, tmps, dac[0]);
-    sprintf(tmps, "esp %08x", esp); print(63*8, 16*6, tmps, dac[0]);
-    sprintf(tmps, "ebp %08x", ebp); print(63*8, 16*7, tmps, dac[0]);
-    sprintf(tmps, "esi %08x", esi); print(63*8, 16*8, tmps, dac[0]);
-    sprintf(tmps, "edi %08x", edi); print(63*8, 16*9, tmps, dac[0]);
-    sprintf(tmps, "eip %08x", eip); print(63*8, 16*10, tmps, dac[0]);
+    sprintf(tmps, "eax %08x", eax); print(63*8, 16*2, tmps, dac[ dis_eax == eax ? 0 : 15 ]);
+    sprintf(tmps, "ebx %08x", ebx); print(63*8, 16*3, tmps, dac[ dis_ebx == ebx ? 0 : 15 ]);
+    sprintf(tmps, "ecx %08x", ecx); print(63*8, 16*4, tmps, dac[ dis_ecx == ecx ? 0 : 15 ]);
+    sprintf(tmps, "edx %08x", edx); print(63*8, 16*5, tmps, dac[ dis_edx == edx ? 0 : 15 ]);
+    sprintf(tmps, "esp %08x", esp); print(63*8, 16*6, tmps, dac[ dis_esp == esp ? 0 : 15 ]);
+    sprintf(tmps, "ebp %08x", ebp); print(63*8, 16*7, tmps, dac[ dis_ebp == ebp ? 0 : 15 ]);
+    sprintf(tmps, "esi %08x", esi); print(63*8, 16*8, tmps, dac[ dis_esi == esi ? 0 : 15 ]);
+    sprintf(tmps, "edi %08x", edi); print(63*8, 16*9, tmps, dac[ dis_edi == edi ? 0 : 15 ]);
+    sprintf(tmps, "eip %08x", eip); print(63*8, 16*10, tmps, dac[ dis_eip == eip ? 0 : 15 ]);
 
     /* Сегментные */
     sprintf(tmps, " es %04x", es); print(63*8, 16*12, tmps, dac[0]);
@@ -730,6 +755,24 @@ void update() {
     sprintf(tmps, " gs %04x", gs); print(63*8, 16*17, tmps, dac[0]);
 
     int current = addr_start;
+
+    print(8*91, 16*2, "0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F", dac[0]);
+    
+    for (i = 0; i < 16; i++) {
+        
+        sprintf(dis_row, "%08X", dump_start + i*16 );
+        print(8*81, 16*(3 + i), dis_row, dac[0]);
+        
+        for (j = 0; j < 16; j++) {
+            
+            int ch = RAM[ dump_start + i*16 + j ];
+            sprintf(dis_row, "%02X", ch );
+            
+            print(8*(90 + 3*j), 16*(3 + i), dis_row, dac[0]);
+            print_char(8*(138 + j), 16*(3 + i), ch, dac[0] );
+            
+        }
+    }
 
     /* Вывод отладчика */
     for (i = 0; i < 46; i++) {

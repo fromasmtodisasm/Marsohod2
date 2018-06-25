@@ -1,4 +1,7 @@
 
         org     0
-        mov     ax, bx
-        cmp     bx, cx
+        
+a:        
+        add     [$0080], al
+        jmp     a
+        
