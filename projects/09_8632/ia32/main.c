@@ -1,4 +1,4 @@
-#include "SDL.h"
+#include "SDL.h"            // Требуется apt install libsdl1.2-dev
 #include <stdio.h>
 
 // --------------------------

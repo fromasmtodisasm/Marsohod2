@@ -2,6 +2,9 @@ fasm bios.asm
 
 if (gcc `sdl-config --cflags --libs` main.c -lSDL -Wall -o e8632)
 then
+
     echo "OK"
-    ./e8632 freedos.img
+    
+    # Скачать freedos http://joelinoff.com/blog/?p=431
+    ./e8632 fdos.img
 fi
