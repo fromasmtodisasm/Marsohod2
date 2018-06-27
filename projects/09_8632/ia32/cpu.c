@@ -1,6 +1,6 @@
 int opcode, cpu_repnz, cpu_repe, cpu_segment, cpu_reg32, 
-    cpu_mem32,  cpu_lock, effective, cpu_modrm,
-    cpu_mod, cpu_rm, cpu_reg;
+    cpu_mem32,  cpu_lock, effective, cpu_modrm, cpu_bit,
+    cpu_mod, cpu_rm, cpu_reg, Op1, Op2, seg_override;
 
     
 /*
@@ -138,54 +138,24 @@ void put_regval(int reg, uint value, int bit) {
             if (bit == 32) { edi = (value); return; }
             break;            
     }
-    
 }
 
-// ---------------------------------------------------------------------
+// Получение опкода
+int get_opcode() {
+    
+    int i, stop = 0;
+    
+    opcode       = 0;
+    cpu_repnz    = 0;
+    cpu_repe     = 0;
+    cpu_reg32    = 0;
+    cpu_mem32    = 0;
+    cpu_lock     = 0;
+    effective    = 0;
+    cpu_modrm    = 0;    
 
-// Записать результат обратно в байт ModRM
-// [cpu_segment:effective] Адрес
-// direction = 0 писать в r/m
-//           = 1 писать в reg
-
-void WBACK(unsigned int value, int direction, int bit) {
-    
-    // Запись в r/m
-    if (direction == 0) {
-        
-        if (cpu_mod == 3) {         
-            put_regval(cpu_rm, value, bit);        
-        } else {
-            WRITE(bit, cpu_segment, effective, value);
-        }
-        
-    }
-}
-
-// ---------------------------------------------------------------------
-
-/* Шаг процессора */
-void step() {
-    
-    int i, stop = 0;    
-    
-    dis_save_state();
-    
-    opcode      = 0;
-    cpu_repnz   = 0;
-    cpu_repe    = 0;
-    cpu_segment = ds;
-    cpu_reg32   = 0;
-    cpu_mem32   = 0;
-    cpu_lock    = 0;
-    effective   = 0;
-    cpu_modrm   = 0;    
-    
-    /* Префикс сегмента */
-    int override = 0; 
-    
-    /* Рабочие операнды */
-    int Op1, Op2, temp;
+    seg_override = 0;
+    cpu_segment  = ds;
     
     /* Декодирование префиксов (макс 6) */
     for (i = 0; i < 6; i++) {
@@ -196,12 +166,12 @@ void step() {
             
             case 0x0F: opcode |= 0x100; break;
             
-            case 0x26: override = 1; cpu_segment = es; break;
-            case 0x2E: override = 1; cpu_segment = cs; break;
-            case 0x36: override = 1; cpu_segment = ds;  break;
-            case 0x3E: override = 1; cpu_segment = ss; break;
-            case 0x64: override = 1; cpu_segment = fs; break;
-            case 0x65: override = 1; cpu_segment = gs; break;
+            case 0x26: seg_override = 1; cpu_segment = es; break;
+            case 0x2E: seg_override = 1; cpu_segment = cs; break;
+            case 0x36: seg_override = 1; cpu_segment = ds;  break;
+            case 0x3E: seg_override = 1; cpu_segment = ss; break;
+            case 0x64: seg_override = 1; cpu_segment = fs; break;
+            case 0x65: seg_override = 1; cpu_segment = gs; break;
             
             case 0x66: cpu_reg32 = cpu_reg32 ^ 1; break;
             case 0x67: cpu_mem32 = cpu_mem32 ^ 1; break;
@@ -221,95 +191,146 @@ void step() {
         // exception();
     }
     
+    /* Битность по умолчанию */
+    cpu_bit = opcode & 1 ? (cpu_reg32 ? 32 : 16) : 8;
+    
+    return opcode;    
+}
+
+// Получение ModRM данных (и effective address)
+void get_modrm() {
+    
+    int temp;
+    
+    cpu_modrm = fetchb();
+        
+    // Извлечение частей ModRM
+    cpu_mod = (cpu_modrm >> 6);
+    cpu_reg = (cpu_modrm & 0x38) >> 3;
+    cpu_rm  = (cpu_modrm & 0x07);
+    
+    // Замена на SS: если нет segment override
+    if (!seg_override) {
+        
+        // ss: для операции с BP
+        if ((cpu_mod == 1 || cpu_mod == 2) && (cpu_rm == 2 || cpu_rm == 3 || cpu_rm == 6)) {
+            cpu_segment = ss;
+        }
+        else if ((cpu_mod == 0) && (cpu_rm == 2 || cpu_rm == 3)) {
+            cpu_segment = ss;
+        }
+    }
+    
+    // Регистровый операнд (битность из get_opcode)
+    Op1 = get_regval(cpu_reg, cpu_bit);        
+
+    // 16-битная адресация
+    if (cpu_mem32 == 0) {
+        
+        switch (cpu_rm) {
+            
+            case 0: effective = (ebx + esi); break; 
+            case 1: effective = (ebx + edi); break; 
+            case 2: effective = (ebp + esi); break; 
+            case 3: effective = (ebp + edi); break; 
+            case 4: effective = (esi); break; 
+            case 5: effective = (edi); break; 
+            case 6: effective = (ebp); break; 
+            case 7: effective = (ebx); break;                 
+        }
+        
+        effective &= 0xffff;
+        
+        switch (cpu_mod) {
+            
+            /* none/disp16 */
+            case 0: 
+            
+                if (cpu_rm == 6) { effective = fetchw(); } 
+                Op2 = READ(cpu_bit, cpu_segment, effective);
+                break;
+            
+            /* +disp8 */
+            case 1: 
+            
+                temp = fetchb();
+                effective += (temp & 0x80 ? temp - 0x100 : temp);
+                Op2 = READ(cpu_bit, cpu_segment, effective);
+                break;
+
+            /* +disp16 */
+            case 2: 
+            
+                temp = fetchw();
+                effective += (temp & 0x8000 ? temp - 0x10000 : temp);
+                Op2 = READ(cpu_bit, cpu_segment, effective);
+                break;
+            
+            /* register */
+            case 3: 
+            
+                Op2 = get_regval(cpu_rm, cpu_bit);  
+                break;                
+        }
+        
+    } else {
+        
+        // ...
+    }
+}
+
+// ---------------------------------------------------------------------
+
+// Записать результат обратно в байт ModRM
+// [cpu_segment:effective] Адрес
+// direction = 0 писать в r/m
+//           = 1 писать в reg
+
+void wmback(unsigned int value, int direction, int bit) {
+    
+    // Запись в r/m
+    if (direction == 0) {
+        
+        if (cpu_mod == 3) {         
+            put_regval(cpu_rm, value, bit); // Регистр R/M
+        } else {
+            WRITE(bit, cpu_segment, effective, value); // Память
+        }        
+    }
+    // Запись в reg
+    else {
+        put_regval(cpu_reg, value, bit);    // Регистр REG
+    }
+}
+
+// ---------------------------------------------------------------------
+
+/* Шаг процессора */
+void step() {
+    
+    u64 temp;
+    
+    // Сохранить предыдущее состояние
+    dis_save_state();
+    
+    // Получить опкод
+    opcode = get_opcode();    
+
     // Декодировать ModRM
     if (modrm_lookup[ opcode ]) {
-                
-        cpu_modrm = fetchb();
-        
-        // Извлечение частей ModRM
-        cpu_mod = (cpu_modrm >> 6);
-        cpu_reg = (cpu_modrm & 0x38) >> 3;
-        cpu_rm  = (cpu_modrm & 0x07);
-        
-        // Если есть segment override
-        if (!override) {
-            
-            // ss: для операции с BP
-            if ((cpu_mod == 1 || cpu_mod == 2) && (cpu_rm == 2 || cpu_rm == 3 || cpu_rm == 6)) {
-                cpu_segment = ss;
-            }
-            else if ((cpu_mod == 0) && (cpu_rm == 2 || cpu_rm == 3)) {
-                cpu_segment = ss;
-            }
-        }
-        
-        /* Дефолтная битность */
-        int bit = opcode & 1 ? (cpu_reg32 ? 32 : 16) : 8;
-
-        Op1 = get_regval(cpu_reg, bit);        
-
-        // 16-битная адресация
-        if (cpu_mem32 == 0) {
-            
-            switch (cpu_rm) {
-                
-                case 0: effective = (ebx + esi); break; 
-                case 1: effective = (ebx + edi); break; 
-                case 2: effective = (ebp + esi); break; 
-                case 3: effective = (ebp + edi); break; 
-                case 4: effective = (esi); break; 
-                case 5: effective = (edi); break; 
-                case 6: effective = (ebp); break; 
-                case 7: effective = (ebx); break;                 
-            }
-            
-            effective &= 0xffff;
-            
-            switch (cpu_mod) {
-                
-                /* none/disp16 */
-                case 0: 
-                
-                    if (cpu_rm == 6) { effective = fetchw(); } 
-                    Op2 = READ(bit, cpu_segment, effective);
-                    break;
-                
-                /* +disp8 */
-                case 1: 
-                
-                    temp = fetchb();
-                    effective += (temp & 0x80 ? temp - 0x100 : temp);
-                    Op2 = READ(bit, cpu_segment, effective);
-                    break;
-
-                /* +disp16 */
-                case 2: 
-                
-                    temp = fetchw();
-                    effective += (temp & 0x8000 ? temp - 0x10000 : temp);
-                    Op2 = READ(bit, cpu_segment, effective);
-                    break;
-                
-                /* register */
-                case 3: 
-                
-                    Op2 = get_regval(cpu_rm, bit);  
-                    break;                
-            }
-        }
+        get_modrm();        
     }
     
     /* Исполнение инструкции */
     switch (opcode) {
         
         /* ADD */
-        case 0x00: temp = INSTR_ADD(Op1, Op2, 8); WBACK(temp, 0, 8); break;
+        case 0x00: temp = INSTR_ADD(Op1, Op2, 8); wmback(temp, 0, 8); break;
         case 0x01: break;
         case 0x02: break;
         case 0x03: break;
         case 0x04: break;
-        case 0x05: break;
-        
+        case 0x05: break;        
         case 0x06: break;
         case 0x07: break;
         
@@ -373,7 +394,7 @@ void step() {
         case 0x36: break;
         case 0x37: break;
         
-        /* CMP */
+        /* CMP r16 */
         case 0x38: break;
         case 0x39: break;
         case 0x3A: break;
@@ -383,6 +404,7 @@ void step() {
         case 0x3E: break;
         case 0x3F: break;
                 
+        /* INC r16 */
         case 0x40: break;
         case 0x41: break;
         case 0x42: break;
@@ -391,6 +413,8 @@ void step() {
         case 0x45: break;
         case 0x46: break;
         case 0x47: break;
+        
+        /* DEC r16 */
         case 0x48: break;
         case 0x49: break;
         case 0x4A: break;
@@ -400,6 +424,7 @@ void step() {
         case 0x4E: break;
         case 0x4F: break;
         
+        /* PUSH r16 */
         case 0x50: break;
         case 0x51: break;
         case 0x52: break;
@@ -408,6 +433,8 @@ void step() {
         case 0x55: break;
         case 0x56: break;
         case 0x57: break;
+                
+        /* POP r16 */
         case 0x58: break;
         case 0x59: break;
         case 0x5A: break;

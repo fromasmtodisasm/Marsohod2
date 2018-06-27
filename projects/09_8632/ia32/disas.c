@@ -223,23 +223,22 @@ int disas_modrm(int reg32, int mem32) {
     dis_rg[0] = 0;
     dis_rm[0] = 0;
 
+    b = fetchb(); n++;
+
+    rm  = (b & 0x07);
+    reg = (b & 0x38) >> 3;
+    mod = (b & 0xc0);
+
+    /* Печать регистра 8/16/32 */
+    switch (reg32) {
+        case 0x08: sprintf(dis_rg, "%s", regnames[ reg ]); break;
+        case 0x10: sprintf(dis_rg, "%s", regnames[ reg + 0x08 ]); break;
+        case 0x20: sprintf(dis_rg, "%s", regnames[ reg + 0x10 ]); break;
+        default:   sprintf(dis_rg, "<unknown>"); break;
+    }
+        
     // 16 бит
-    if (mem32 == 0) {
-
-        b = fetchb();
-        n++;
-
-        rm  = (b & 0x07);
-        reg = (b & 0x38) >> 3;
-        mod = (b & 0xc0);
-
-        /* Печать регистра 8/16/32 */
-        switch (reg32) {
-            case 0x08: sprintf(dis_rg, "%s", regnames[ reg ]); break;
-            case 0x10: sprintf(dis_rg, "%s", regnames[ reg + 0x08 ]); break;
-            case 0x20: sprintf(dis_rg, "%s", regnames[ reg + 0x10 ]); break;
-            default:   sprintf(dis_rg, "<unknown>"); break;
-        }
+    if (mem32 == 0) {        
 
         /* Rm-часть */
         switch (mod) {
@@ -296,11 +295,160 @@ int disas_modrm(int reg32, int mem32) {
                 break;
         }
     }
+    
     // 32 бит
     else {
+        
+        int sib = 0, sibhas = 0;
 
-        // todo
+        switch (mod) {
+            
+            case 0x00: 
+            
+                if (rm == 5) {
+                    
+                    w = fetchd(); n += 4;
+                    sprintf(dis_rm, "[%s%08x]", dis_px, w);
+                    
+                } else if (rm == 4) { /* SIB */
+                    
+                    sib = fetchb(); n++;
+                    sibhas = 1;
+                    
+                } else {
+                    sprintf(dis_rm, "[%s%s]", dis_px, regnames[0x10 + rm]);
+                }
+                
+                break;
+                
+            /* + disp8 */    
+            case 0x40: 
 
+            
+                if (rm == 4) { 
+
+                    sib = fetchb(); n++;
+                    sibhas = 1;
+                    
+                } else {
+
+                    b = fetchb(); n++;
+                    
+                    if (b & 0x80) {
+                        sprintf(dis_rm, "[%s%s-%02x]", dis_px, regnames[ 0x10 + rm ], (0xff ^ b) + 1);
+                    } else if (b == 0) {
+                        sprintf(dis_rm, "[%s%s]", dis_px, regnames[ 0x10 + rm ]);
+                    } else {
+                        sprintf(dis_rm, "[%s%s+%02x]", dis_px, regnames[ 0x10 + rm ], b);
+                    }
+                }
+                
+                break;
+            
+            /* + disp32 */    
+            case 0x80:
+        
+                
+                if (rm == 4) {
+                    
+                    sib = fetchb(); n++;
+                    sibhas = 1;
+                    
+                } else {
+
+                    w = fetchd(); n += 4;
+                    
+                    if (w & 0x80000000) {
+                    sprintf(dis_rm, "[%s%s-%04x]", dis_px, regnames[ 0x10 + rm ], (0xFFFFFFFF ^ w) + 1);
+                    } else if (w == 0) {
+                        sprintf(dis_rm, "[%s%s]", dis_px, regnames[ 0x10 + rm ]);
+                    } else {
+                        sprintf(dis_rm, "[%s%s+%04x]", dis_px, regnames[ 0x10 + rm ], w);
+                    }
+                }
+
+                break;
+                
+            /* Регистровая часть */
+            case 0xc0:
+
+                switch (reg32) {
+                    case 0x08: sprintf(dis_rm, "%s", regnames[ rm ]); break;
+                    case 0x10: sprintf(dis_rm, "%s", regnames[ rm + 0x08 ]); break;
+                    case 0x20: sprintf(dis_rm, "%s", regnames[ rm + 0x10 ]); break;
+                }
+
+                break;            
+        }
+        
+        /* Имеется байт SIB */
+        if (sibhas) {            
+            
+            char cdisp32[16]; cdisp32[0] = 0;
+            
+            int disp = 0;
+            int sib_ss = (sib & 0xc0);
+            int sib_ix = (sib & 0x38) >> 3;
+            int sib_bs = (sib & 0x07);                        
+            
+            /* Декодирование Displacement */
+            switch (mod) {
+                
+                case 0x40: 
+                    
+                    disp = fetchb(); n += 1;
+                    
+                    if (disp & 0x80) {
+                        sprintf(cdisp32, "-%02X", (disp ^ 0xff) + 1);
+                    } else {
+                        sprintf(cdisp32, "+%02X", disp);
+                    }
+                    
+                    break;
+                    
+               case 0x80: 
+               case 0xc0: 
+                    
+                    disp = fetchd(); n += 4;
+                    if (disp & 0x80000000) {
+                        sprintf(cdisp32, "-%08X", (disp ^ 0xffffffff) + 1);
+                    } else {
+                        sprintf(cdisp32, "+%08X", disp);
+                    }
+                    break;
+            }
+            
+            /* Декодирование Index */
+            if (sib_ix == 4) {
+                
+                sprintf(dis_rm, "[%s%s]", dis_px, regnames[ 0x10 + sib_bs ]);
+                
+            } else {
+                
+                switch (sib_ss) {
+                
+                    case 0x00: 
+                    
+                        sprintf(dis_rm, "[%s%s+%s]", dis_px, regnames[ 0x10 + sib_bs ], regnames[ 0x10 + sib_ix ]); 
+                        break;
+                        
+                    case 0x40: 
+                    
+                        sprintf(dis_rm, "[%s%s+2*%s%s]", dis_px, regnames[ 0x10 + sib_bs ], regnames[ 0x10 + sib_ix ], cdisp32); 
+                        break;
+                        
+                    case 0x80: 
+                    
+                        sprintf(dis_rm, "[%s%s+4*%s%s]", dis_px, regnames[ 0x10 + sib_bs ], regnames[ 0x10 + sib_ix ], cdisp32); 
+                        break;
+                        
+                    case 0xc0: 
+                    
+                        sprintf(dis_rm, "[%s%s+8*%s%s]", dis_px, regnames[ 0x10 + sib_bs ], regnames[ 0x10 + sib_ix ], cdisp32); 
+                        break;
+                }                
+            }            
+        }
     }
 
     return n;
@@ -679,7 +827,17 @@ int disas(Uint32 address) {
 /* Вывод общего дизассемблера */
 void update() {
 
-    int i, j;
+    int i, j, bkeip = eip;
+    u64 ea = -1;
+    
+    // Взять указатель адреса
+    int opcode = get_opcode();
+    if (modrm_lookup[ opcode ]) {
+        get_modrm();                
+        ea = cpu_segment * 16 + effective; /* realmode */
+    }
+    eip = bkeip;
+    
     
     linebf(0, 16,  1280, 783, dac[3]); // Общий фон
 
@@ -765,11 +923,12 @@ void update() {
         
         for (j = 0; j < 16; j++) {
             
-            int ch = RAM[ dump_start + i*16 + j ];
+            int addr = dump_start + i*16 + j ;
+            int ch = RAM[ addr ];
             sprintf(dis_row, "%02X", ch );
-            
-            print(8*(90 + 3*j), 16*(3 + i), dis_row, dac[0]);
-            print_char(8*(138 + j), 16*(3 + i), ch, dac[0] );
+                        
+            print(8*(90 + 3*j), 16*(3 + i), dis_row, dac[ addr == ea ? 14 : 0 ]);
+            print_char(8*(138 + j), 16*(3 + i), ch, dac[ 0] );
             
         }
     }

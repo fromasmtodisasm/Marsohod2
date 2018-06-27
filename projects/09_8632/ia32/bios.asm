@@ -1,7 +1,8 @@
 
         org     0
         
-a:        
-        add     [$0080], al
+a:         
+
+        add     cl, al
         jmp     a
         
