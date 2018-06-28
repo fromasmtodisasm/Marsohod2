@@ -5,61 +5,60 @@ module main;
 // ---------------------------------------------------------------------
 
 reg         clk;
-always #0.5 clk         = ~clk;
+always #0.5 clk         = ~clk; // 100 Mhz
 
-initial begin clk = 0; #3250 $finish; end
+initial begin clk = 1; #3250 $finish; end
 initial begin $dumpfile("main.vcd"); $dumpvars(0, main); end
 
+// 20 bit 2^20 = ...
+reg [7:0] memory[ 1048576 ];
+
+wire [19:0] address;
+wire [ 7:0] data_out;
+reg  [ 7:0] data_in;
+reg  [ 7:0] data_tm;
+reg  [ 1:0] div   = 2'b00; // (2 битный счетчик) 00 01 10 11 
+reg         clk25 = 1'b0;
+
+// Инициализация. Из файла rom/rom.hex читается в регистры memory (8битные) с адреса 0
+initial begin $readmemh("rom/rom.hex", memory, 20'h0000); end
+
+// Тактовый делитель
+always @(posedge clk) begin
+
+    case (div)
+
+        /* 0->1 */ 2'b00: {div, clk25} <= 3'b01_0; 
+        /* 1->2 */ 2'b01: {div, clk25} <= 3'b10_0; 
+        /* 2->3 */ 2'b10: {div, clk25} <= 3'b11_1; 
+        /* 3->0 */ 2'b11: {div, clk25} <= 3'b00_1; 
+
+    endcase
+    
+end
+
+// Контроллер памяти
+always @(posedge clk) begin
+
+    // Запись в ЦПУ
+    data_in <= data_tm;
+    data_tm <= memory[ address ];
+
+    // Из ЦПУ
+    if (we) memory[ address ] <= data_out;
+
+end
+
 // ---------------------------------------------------------------------
 
-// Не инициализировать для Icarus Verilog
-wire init_en = 0;
+cpu CPU(
 
-// CPU
-wire kcpu; wire [31:0] A32; wire [ 7:0] Di; wire [ 7:0] Do; wire Dw; 
+    clk25,          // 25 Mhz | 100 Mhz
+    address,        // 20 bit (1mb) 46 kb
+    data_in,        // 8 bit данные из памяти
+    data_out,       // 8 bit данные в память
+    we              // write enable (=1) сигнал о том, что данные пишутся
 
-// SDRAM
-wire [11:0] sdram_addr;
-wire [ 1:0] sdram_bank;
-wire [15:0] sdram_dq;
-wire        sdram_ldqm;
-wire        sdram_udqm;
-wire        sdram_ras;
-wire        sdram_cas;
-wire        sdram_we;
-
-// VGA
-wire kvga; 
-wire [9:0]  vgax; wire [9:0]  vgay;
-wire [9:0]  vgad; wire        vgaw;
-
-sdram SDRAM(
-
-    /* Такты */
-    init_en, clk, kcpu, kvga,
-    
-    /* Интерфейс */
-    A32, Di, Do, Dw,
-    
-    /* Контроллер */
-    sdram_addr, sdram_bank, sdram_dq,
-    sdram_ldqm, sdram_udqm, 
-    sdram_ras,  sdram_cas, sdram_we,
-    
-    /* VGA, sdram_dq[7:0] --> внутренняя память */
-    vgax, vgay, vgad, vgaw
 );
-
-/* Эмуляция физического чипа SDRAM */
-sdramphys EMULSDRAM(
-    
-    clk,
-    sdram_addr, sdram_bank, sdram_dq,
-    sdram_ldqm, sdram_udqm, 
-    sdram_ras,  sdram_cas, sdram_we
-);
-
-
-// ---------------------------------------------------------------------
 
 endmodule
