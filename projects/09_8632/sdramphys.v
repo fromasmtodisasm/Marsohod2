@@ -91,4 +91,3 @@ always @(posedge clock) begin
 end
 
 endmodule
-

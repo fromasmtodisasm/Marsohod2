@@ -1,74 +1,32 @@
 [*]
 [*] GTKWave Analyzer v3.3.82 (w)1999-2017 BSI
-[*] Sun Jun 17 17:27:50 2018
+[*] Sun Jul  1 18:00:49 2018
 [*]
-[dumpfile] "/home/fox/Data/Project/fpga/Marsohod2/projects/09_8632/main.vcd"
-[dumpfile_mtime] "Sun Jun 17 17:25:21 2018"
-[dumpfile_size] 193595
-[savefile] "/home/fox/Data/Project/fpga/Marsohod2/projects/09_8632/main.gtkw"
-[timestart] 3688
-[size] 1920 1033
+[dumpfile] "/home/fox/marsohod2/projects/09_8632/main.vcd"
+[dumpfile_mtime] "Sun Jul  1 17:57:12 2018"
+[dumpfile_size] 86829
+[savefile] "/home/fox/marsohod2/projects/09_8632/main.gtkw"
+[timestart] 0
+[size] 1920 938
 [pos] -1 -1
-*-5.000000 3835 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-6.000000 150 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] main.
 [sst_width] 219
 [signals_width] 261
 [sst_expanded] 1
-[sst_vpaned_height] 307
+[sst_vpaned_height] 309
 @28
-main.SDRAM.clock
-main.SDRAM.kvga
+main.clk
+main.clk25
+@23
+main.CPU.m[7:0]
 @22
-main.SDRAM.x[11:0]
-main.SDRAM.init[11:0]
+main.address[19:0]
+main.data_in[7:0]
+main.CPU.opcode[8:0]
+main.CPU.ip[15:0]
 @28
-main.SDRAM.cinit[2:0]
-@800200
--RCW
-@28
-main.SDRAM.sdram_ras
-main.SDRAM.sdram_cas
-main.SDRAM.sdram_we
-@1000200
--RCW
-@22
-main.SDRAM.sdram_addr[11:0]
-@28
-main.SDRAM.sdram_bank[1:0]
-@c00022
-main.SDRAM.sdram_dq[15:0]
-@28
-(0)main.SDRAM.sdram_dq[15:0]
-(1)main.SDRAM.sdram_dq[15:0]
-(2)main.SDRAM.sdram_dq[15:0]
-(3)main.SDRAM.sdram_dq[15:0]
-(4)main.SDRAM.sdram_dq[15:0]
-(5)main.SDRAM.sdram_dq[15:0]
-(6)main.SDRAM.sdram_dq[15:0]
-(7)main.SDRAM.sdram_dq[15:0]
-(8)main.SDRAM.sdram_dq[15:0]
-(9)main.SDRAM.sdram_dq[15:0]
-(10)main.SDRAM.sdram_dq[15:0]
-(11)main.SDRAM.sdram_dq[15:0]
-(12)main.SDRAM.sdram_dq[15:0]
-(13)main.SDRAM.sdram_dq[15:0]
-(14)main.SDRAM.sdram_dq[15:0]
-(15)main.SDRAM.sdram_dq[15:0]
-@1401200
--group_end
-@28
-main.SDRAM.div[1:0]
-main.EMULSDRAM.latency[1:0]
-main.EMULSDRAM.bank[1:0]
-@22
-main.EMULSDRAM.row[11:0]
-main.EMULSDRAM.raddr[25:0]
-@28
-main.SDRAM.vgaw
-@22
-main.SDRAM.vgad[9:0]
-main.SDRAM.col[7:0]
-@29
-main.SDRAM.repeats[2:0]
+main.CPU.osize
+main.CPU.asize
 [pattern_trace] 1
 [pattern_trace] 0
