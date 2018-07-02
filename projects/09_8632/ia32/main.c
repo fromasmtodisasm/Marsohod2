@@ -41,7 +41,7 @@ int main(int argc, char* argv[]) {
 
                 // SDL_KEYUP
                 
-                /* Один кадр (1/600 */
+                /* Один кадр (1/60) */
                 case SDL_USEREVENT: 
 
                     redraw();
