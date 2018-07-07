@@ -8,14 +8,22 @@ module cpu(
 
 );
 
-// Состояния процессора
 // -------------------------------------------------
 
+// Состояния процессора
 `define  INIT       1'b0
 `define  FETCH      1'b1
 `define  MODRM      2'h2
 `define  EXEC       2'h3
 `define  SAVERES    2'h4
+
+// Процедуры
+`define  GENERAL    1'b0            // Основная
+`define  LOADIMM    1'b1            // Загрузка immediate
+`define  PUSH       2'h2            // Сохранение в стек
+`define  POP        2'h3            // Загрузка из стека
+`define  INTERRUPT  3'h4            // Вызов прерывания
+`define  WRITE      3'h5            // Запись в память
 
 // -------------------------------------------------
 
@@ -28,8 +36,8 @@ module cpu(
  *    05 33 44        ADD  AX, 0x4433
  */
 
-// 20 bit = 16 * cs + ip
-assign address = {cs, 4'b0000} + ip;
+// 20 bit = 16 * cs + ip или 16 * segment + ea
+assign address = {am ? segment : cs, 4'b0000} + (am ? ea : ip);
 
 // ------------------------------------
 reg [31:0] eax = 32'h0000_0000; // 0
@@ -41,7 +49,6 @@ reg [31:0] ebp = 32'h0000_0000; // 5
 reg [31:0] esi = 32'h0000_0000; // 6
 reg [31:0] edi = 32'h0000_0000; // 7
 
-// ------------------------------------
 reg [15:0] es = 16'h0000;
 reg [15:0] cs = 16'h0000;
 reg [15:0] ss = 16'h0000;
@@ -49,6 +56,8 @@ reg [15:0] ds = 16'h0000;
 // fs, gs -- не используются
 
 reg [15:0] ip = 16'h0000;
+// ------------------------------------
+
 
 /*
   0  CF    Флаг переноса
@@ -77,126 +86,303 @@ reg [ 7:0] modrm;
 // Состояние выполнения считывания операндов
 reg        mm;
 
+// Префиксы инструкции
 reg        flag_override;
 reg [15:0] segment;
+reg [31:0] ea;
+reg [31:0] eatmp;            // Временное хранение ea
 reg        osize;
 reg        asize;
 reg        repnz;
 reg        repz;
 
 // Указатели на регистры. На следующем такте будут значения регистров
-reg        Bit = 0;  // 0=8, 1=16/32
-reg [2:0]  A   = 0;
-reg [2:0]  B   = 0;
+reg        am        = 1'b0;   // Указатель на память 1=[segment:ea] или код 0=[cs: ip]
+reg        bitsize   = 0;     // 0=8, 1=16/32
+reg        direction = 0;     // 0=r/m, reg; 1=reg, r/m
+reg [2:0]  A         = 0;
+reg [2:0]  B         = 0;
 
-reg [31:0] RA; // RA = Registers[ A ]
-reg [31:0] RB; // RB = Registers[ B ]
+reg [ 3:0] rn        = 1'b0;   // Номер регистра на запись
+reg [31:0] rc        = 1'b0;   // То, что будет записано
+reg        w         = 1'b0;   // Указание на запись в регистр
+
+// Результаты и аргументы для процедур
+reg [2:0]  func      = 1'b0;   // ID процедуры
+reg [2:0]  phase     = 1'b0;   // Фаза выполнения процедуры
+reg [1:0]  immsize   = 1'b0;   // Размер Immediate (0=8, 1=16, 2=24, 3=32)
+reg [31:0] immresult = 1'b0;   // Результат прочтенного immediate
+
+// Значения регистров
+reg [31:0] RA;      // RA = Registers[ A ]
+reg [31:0] RB;      // RB = Registers[ B ]
+reg [31:0] Op1;     // Операнд 1 из ModRM
+reg [31:0] Op2;     // Операнд 2 из ModRM
 
 always @(posedge clk25) begin
 
-    case (m)
+    case (func)
 
-        // Инициализация инструкции перед выполнением
-        `INIT: begin
+        /* Процедура не выполняется; вместо нее исполняется инструкция */
+        `GENERAL: case (m)
 
-            m         <= 1'b1;
-            opcode[8] <= 1'b0; // Опкод
-            segment   <= ds;   // Сегмент по умолчанию
-            flag_override <= 1'b0; // Перегружен ли сегмент в этой инструкции
-            osize <= 1'b0; // 0 - 16bit, 1 - 32bit
-            asize <= 1'b0; // 0 - 16bit, 1 - 32bit
-            repnz <= 1'b0;
-            repz  <= 1'b0;
-            modrm <= 8'h00;
-            mm    <= 1'b0;
+            // Инициализация инструкции перед выполнением
+            `INIT: begin
 
-        end
+                m         <= 1'b1;
+                opcode[8] <= 1'b0;  // Опкод
+                segment   <= ds;    // Сегмент по умолчанию
+                flag_override <= 1'b0; // Перегружен ли сегмент в этой инструкции
+                osize <= 1'b0;      // 0 - 16bit, 1 - 32bit
+                asize <= 1'b0;      // 0 - 16bit, 1 - 32bit
+                repnz <= 1'b0;
+                repz  <= 1'b0;
+                modrm <= 8'h00;
+                mm    <= 1'b0;
+                am    <= 1'b0;
+                ea    <= 1'b0;
+                w     <= 1'b0;
+                rc    <= 1'b0;
+                phase <= 1'b0;
+                immresult <= 1'b0;
 
-        // Чтение и разбор, декодирование префиксов и самого опкода
-        `FETCH: begin
+            end
 
-            case (din)
+            // Чтение и разбор, декодирование префиксов и самого опкода
+            `FETCH: begin
 
-                /* Расширение опкода */
-                8'h0F: begin opcode[8] <= 1'b1; end
-                /* Префиксы для принудительного задания сегмента */
-                8'h26: begin segment <= es; flag_override <= 1'b1; end
-                8'h2E: begin segment <= cs; flag_override <= 1'b1; end
-                8'h36: begin segment <= ss; flag_override <= 1'b1; end
-                8'h3E: begin                flag_override <= 1'b1; end
-                8'h66: begin osize <= osize ^ 1'b1; end /* Переключение 16/32 регистров */
-                8'h67: begin asize <= asize ^ 1'b1; end /* Переключения 16/32 метода адресации */
-                8'hF0, 8'h64, 8'h65: begin /* тут ничего не будет делаться */ end
-                8'hF2: begin repnz <= 1'b1; end
-                8'hF3: begin repz  <= 1'b1; end
-                default: begin
+                case (din)
 
-                    opcode[7:0] <= din;
+                    /* Расширение опкода */
+                    8'h0F: begin opcode[8] <= 1'b1; end
+                    /* Префиксы для принудительного задания сегмента */
+                    8'h26: begin segment <= es; flag_override <= 1'b1; end
+                    8'h2E: begin segment <= cs; flag_override <= 1'b1; end
+                    8'h36: begin segment <= ss; flag_override <= 1'b1; end
+                    8'h3E: begin                flag_override <= 1'b1; end
+                    8'h66: begin osize <= osize ^ 1'b1; end /* Переключение 16/32 регистров */
+                    8'h67: begin asize <= asize ^ 1'b1; end /* Переключения 16/32 метода адресации */
+                    8'hF0, 8'h64, 8'h65: begin /* тут ничего не будет делаться */ end
+                    8'hF2: begin repnz <= 1'b1; end
+                    8'hF3: begin repz  <= 1'b1; end
+                    default: begin
 
-                    // Дополнительный набор
-                    if (opcode[8])
+                        opcode[7:0] <= din;
 
-                        casex (din)
+                        // Значения направления (reg, r/m) и размера регистров
+                        direction <= din[1];
+                        bitsize   <= din[0];
 
-                            8'b0000_01xx, // 04-07
-                            8'b0000_10xx, // 08-0B
-                            8'b0010_01x1, // 25,27
-                            8'b0011_10x1, // 39,3B
-                            8'b0011_0xxx, // 30-37
-                            8'b0011_11xx, // 3C-3F
-                            8'b1000_xxxx, // 80-8F
-                            8'b1010_x00x, // A0-A1, A8-A9
-                            8'b1010_x010, // A2,AA
-                            8'b1010_011x, // A6,A7
-                            8'b1100_1xxx, // C8-CF
-                            8'h0C, 8'h0E, 8'hFF,
-                            8'h77, 8'h7A, 8'h7B: m <= `EXEC;
-                            default: m <= `MODRM;
+                        // Дополнительный набор
+                        if (opcode[8])
 
-                        endcase
+                            casex (din)
 
-                    else // Основной набор инструкции
+                                8'b0000_01xx, // 04-07
+                                8'b0000_10xx, // 08-0B
+                                8'b0010_01x1, // 25,27
+                                8'b0011_10x1, // 39,3B
+                                8'b0011_0xxx, // 30-37
+                                8'b0011_11xx, // 3C-3F
+                                8'b1000_xxxx, // 80-8F
+                                8'b1010_x00x, // A0-A1, A8-A9
+                                8'b1010_x010, // A2,AA
+                                8'b1010_011x, // A6,A7
+                                8'b1100_1xxx, // C8-CF
+                                8'h0C, 8'h0E, 8'hFF,
+                                8'h77, 8'h7A, 8'h7B: m <= `EXEC;
+                                default: m <= `MODRM;
 
-                        casex (din)
+                            endcase
 
-                            8'b00xx_x0xx, // АЛУ
-                            8'b1000_xxxx, // 80-8F
-                            8'b1100_01xx, // C4-C7
-                            8'b1101_00xx, // D0-D3
-                            8'b1101_1xxx, // D8-DF Сопроцессор
-                            8'b1111_x11x, // F6-F7, FE-FF
-                            8'h62, 8'h63, 8'h69,
-                            8'h6B, 8'hC0, 8'hC1: m <= `MODRM;
-                            default: m <= `EXEC;
+                        else // Основной набор инструкции
 
-                        endcase
+                            casex (din)
+
+                                8'b00xx_x0xx, // АЛУ
+                                8'b1000_xxxx, // 80-8F
+                                8'b1100_01xx, // C4-C7
+                                8'b1101_00xx, // D0-D3
+                                8'b1101_1xxx, // D8-DF Сопроцессор
+                                8'b1111_x11x, // F6-F7, FE-FF
+                                8'h62, 8'h63, 8'h69,
+                                8'h6B, 8'hC0, 8'hC1: m <= `MODRM;
+                                default: m <= `EXEC;
+
+                            endcase
+
+                    end
+
+                endcase
+
+                ip <= ip + 1'b1;
+
+            end
+
+            // Исполнение ModRM
+            `MODRM: begin
+
+                /* 16-bit ModRM. Загрузка операндов */
+                if (asize == 1'b0) begin
+
+                    case (mm)
+
+                        /* Инициализирущий такт */
+                        1'b0: begin
+
+                            // Прочитать значения регистров на следующем такте
+                            A <= din[2:0];   // r/m-часть
+                            B <= din[5:3];   // reg-часть
+
+                            // Вычислим предварительный эффективный адрес (указатель в память)
+                            // Он может потом и не потребоваться, но вычислить его надо
+                            // -----------------------------------------
+
+                            case (din[2:0])
+
+                                3'b000: ea[15:0] <= ebx[15:0] + esi[15:0]; // bx + si
+                                3'b001: ea[15:0] <= ebx[15:0] + edi[15:0]; // bx + di
+                                3'b010: ea[15:0] <= ebp[15:0] + esi[15:0]; // bp + si
+                                3'b011: ea[15:0] <= ebp[15:0] + edi[15:0]; // bp + di
+                                3'b100: ea[15:0] <= esi[15:0];             // si
+                                3'b101: ea[15:0] <= edi[15:0];             // di
+                                3'b110: ea[15:0] <= (din[7:6] == 2'b00) ? 1'b0 : ebp[15:0]; // bp или disp16 (mod=0)
+                                3'b111: ea[15:0] <= ebx[15:0];             // bx
+
+                            endcase
+
+                            // При случае, когда нет префикса сегмента, установить сегмент по умолчанию (ss: или ds:)
+                            // Нужно для чтения значения операнда из памяти
+                            // -----------------------------------------
+
+                            if (flag_override == 1'b0) begin
+
+                                // [bp + si] или [bp + di]
+                                if (din[2:1] == 2'b01)
+                                    segment <= ss;
+
+                                // [bp + d8/16]
+                                else if (din[7:6] != 2'b00 && din[2:0] == 3'b110)
+                                    segment <= ss;
+
+                            end
+
+                            // Прочитать 8 или 16 битный Immediate (mod=1, mod=2) для disp8 / disp16
+                            // -----------------------------------------
+                            if (din[7:6] == 2'b01) begin
+
+                                func    <= `LOADIMM;
+                                immsize <= 2'b00; // +disp8
+
+                            end else if (din[7:6] == 2'b10) begin
+
+                                func    <= `LOADIMM;
+                                immsize <= 2'b01; // +disp16
+
+                            end else if (din[7:6] == 2'b00 && din[2:0] == 3'b110) begin
+                            
+                                func    <= `LOADIMM;
+                                immsize <= 2'b01; //  disp16
+                            
+                            end
+                            // -----------------------------------------
+
+                            // Инкремент IP и следующему такту
+                            mm <= 1'b1;
+                            ip <= ip + 1'b1;
+                            
+                            // Сохраним в кеше
+                            modrm <= din;
+
+                        end
+
+                        /* Чтение значения регистров и установка указателей на память, если нужно */
+                        1'b1: begin
+
+                            // В операнд 1 читается r/m, если direction = 0; аналогично, в Op2
+                            Op1 <= direction ? RB : RA;
+                            Op2 <= direction ? RA : RB;
+                            
+                            // Операнды находятся в регистрах, данные получены, перейти к исполнению
+                            case (modrm[7:6])
+                            
+                                /* Без +disp, но возможен disp16 */
+                                2'b00: if (modrm[2:0] == 3'b110) ea <= immresult[15:0]; 
+                                
+                                /* Disp8: -128 .. 127 */
+                                2'b01: ea[15:0] <= ea[15:0] + {{8{immresult[7]}}, immresult[7:0]};
+                                
+                                /* Disp16: -32768 .. 32767 */
+                                2'b10: ea[15:0] <= ea[15:0] + immresult[15:0];
+                                
+                                /* Начать исполнение */
+                                2'b11: m <= `EXEC;  
+                            
+                            endcase        
+                            
+                            /* Запуск функции скачивания из [segment:ea], только если r/m указывает в память */
+                            if (modrm[7:6] != 2'b11) begin
+                                                    
+                                am      <= 1'b1;
+                                func    <= `LOADIMM;
+                                eatmp   <= ea;
+                                
+                                // 32 bit если bitsize=1 и osize=1, иначе 8/16
+                                immsize <= osize & osize ? 2'b11 : bitsize;
+                                    
+                            end                    
+
+                            mm  <= 2'h2;
+
+                        end
+                        
+                        /* Записать прочитанный операнд из памяти */
+                        2'h2: begin
+                        
+                            if (direction) 
+                                 Op2 <= immresult; // reg, r/m
+                            else Op1 <= immresult; // r/m, reg
+                            
+                            ea <= eatmp; // Вернуть ea обратно
+                            m  <= `EXEC; // Перейти к исполнению
+                        
+                        end
+
+                    endcase
 
                 end
 
+            end
+
+            // Исполнение микрокода
+
+        endcase
+
+        /* Загрузка непосредственного значения из памяти */
+        `LOADIMM: begin
+
+            case (phase)
+
+                2'b00: begin immresult        <= din; end
+                2'b01: begin immresult[15:8]  <= din; end
+                2'b10: begin immresult[23:16] <= din; end
+                2'b11: begin immresult[31:24] <= din; end
+
             endcase
 
-            ip <= ip + 1'b1;
+            /* Выход из процедуры при достижений ФАЗА = БИТНОСТЬ */
+            if (phase == immsize) begin
+                func  <= 1'b0;
+                phase <= 1'b0;
+            end else begin
+                phase <= phase + 1'b1;
+            end
+
+            if (am)
+                 ea <= ea + 1'b1; /* Если Immediate, считывается из SEGMENT:EA */
+            else ip <= ip + 1'b1; /* Либо Immediate, считывается из CS:IP */
 
         end
-
-        // Исполнение ModRM
-        `MODRM: begin
-
-            modrm <= din;
-            
-            case (mm)
-            
-                1'b0: begin
-                
-                    // ... 
-                
-                end
-            
-            endcase
-
-        end
-
-        // Исполнение микрокода
 
     endcase
 
@@ -207,49 +393,64 @@ always @* begin
 
     // Таблица соответствий битностей
     // ------------------------------
-    // osize   Bit   Битность
-    //     0     0   8
-    //     0     1   16
-    //     1     0   8
-    //     1     1   32
+    // osize   bitsize   Битность
+    //     0     0       8
+    //     0     1       16
+    //     1     0       8
+    //     1     1       32
     // ------------------------------
 
     // Операнд 1: Извлечение значения регистра А из регистрового файла
     case (A)
-    
+
         //                        32 bit      16 bit       8 bit
-        3'h0: RA = Bit ? (osize ? eax[31:0] : eax[15:0]) : eax[7:0];  // eax | ax | al
-        3'h1: RA = Bit ? (osize ? ecx[31:0] : ecx[15:0]) : ecx[7:0];  // ecx | cx | cl
-        3'h2: RA = Bit ? (osize ? edx[31:0] : edx[15:0]) : edx[7:0];  // edx | dx | dl
-        3'h3: RA = Bit ? (osize ? ebx[31:0] : ebx[15:0]) : ebx[7:0];  // ebx | bx | bl
-        3'h4: RA = Bit ? (osize ? esp[31:0] : esp[15:0]) : eax[15:8]; // esp | sp | ah
-        3'h5: RA = Bit ? (osize ? ebp[31:0] : ebp[15:0]) : ecx[15:8]; // ebp | bp | ch
-        3'h6: RA = Bit ? (osize ? esi[31:0] : esi[15:0]) : edx[15:8]; // esi | si | dh
-        3'h7: RA = Bit ? (osize ? edi[31:0] : edi[15:0]) : ebx[15:8]; // edi | di | bh
-    
+        3'h0: RA = bitsize ? (osize ? eax[31:0] : eax[15:0]) : eax[7:0];  // eax | ax | al
+        3'h1: RA = bitsize ? (osize ? ecx[31:0] : ecx[15:0]) : ecx[7:0];  // ecx | cx | cl
+        3'h2: RA = bitsize ? (osize ? edx[31:0] : edx[15:0]) : edx[7:0];  // edx | dx | dl
+        3'h3: RA = bitsize ? (osize ? ebx[31:0] : ebx[15:0]) : ebx[7:0];  // ebx | bx | bl
+        3'h4: RA = bitsize ? (osize ? esp[31:0] : esp[15:0]) : eax[15:8]; // esp | sp | ah
+        3'h5: RA = bitsize ? (osize ? ebp[31:0] : ebp[15:0]) : ecx[15:8]; // ebp | bp | ch
+        3'h6: RA = bitsize ? (osize ? esi[31:0] : esi[15:0]) : edx[15:8]; // esi | si | dh
+        3'h7: RA = bitsize ? (osize ? edi[31:0] : edi[15:0]) : ebx[15:8]; // edi | di | bh
+
     endcase
-    
+
     // Операнд 1: Извлечение значения регистра B из регистрового файла
-    case (B) 
-    
+    case (B)
+
         //                        32 bit      16 bit       8 bit
-        3'h0: RB = Bit ? (osize ? eax[31:0] : eax[15:0]) : eax[7:0];  // eax | ax | al
-        3'h1: RB = Bit ? (osize ? ecx[31:0] : ecx[15:0]) : ecx[7:0];  // ecx | cx | cl
-        3'h2: RB = Bit ? (osize ? edx[31:0] : edx[15:0]) : edx[7:0];  // edx | dx | dl
-        3'h3: RB = Bit ? (osize ? ebx[31:0] : ebx[15:0]) : ebx[7:0];  // ebx | bx | bl
-        3'h4: RB = Bit ? (osize ? esp[31:0] : esp[15:0]) : eax[15:8]; // esp | sp | ah
-        3'h5: RB = Bit ? (osize ? ebp[31:0] : ebp[15:0]) : ecx[15:8]; // ebp | bp | ch
-        3'h6: RB = Bit ? (osize ? esi[31:0] : esi[15:0]) : edx[15:8]; // esi | si | dh
-        3'h7: RB = Bit ? (osize ? edi[31:0] : edi[15:0]) : ebx[15:8]; // edi | di | bh
-    
+        3'h0: RB = bitsize ? (osize ? eax[31:0] : eax[15:0]) : eax[7:0];  // eax | ax | al
+        3'h1: RB = bitsize ? (osize ? ecx[31:0] : ecx[15:0]) : ecx[7:0];  // ecx | cx | cl
+        3'h2: RB = bitsize ? (osize ? edx[31:0] : edx[15:0]) : edx[7:0];  // edx | dx | dl
+        3'h3: RB = bitsize ? (osize ? ebx[31:0] : ebx[15:0]) : ebx[7:0];  // ebx | bx | bl
+        3'h4: RB = bitsize ? (osize ? esp[31:0] : esp[15:0]) : eax[15:8]; // esp | sp | ah
+        3'h5: RB = bitsize ? (osize ? ebp[31:0] : ebp[15:0]) : ecx[15:8]; // ebp | bp | ch
+        3'h6: RB = bitsize ? (osize ? esi[31:0] : esi[15:0]) : edx[15:8]; // esi | si | dh
+        3'h7: RB = bitsize ? (osize ? edi[31:0] : edi[15:0]) : ebx[15:8]; // edi | di | bh
+
     endcase
 
 end
 
 // Запись в регистры на негативном фронте
-always @(negedge clk25) begin // 20 нс 
+always @(negedge clk25) begin // 20 нс
 
-    // ... 
+    if (w) begin
+    
+        case (rn)
+        
+            3'h0: if (bitsize & osize) eax <= rc; else if (bitsize) eax[15:0] <= rc[15:0]; else eax[ 7:0] <= rc[7:0];
+            3'h1: if (bitsize & osize) ecx <= rc; else if (bitsize) ecx[15:0] <= rc[15:0]; else ecx[ 7:0] <= rc[7:0];
+            3'h2: if (bitsize & osize) edx <= rc; else if (bitsize) edx[15:0] <= rc[15:0]; else edx[ 7:0] <= rc[7:0];
+            3'h3: if (bitsize & osize) ebx <= rc; else if (bitsize) ebx[15:0] <= rc[15:0]; else ebx[ 7:0] <= rc[7:0];
+            3'h4: if (bitsize & osize) esp <= rc; else if (bitsize) esp[15:0] <= rc[15:0]; else eax[15:8] <= rc[7:0];
+            3'h5: if (bitsize & osize) ebp <= rc; else if (bitsize) ebp[15:0] <= rc[15:0]; else ecx[15:8] <= rc[7:0];
+            3'h6: if (bitsize & osize) esi <= rc; else if (bitsize) esi[15:0] <= rc[15:0]; else edx[15:8] <= rc[7:0];
+            3'h7: if (bitsize & osize) edi <= rc; else if (bitsize) edi[15:0] <= rc[15:0]; else ebx[15:8] <= rc[7:0];
+        
+        endcase
+    
+    end
 
 end
 
