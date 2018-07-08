@@ -127,7 +127,8 @@ wire [15:0] ModRMDisp16 = ea[15:0] + immresult[15:0];
 wire [31:0] ModRMDisp8E = ea[31:0] + {{24{immresult[7]}}, immresult[7:0]};
 wire [31:0] ModRMDisp32 = ea[31:0] + immresult[31:0];
 
-// Требуется вызов функции для Displacement
+// Требуется вызов функции для displacement
+wire NeedDisp16 = (din[7:6] == 2'b01) | (din[7:6] == 2'b10) | (din[7:6] == 2'b00 && din[2:0] == 3'b110);
 wire NeedDisp32 = (din[7:6] == 2'b01) | (din[7:6] == 2'b10) | (din[7:6] == 2'b00 && din[2:0] == 3'b101);
 
 always @(posedge clk25) begin
@@ -287,22 +288,7 @@ always @(posedge clk25) begin
 
                         // Прочитать 8 или 16 битный Immediate (mod=1, mod=2) для disp8 / disp16
                         // -----------------------------------------
-                        if (din[7:6] == 2'b01) begin
-
-                            func    <= `LOADIMM;
-                            immsize <= 2'b00; // +disp8
-
-                        end else if (din[7:6] == 2'b10) begin
-
-                            func    <= `LOADIMM;
-                            immsize <= 2'b01; // +disp16
-
-                        end else if (din[7:6] == 2'b00 && din[2:0] == 3'b110) begin
-
-                            func    <= `LOADIMM;
-                            immsize <= 2'b01; //  disp16
-
-                        end
+                        if (NeedDisp16) {func, immsize} <= {`LOADIMM, din[6] ? 2'b00 : 2'b01};                    
                         // -----------------------------------------
 
                         mm    <= 1'b1;      // К следующему
