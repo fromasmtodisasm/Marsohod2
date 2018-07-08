@@ -17,6 +17,12 @@ int main(int argc, char* argv[]) {
 
     init_graphics();
 
+    trianglef( 100,100,  140,120,  140,180,  0xffff00);
+    trianglef( 100,100,  140,180,  100,200,  0x00ff00);
+    print(500, 150, "Hello World", 0x00ff00);
+
+    flip();
+
     while (1) {
 
         /* Снижение нагрузки на процессор */
@@ -31,6 +37,21 @@ int main(int argc, char* argv[]) {
                 case SDL_QUIT: {
                     return 0;
                 }
+                
+                /* Нажата мышь */
+                case SDL_MOUSEBUTTONDOWN:
+                
+                    break;
+
+                /* Кнопка мыши отжата */
+                case SDL_MOUSEBUTTONUP:
+                
+                    break;
+
+                /* Мышь перемещена */
+                case SDL_MOUSEMOTION:
+                
+                    break;
 
                 /* Нажата какая-то клавиша */
                 case SDL_KEYDOWN: {

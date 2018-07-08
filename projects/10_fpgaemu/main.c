@@ -37,6 +37,21 @@ int main(int argc, char* argv[]) {
                 case SDL_QUIT: {
                     return 0;
                 }
+                
+                /* Нажата мышь */
+                case SDL_MOUSEBUTTONDOWN:
+                
+                    break;
+
+                /* Кнопка мыши отжата */
+                case SDL_MOUSEBUTTONUP:
+                
+                    break;
+
+                /* Мышь перемещена */
+                case SDL_MOUSEMOTION:
+                
+                    break;
 
                 /* Нажата какая-то клавиша */
                 case SDL_KEYDOWN: {
