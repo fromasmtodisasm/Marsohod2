@@ -17,9 +17,8 @@ int main(int argc, char* argv[]) {
 
     init_graphics();
 
-    trianglef( 100,100,  140,120,  140,180,  0xffff00);
-    trianglef( 100,100,  140,180,  100,200,  0x00ff00);
-    print(500, 150, "Hello World", 0x00ff00);
+    trianglef( 100,100,  140,120,  140,180,  0xc0c0c0);
+    trianglef( 100,100,  140,180,  100,200,  0xc0c0c0);
 
     flip();
 

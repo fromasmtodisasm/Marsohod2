@@ -50,29 +50,35 @@ void block(int x1, int y1, int x2, int y2, uint color) {
 // https://ru.wikipedia.org/wiki/Алгоритм_Брезенхэма
 void line(int x1, int y1, int x2, int y2, uint color) {
 
+    // Инициализация смещений
+    int signx  = x1 < x2 ? 1 : -1;
+    int signy  = y1 < y2 ? 1 : -1;
     int deltax = x2 > x1 ? x2 - x1 : x1 - x2;
     int deltay = y2 > y1 ? y2 - y1 : y1 - y2;
+    int error  = deltax - deltay;
+    int error2;
 
-    int error = 0;
-    int deltaerr = deltay;
+    // Если линия - это точка
+    pset(x2, y2, color);    
 
-    int y = y1,
-        x = x1;
+    // Перебирать до конца
+    while ((x1 != x2) || (y1 != y2)) {
 
-    int dx = x2 > x1 ? 1 : -1;
-    int dy = y2 > y1 ? 1 : (y2 == y1 ? 0 : -1);
-
-    while (x != x2) {
-
-        pset(x, y, color);
-
-        error += deltaerr;
-        if (2 * error >= deltax) {
-            error -= deltax;
-            y += dy;
+        pset(x1, y1, color);
+        error2 = 2 * error;
+        
+        // Коррекция по X
+        if (error2 > -deltay) {
+            error -= deltay;
+            x1 += signx;
+        }
+        
+        // Коррекция по Y
+        if (error2 < deltax) {
+            error += deltax;
+            y1 += signy;
         }
 
-        x += dx;
     }
 }
 
