@@ -78,7 +78,6 @@ void line(int x1, int y1, int x2, int y2, uint color) {
             error += deltax;
             y1 += signy;
         }
-
     }
 }
 
@@ -137,6 +136,81 @@ void circlef(int xc, int yc, int radius, uint color) {
         }
 
         x++;
+    }
+}
+
+// Функция рисования треугольника через линии по алгоритму Брезенхэма
+// Преимущества: работает с целыми числами и точнее
+// Недосатки:    не так просто отрезать верхнюю невидимую область
+
+void trif(struct point2d np[], uint color) {
+    
+    int i, j;
+    struct point2d p[3], pt;
+    
+    // Сортировка точек по возрастанию Y
+    for (i = 0; i < 3; i++) p[i] = np[i];
+    for (i = 0; i < 3; i++) {
+        for (j = i + 1; j < 3; j++) {
+            if (p[i].y > p[j].y) { pt = p[i]; p[i] = p[j]; p[j] = pt; }
+        }
+    }
+    
+    // Общая линия AC
+    int acsx = p[0].x < p[2].x ? 1 : -1;
+    int acdx = p[2].x > p[0].x ? p[2].x - p[0].x : p[0].x - p[2].x;
+    int acdy = p[2].y > p[0].y ? p[2].y - p[0].y : p[0].y - p[2].y;
+    int acerror = acdx - acdy;
+    int acerror2, aberror2;    
+    int acx = p[0].x,     
+        acy = p[0].y;
+    
+    // Поставим точку
+    pset(acx, acy, color);
+    
+    for (i = 0; i < 2; i++) {
+        
+        // Линия полутреугольника AB
+        int absx = p[i  ].x < p[i+1].x ? 1 : -1;
+        int abdx = p[i+1].x > p[i].x ? p[i+1].x - p[i].x : p[i].x - p[i+1].x;
+        int abdy = p[i+1].y > p[i].y ? p[i+1].y - p[i].y : p[i].y - p[i+1].y;
+        int aberror = abdx - abdy;
+        int abx = p[i].x, 
+            aby = p[i].y;
+        
+        for (j = p[i].y; j < p[i+1].y; j++) {
+                    
+            while (1) { // AC: Искать первый Y+1
+                            
+                acerror2 = 2 * acerror;
+                if (acerror2 > -acdy) { acerror -= acdy; acx += acsx; }
+                if (acerror2 < acdx)  { acerror += acdx; acy += 1; break; }
+            }
+
+            while (1) { // AB: Искать первый Y+1
+                            
+                aberror2 = 2 * aberror;
+                if (aberror2 > -abdy) { aberror -= abdy; abx += absx; }
+                if (aberror2 <  abdx) { aberror += abdx; aby += 1; break; }
+            }
+            
+            // Невидимая линия за верхней частью экрана
+            if (acy < 0) continue;
+
+            // Сортировка x1, x2
+            int x1 = abx < acx ? abx : acx;
+            int x2 = abx < acx ? acx : abx;
+
+            // Рисование линии не за экраном и в правильном порядке
+            if (acy > SCREEN_H) return;
+            if (x1 < 0) x1 = 0;
+            if (x2 >= SCREEN_W) x2 = SCREEN_W - 1;
+            if (x1 >= SCREEN_W) continue;
+            if (x2 < 0) continue;
+            
+            // При уравнивании, нарисовать треугольник
+            line(x1, acy, x2, acy, color);                    
+        }
     }
 }
 

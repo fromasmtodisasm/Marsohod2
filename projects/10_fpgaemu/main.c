@@ -17,9 +17,10 @@ int main(int argc, char* argv[]) {
 
     init_graphics();
 
-    trianglef( 100,100,  140,120,  140,180,  0xc0c0c0);
-    trianglef( 100,100,  140,180,  100,200,  0xc0c0c0);
-
+    struct point2d pt[3] = { {200, -20}, {50, 150}, {1400, 400} };
+    
+    trif( pt, 0xffffff );
+    
     flip();
 
     while (1) {
