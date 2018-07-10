@@ -141,11 +141,11 @@ void circlef(int xc, int yc, int radius, uint color) {
 
 // Функция рисования треугольника через линии по алгоритму Брезенхэма
 // Преимущества: работает с целыми числами и точнее
-// Недосатки:    не так просто отрезать верхнюю невидимую область
+// Недостатки:   не так просто отрезать верхнюю невидимую область
 
 void trif(struct point2d np[], uint color) {
     
-    int i, j;
+    int i, j, k;
     struct point2d p[3], pt;
     
     // Сортировка точек по возрастанию Y
@@ -157,10 +157,10 @@ void trif(struct point2d np[], uint color) {
     }
     
     // Общая линия AC
-    int acsx = p[0].x < p[2].x ? 1 : -1;
-    int acdx = p[2].x > p[0].x ? p[2].x - p[0].x : p[0].x - p[2].x;
-    int acdy = p[2].y > p[0].y ? p[2].y - p[0].y : p[0].y - p[2].y;
-    int acerror = acdx - acdy;
+    int acsx = p[0].x < p[2].x ? 1 : -1; // Приращение X (-1, 1)
+    int acdx = p[2].x > p[0].x ? p[2].x - p[0].x : p[0].x - p[2].x; // = abs(C.x - A.x)
+    int acdy = p[2].y > p[0].y ? p[2].y - p[0].y : p[0].y - p[2].y; // = abs(C.y - A.y)
+    int acerror = acdx - acdy;           // Дельта ошибки
     int acerror2, aberror2;    
     int acx = p[0].x,     
         acy = p[0].y;
@@ -168,13 +168,14 @@ void trif(struct point2d np[], uint color) {
     // Поставим точку
     pset(acx, acy, color);
     
+    // Два полутреугольника
     for (i = 0; i < 2; i++) {
         
         // Линия полутреугольника AB
         int absx = p[i  ].x < p[i+1].x ? 1 : -1;
-        int abdx = p[i+1].x > p[i].x ? p[i+1].x - p[i].x : p[i].x - p[i+1].x;
-        int abdy = p[i+1].y > p[i].y ? p[i+1].y - p[i].y : p[i].y - p[i+1].y;
-        int aberror = abdx - abdy;
+        int abdx = p[i+1].x > p[i].x ? p[i+1].x - p[i].x : p[i].x - p[i+1].x; // = abs(B.x - A.x) либо abs(C.x - B.x)
+        int abdy = p[i+1].y > p[i].y ? p[i+1].y - p[i].y : p[i].y - p[i+1].y; // = abs(B.y - A.y) либо abs(C.y - B.y)
+        int aberror = abdx - abdy; // Дельта
         int abx = p[i].x, 
             aby = p[i].y;
         
@@ -187,7 +188,7 @@ void trif(struct point2d np[], uint color) {
                 if (acerror2 < acdx)  { acerror += acdx; acy += 1; break; }
             }
 
-            while (1) { // AB: Искать первый Y+1
+            while (1) { // AB, BC: Искать первый Y+1
                             
                 aberror2 = 2 * aberror;
                 if (aberror2 > -abdy) { aberror -= abdy; abx += absx; }
@@ -208,115 +209,8 @@ void trif(struct point2d np[], uint color) {
             if (x1 >= SCREEN_W) continue;
             if (x2 < 0) continue;
             
-            // При уравнивании, нарисовать треугольник
-            line(x1, acy, x2, acy, color);                    
-        }
-    }
-}
-
-// Рисование треугольника
-void trianglef(int x1, int y1, int x2, int y2, int x3, int y3, uint color) {
-
-    int i, j, k;
-    struct point2d p[3], tp;
-
-    // Массив для 3 точек для того, чтобы отсортировать их по Y
-    p[0].x = x1; p[0].y = y1;
-    p[1].x = x2; p[1].y = y2;
-    p[2].x = x3; p[2].y = y3;
-
-    // Сортировка по Y точек p[]
-    for (i = 0; i < 3; i++) {
-        for (j = i + 1; j < 3; j++) {
-            if (p[i].y > p[j].y) {
-                tp = p[i];
-                p[i] = p[j];
-                p[j] = tp;
-            }
-        }
-    }
-
-    if (p[2].y == p[0].y) {
-        line(p[0].x, p[0].y, p[2].x, p[0].y, color);
-        return;
-    }
-
-    // Инкрементирование x1-x3
-    float ac  = (float)(p[2].x - p[0].x) / (float)(p[2].y - p[0].y);
-
-    float xa  = (float)p[0].x;
-    float xb  = (float)p[0].x;
-    int   yi  = p[0].y;
-
-    // Рисуем 2 треугольника
-
-    // p[0].y -> p[1].y
-    // p[1].y -> p[2].y
-
-    for (i = 0; i < 2; i++) {
-
-        int h = p[i+1].y - p[i].y;
-
-        // Если полу-треугольник = линия
-        if (p[i+1].y == p[i].y) {
-            line((int)xa, p[i].y, (int)xb, p[i].y, color);
-            continue;
-        }
-
-        // Расчет локального смещения на каждую линию (инкрементально)
-        float ab = (float)(p[i+1].x - p[i].x) / (float)(p[i+1].y - p[i].y);
-
-        // Полный треугольник за верхней частью экрана
-        if (p[i+1].y < 0) {
-
-            k   = p[i+1].y - p[i].y;
-            yi += k;
-            xa += k * ab;
-            xb += k * ac;
-            continue;
-        }
-
-        // Частично за верхней частью
-        if (p[i].y < 0) {
-
-            k   = -p[i].y;
-            h  -= k;
-            yi += k;
-            xa += k * ab;
-            xb += k * ac;
-        }
-
-        // Рисование горизонтальных линии на один полутреугольник
-        for (j = 0; j < h; j++) {
-
-            int x1i = (int)xa;
-            int x2i = (int)xb;
-
-            // Инкременты для рисования треугольника
-            yi++;
-            xa += ab;
-            xb += ac;
-
-            // Выход из цикла, если превысил высоту
-            if (yi >= SCREEN_H) {
-                break;
-            }
-
-            // xi1 будет <= x2i (слева направо)
-            if (x1i > x2i) { k = x1i; x1i = x2i; x2i = k; }
-
-            // Проверка условий на отрисовку
-            if (x1i < 0) x1i = 0;                     // Левая часть за левой стороной экрана
-            if (x2i >= SCREEN_W) x2i = SCREEN_W - 1;  // Правая часть за правой стороной экрана
-            if (x1i >= SCREEN_W) continue;            // Левая часть за правой стороной
-            if (x2i < 0) continue;                    // Правая часть за левой стороной
-
-            line(x1i, yi, x2i, yi, color);
-        }
-
-        // Выход из цикла, если превысил высоту
-        if (yi >= SCREEN_H) {
-            break;
+            // Рисование сплошной линии в треугольнике
+            for (k = x1; k <= x2; k++) pset(k, acy, color);
         }
     }
 }

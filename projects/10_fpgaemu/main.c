@@ -17,7 +17,7 @@ int main(int argc, char* argv[]) {
 
     init_graphics();
 
-    struct point2d pt[3] = { {200, -20}, {50, 150}, {1400, 400} };
+    struct point2d pt[3] = { {200, -20}, {50, 150}, {1400, 800} };
     
     trif( pt, 0xffffff );
     
