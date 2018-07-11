@@ -2,6 +2,9 @@
 
 #include "SDL.h"
 
+#define SCREEN_W    1280
+#define SCREEN_H    800
+
 #include "libsdl/defines.h"
 #include "libsdl/fonts.h"
 #include "libsdl/graph.c"

@@ -1,12 +1,8 @@
-// Размеры окна
-#define SCREEN_W    1280 // 640 x 2
-#define SCREEN_H    800  // 400 x 2
-
 SDL_Surface * sdl_screen;
 
-void init_graphics() {
+void init_graphics(char* name) {
     sdl_screen = SDL_SetVideoMode(SCREEN_W, SCREEN_H, 32, SDL_HWSURFACE | SDL_DOUBLEBUF);
-    SDL_WM_SetCaption( "Симулятор ПЛИС Cyclone III", 0 );
+    SDL_WM_SetCaption( name, 0 );
 }
 
 // Рисуем точку

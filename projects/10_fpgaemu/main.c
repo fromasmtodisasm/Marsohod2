@@ -2,6 +2,9 @@
 
 #include "SDL.h"
 
+#define SCREEN_W    1280
+#define SCREEN_H    800
+
 #include "libsdl/defines.h"
 #include "libsdl/fonts.h"
 #include "libsdl/graph.c"
@@ -14,7 +17,7 @@ int main(int argc, char* argv[]) {
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER);
     SDL_EnableUNICODE(1);
 
-    init_graphics();
+    init_graphics("Симулятор FPGA");
 
     struct point2d pt[3] = { {200, -20}, {50, 150}, {1400, 800} };
     trif( pt, 0xffffff );
