@@ -2,11 +2,10 @@
 
 #include "SDL.h"
 
-#include "defines.h"
-#include "fonts.h"
-
-#include "graph.c"
-#include "event.c"
+#include "libsdl/defines.h"
+#include "libsdl/fonts.h"
+#include "libsdl/graph.c"
+#include "libsdl/event.c"
 
 int main(int argc, char* argv[]) {
 
@@ -18,9 +17,7 @@ int main(int argc, char* argv[]) {
     init_graphics();
 
     struct point2d pt[3] = { {200, -20}, {50, 150}, {1400, 800} };
-    
     trif( pt, 0xffffff );
-    
     flip();
 
     while (1) {
