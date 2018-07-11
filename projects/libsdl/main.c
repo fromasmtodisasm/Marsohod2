@@ -2,11 +2,10 @@
 
 #include "SDL.h"
 
-#include "defines.h"
-#include "fonts.h"
-
-#include "graph.c"
-#include "event.c"
+#include "libsdl/defines.h"
+#include "libsdl/fonts.h"
+#include "libsdl/graph.c"
+#include "libsdl/event.c"
 
 int main(int argc, char* argv[]) {
 
@@ -16,11 +15,6 @@ int main(int argc, char* argv[]) {
     SDL_EnableUNICODE(1);
 
     init_graphics();
-
-    trianglef( 100,100,  140,120,  140,180,  0xffff00);
-    trianglef( 100,100,  140,180,  100,200,  0x00ff00);
-    print(500, 150, "Hello World", 0x00ff00);
-
     flip();
 
     while (1) {
@@ -37,20 +31,20 @@ int main(int argc, char* argv[]) {
                 case SDL_QUIT: {
                     return 0;
                 }
-                
+
                 /* Нажата мышь */
                 case SDL_MOUSEBUTTONDOWN:
-                
+
                     break;
 
                 /* Кнопка мыши отжата */
                 case SDL_MOUSEBUTTONUP:
-                
+
                     break;
 
                 /* Мышь перемещена */
                 case SDL_MOUSEMOTION:
-                
+
                     break;
 
                 /* Нажата какая-то клавиша */
