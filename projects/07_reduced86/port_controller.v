@@ -1,20 +1,20 @@
 module port_controller(
 
     input  wire         clock50,
-    input  wire  [15:0] port_addr,  
+    input  wire  [15:0] port_addr,
     output reg   [15:0] port_in,
     input  wire  [15:0] port_out,
     input  wire         port_bit,   /* Битность */
     input  wire         port_clk,   /* Запись в порт */
     input  wire         port_read,  /* Чтение из порта */
-    
+
     /* Данные с PS/2 контроллера */
     input  wire [7:0]   ps2_data,
     input  wire         ps2_data_clk,
-    
+
     /* Положение курсора */
     output reg [10:0]   cursor
-    
+
 );
 
 /* Графический индекс */
@@ -27,10 +27,10 @@ initial     cursor = 11'h0;
 always @* begin
 
     case (port_addr)
-    
+
         16'h0060, 16'h0064: port_in = {8'h00, keyb_data};
         default: port_in = 1'b0;
-        
+
     endcase
 
 end
@@ -51,7 +51,7 @@ reg       keyb_unpressed = 1'b0;  /* Признак "отжатой" клава�
 always @(*) begin
 
     case (ps2_data)
-    
+
         /* A   */ 8'h1C: keyb_xt = 8'h1E;
         /* B   */ 8'h32: keyb_xt = 8'h30;
         /* C   */ 8'h21: keyb_xt = 8'h2E;
@@ -87,7 +87,7 @@ always @(*) begin
         /* 6   */ 8'h36: keyb_xt = 8'h07;
         /* 7   */ 8'h3D: keyb_xt = 8'h08;
         /* 8   */ 8'h3E: keyb_xt = 8'h09;
-        /* 9   */ 8'h46: keyb_xt = 8'h0A;        
+        /* 9   */ 8'h46: keyb_xt = 8'h0A;
         /* ~   */ 8'h0E: keyb_xt = 8'h29;
         /* -   */ 8'h4E: keyb_xt = 8'h0C;
         /* =   */ 8'h55: keyb_xt = 8'h0D;
@@ -102,7 +102,7 @@ always @(*) begin
         /* BS  */ 8'h66: keyb_xt = 8'h0E;
         /* SPC */ 8'h29: keyb_xt = 8'h39;
         /* TAB */ 8'h0D: keyb_xt = 8'h0F;
-        
+
         /* Кнопки модификации */
         /* CAP */ 8'h58: keyb_xt = 8'h3A; /* CAPS LOCK */
         /* LSH */ 8'h12: keyb_xt = 8'h2A; /* LEFT SHIFT */
@@ -113,9 +113,9 @@ always @(*) begin
         /* RWI */ 8'h27: keyb_xt = 8'h5C; /* RIGHT WIN */
         /* MNU */ 8'h2F: keyb_xt = 8'h5D; /* MENU */
         /* ENT */ 8'h5A: keyb_xt = 8'h1C; /* ENTER */
-        
-        /* Функциональная панель */        
-        /* ESC */ 8'h76: keyb_xt = 8'h01;        
+
+        /* Функциональная панель */
+        /* ESC */ 8'h76: keyb_xt = 8'h01;
         /* F1  */ 8'h05: keyb_xt = 8'h3B;
         /* F2  */ 8'h06: keyb_xt = 8'h3C;
         /* F3  */ 8'h04: keyb_xt = 8'h3D;
@@ -129,13 +129,13 @@ always @(*) begin
         /* F11 */ 8'h78: keyb_xt = 8'h57;
         /* F12 */ 8'h07: keyb_xt = 8'h58;
         /* SCL */ 8'h7E: keyb_xt = 8'h46;
-        
+
         /* Цифровая клавиатура */
         /* NUM */ 8'h77: keyb_xt = 8'h45;
         /* *   */ 8'h7C: keyb_xt = 8'h37;
         /* -   */ 8'h7B: keyb_xt = 8'h4A;
         /* +   */ 8'h79: keyb_xt = 8'h4E;
-        /* .   */ 8'h71: keyb_xt = 8'h53;                
+        /* .   */ 8'h71: keyb_xt = 8'h53;
         /* 0   */ 8'h70: keyb_xt = 8'h52;
         /* 1   */ 8'h69: keyb_xt = 8'h4F;
         /* 2   */ 8'h72: keyb_xt = 8'h50;
@@ -146,10 +146,10 @@ always @(*) begin
         /* 7   */ 8'h6C: keyb_xt = 8'h47;
         /* 8   */ 8'h75: keyb_xt = 8'h48;
         /* 9   */ 8'h7D: keyb_xt = 8'h49;
-        
+
         /* E0, E1, ... */
         default: keyb_xt = ps2_data;
-        
+
     endcase
 
 end
@@ -162,20 +162,20 @@ always @(posedge clock50) begin
 
     // Новые данные присутствуют. Асинхронный прием.
     if (ps2_data_clk) begin
-    
+
         /* Этот скан-код является кодом AT, который сигнализирует, что
            клавиша отжимается. Для преобразования в XT-скан код, не нужно
            показывать, что эта клавиша "отжата" */
-           
+
         if (ps2_data == 8'hF0) begin
-        
+
             keyb_unpressed <= 1'b1;
 
         end else begin
-        
+
             /* Если keyb_ready=0, то перебросить в 1, иначе оставить как 1 */
-            keyb_ready1 <= keyb_ready1 ^ keyb_ready ^ 1'b1; 
-            
+            keyb_ready1 <= keyb_ready1 ^ keyb_ready ^ 1'b1;
+
             /* Запись сконвертированного из AT -> XT */
             /* Если предыдущий скан-код - это признак "отжатия" клавиши, то записать 1 в 7-й бит */
             keyb_char   <= keyb_unpressed ? {1'b1, keyb_xt[6:0] } : keyb_xt;
@@ -184,30 +184,30 @@ always @(posedge clock50) begin
             keyb_unpressed <= 1'b0;
 
         end
-        
+
     end
-        
+
     // Только что было чтение из порта (на обратном фронте)
     if ({keyb_jread[0], port_read} == 2'b10) begin
-    
+
         case (port_addr)
-        
+
             /* Порт данных */
             16'h0060: begin
-            
+
                 /* Скопируем последний char */
-                keyb_data   <= keyb_char;       
-                
+                keyb_data   <= keyb_char;
+
                 /* Сброс статуса для порта 64h */
-                keyb_ready2 <= keyb_ready2 ^ keyb_ready; 
-                
+                keyb_ready2 <= keyb_ready2 ^ keyb_ready;
+
             end
-            
+
             /* Порт статуса */
             16'h0064: keyb_data <= {7'h0, keyb_ready};
-            
+
         endcase
-        
+
     end
 
 end
@@ -216,18 +216,18 @@ end
 always @(negedge port_clk) begin
 
     case (port_addr)
-    
+
         /* Index */
         16'h03d4: begin g_index <= port_out[3:0]; end
-        
+
         /* Data */
         16'h03d5: case (g_index)
-            
+
             4'hE: begin cursor[10:8] <= port_out[2:0]; end /* HI cursor pos */
             4'hF: begin cursor[7:0]  <= port_out[7:0]; end /* LO cursor pos */
-            
+
         endcase
-    
+
     endcase
 
 end
