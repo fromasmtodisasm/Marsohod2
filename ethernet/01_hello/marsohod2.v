@@ -68,13 +68,23 @@ pll u0(
 );
 // --------------------------------------------------------------------------
 
+rtlget eth(
+
+    .rtl_clk  (RTL_RXCLK),
+	.rtl_rxd  (RTL_RXD),
+	.rtl_rxdv (RTL_RXDV)
+    
+);
+
+// --------------------------------------------------------------------------
+
 // ќбъ€вл€ем нужные провода
-wire [11:0] adapter_font;
+wire [10:0] adapter_font;
 wire [ 7:0] adapter_data;
 wire [11:0] font_char_addr;
 wire [ 7:0] font_char_data;
 
-text8025 u0vga(
+text8050 u0vga(
 
 	.clk	(CLOCK25MHZ),	
 	.red 	(VGA_RED),
