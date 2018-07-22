@@ -54,8 +54,19 @@ module marsohod2(
 
 );
 // --------------------------------------------------------------------------
-
 assign RTL_RESETB = 1;
 assign RTL_MDC    = 0;
+assign RTL_XI     = CLOCK25MHZ & LOCKED;
+wire   LOCKED;
+wire   CLOCK25MHZ;
+
+pll u0(
+    .clk    (CLK100MHZ),
+    .clk25  (CLOCK25MHZ),
+    .locked (LOCKED)
+);
+// --------------------------------------------------------------------------
+
+
 
 endmodule

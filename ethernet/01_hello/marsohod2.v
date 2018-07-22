@@ -54,26 +54,60 @@ module marsohod2(
 
 );
 // --------------------------------------------------------------------------
-
 assign RTL_RESETB = 1;
 assign RTL_MDC    = 0;
+assign RTL_XI     = CLOCK25MHZ & LOCKED;
 
-// Частота 25Mhz для RTL
-assign RTL_XI = clk25[1];
+wire   LOCKED;
+wire   CLOCK25MHZ;
 
-reg [1:0] clk25; always @(posedge CLK100MHZ) clk25 <= clk25 + 1'b1;
+pll u0(
+    .clk    (CLK100MHZ),
+    .clk25  (CLOCK25MHZ),
+    .locked (LOCKED)
+);
+// --------------------------------------------------------------------------
+
+// Объявляем нужные провода
+wire [11:0] adapter_font;
+wire [ 7:0] adapter_data;
+wire [11:0] font_char_addr;
+wire [ 7:0] font_char_data;
+
+text8025 u0vga(
+
+	.clk	(CLOCK25MHZ),	
+	.red 	(VGA_RED),
+	.green	(VGA_GREEN),
+	.blue	(VGA_BLUE),
+	.hs		(VGA_HS),
+	.vs		(VGA_VS),
+    
+    // Источник знакогенератора
+    .adapter_font (adapter_font),
+    .adapter_data (adapter_data),
+    
+    // Сканирование символов
+    .font_char_addr (font_char_addr),
+    .font_char_data (font_char_data)
+
+);
+
+// Здесь хранятся шрифты (знакогенератор)
+textfont u1vga(
+
+    .clock      (CLK100MHZ),    // Тактовая частота - 100 Мгц для памяти
+    .addr_rd    (adapter_font), // Адрес, чтобы узнать значение следующих 8 бит для шрифта
+    .q          (adapter_data)  // Здесь будет это значение через 2 такта на скорости 100 Мгц
+);
 
 
-reg [31:0] T;
+// Информация о символах и атрибутах
+textram u2vga(
 
-// Прием нибблов
-always @(posedge RTL_RXCLK) begin
-
-    if (RTL_RXDV) begin
-        LED <= {T[15:12]}; // T[11:8]; // ;
-        T <= T + 1;
-    end
-
-end
+    .clock      (CLK100MHZ),      // Тактовая частота - 100 Мгц для памяти
+    .addr_rd    (font_char_addr), // В памяти сначала хранится символ, потом его цвет
+    .q          (font_char_data)  // Тут будет результат 
+);
 
 endmodule
