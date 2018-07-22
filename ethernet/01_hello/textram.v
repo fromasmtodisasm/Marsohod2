@@ -1,11 +1,12 @@
 // synopsys translate_off
 `timescale 1 ps / 1 ps
 // synopsys translate_on
-module textram (clock, addr_rd, addr_wr, data_wr, wren, q, qw);
+module textram (clock, addr_rd, addr_wr, data_wr, wren, q, qw, aclr);
 input    clock;
 input    [11:0] addr_wr;
 input    [7:0] data_wr;
 input          wren;
+input          aclr;
 input    [11:0] addr_rd;
 output   [7:0] q;
 output   [7:0] qw;
@@ -23,7 +24,7 @@ altsyncram	altsyncram_component (
     .data_b (data_wr),
     .q_a (sub_wire0),
     .q_b (sub_wire1),
-    .aclr0 (1'b0),
+    .aclr0 (aclr),
     .aclr1 (1'b0),
     .addressstall_a (1'b0),
     .addressstall_b (1'b0),
@@ -50,7 +51,7 @@ defparam
     altsyncram_component.numwords_a = 4096,
     altsyncram_component.numwords_b = 4096,
     altsyncram_component.operation_mode = "BIDIR_DUAL_PORT",
-    altsyncram_component.outdata_aclr_a = "NONE",
+    altsyncram_component.outdata_aclr_a = "CLEAR0",
     altsyncram_component.outdata_aclr_b = "NONE",
     altsyncram_component.outdata_reg_a = "CLOCK0",
     altsyncram_component.outdata_reg_b = "CLOCK0",

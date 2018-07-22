@@ -20,11 +20,5 @@ ADDRESS_RADIX=HEX;
 DATA_RADIX=HEX;
 
 CONTENT BEGIN
-	0000  :   30;
-	0001  :   31;
-	0002  :   B0;
-	0003  :   B2;
-	0004  :   30;
-	0005  :   32;
-	[0006..0FFF]  :   20;
+	[0000..0FFF]  :   20;
 END;
